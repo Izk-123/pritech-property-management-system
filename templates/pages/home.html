@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}Malawi Property SaaS{% endblock %}
+
+{% block content %}
+
+{# ── HERO ────────────────────────────────────────────────── #}
+<section class="relative overflow-hidden px-4 pb-16 pt-14 sm:px-6 sm:pt-20 lg:pt-24">
+  <div class="mx-auto max-w-3xl text-center">
+
+    <div data-animate="zoom-in" data-animate-now data-hover="pop"
+         class="mx-auto mb-6 inline-flex items-center gap-2 rounded-full border
+                border-slate-200 bg-white/70 px-3.5 py-1.5 text-xs font-medium
+                text-slate-600 shadow-sm backdrop-blur
+                dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
+      <span class="relative flex h-1.5 w-1.5">
+        <span class="absolute inline-flex h-full w-full animate-pulse-ring rounded-full bg-emerald-400"></span>
+        <span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+      </span>
+      {% trans "Hotels, lodges, rentals & property for sale" %}
+    </div>
+
+    <h1 data-animate="blur-in" data-animate-now data-animate-duration="0.9"
+        class="text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-5xl">
+      {% trans "Find your place in" %}
+      <span class="text-gradient animate-gradient-x">{% trans "Malawi." %}</span>
+    </h1>
+
+    <p data-animate="fade-up" data-animate-now data-animate-delay="180"
+       class="mx-auto mt-5 max-w-xl text-base leading-relaxed text-slate-500
+              dark:text-slate-400 sm:text-lg">
+      {% trans "Browse verified lodges, hotels, apartments and rentals across every district — with live availability and pricing." %}
+    </p>
+
+    <div data-stagger="0.1" data-animate-immediate
+         class="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+      <a href="{% url 'properties:list' %}"
+         data-animate="fade-up" data-press data-hover="grow"
+         class="btn btn-primary w-full px-7 py-3 text-base sm:w-auto">
+        {% trans "Browse properties" %}
+        <svg viewBox="0 0 24 24" fill="none" class="h-4 w-4" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 12h14M13 6l6 6-6 6" />
+        </svg>
+      </a>
+      <a href="/admin/"
+         data-animate="fade-up" data-press data-hover="lift"
+         class="btn btn-ghost w-full border border-slate-200 px-7 py-3 text-base
+                dark:border-white/10 sm:w-auto">
+        {% trans "Staff login" %}
+      </a>
+    </div>
+
+    <p data-animate="fade-up" data-animate-now data-animate-delay="420"
+       class="mt-8 text-xs font-medium uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
+      {% trans "Lilongwe · Blantyre · Mzuzu · Mangochi · Zomba" %}
+    </p>
+  </div>
+</section>
+
+{# ── BROWSE SHORTCUTS ────────────────────────────────────── #}
+<section class="px-4 pb-20 sm:px-6 lg:px-8">
+  <div class="mx-auto max-w-5xl">
+
+    <div data-stagger="0.09" class="grid gap-4 sm:grid-cols-3">
+
+      <a href="{% url 'properties:list' %}?type=HOTEL"
+         data-animate="fade-up" data-hover="lift"
+         class="card group text-center">
+        <div class="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-xl
+                    bg-primary-500/10 text-primary-600 transition-transform duration-300
+                    group-hover:scale-110 dark:bg-primary-500/15 dark:text-primary-400">
+          <svg viewBox="0 0 24 24" fill="none" class="h-5 w-5" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6" />
+          </svg>
+        </div>
+        <h3 class="text-base font-semibold">{% trans "Hotels & Lodges" %}</h3>
+        <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          {% trans "Rooms by the lake and in the city." %}
+        </p>
+      </a>
+
+      <a href="{% url 'properties:list' %}?type=APARTMENT"
+         data-animate="fade-up" data-hover="lift"
+         class="card group text-center">
+        <div class="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-xl
+                    bg-emerald-500/10 text-emerald-600 transition-transform duration-300
+                    group-hover:scale-110 dark:bg-emerald-500/15 dark:text-emerald-400">
+          <svg viewBox="0 0 24 24" fill="none" class="h-5 w-5" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="4" y="3" width="16" height="18" rx="2" />
+            <path d="M8 7h2M8 11h2M8 15h2M14 7h2M14 11h2M14 15h2" />
+          </svg>
+        </div>
+        <h3 class="text-base font-semibold">{% trans "Apartments" %}</h3>
+        <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          {% trans "Long-stay rentals and city flats." %}
+        </p>
+      </a>
+
+      <a href="{% url 'properties:list' %}?type=HOUSE"
+         data-animate="fade-up" data-hover="lift"
+         class="card group text-center">
+        <div class="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-xl
+                    bg-amber-500/10 text-amber-600 transition-transform duration-300
+                    group-hover:scale-110 dark:bg-amber-500/15 dark:text-amber-400">
+          <svg viewBox="0 0 24 24" fill="none" class="h-5 w-5" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 10.5 12 3l9 7.5" />
+            <path d="M5 9.5V21h14V9.5" />
+            <path d="M10 21v-5h4v5" />
+          </svg>
+        </div>
+        <h3 class="text-base font-semibold">{% trans "Houses" %}</h3>
+        <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          {% trans "Family homes, rentals and sales." %}
+        </p>
+      </a>
+    </div>
+  </div>
+</section>
+
+{% endblock %}

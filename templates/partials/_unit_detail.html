@@ -1,0 +1,74 @@
+{% load i18n %}
+<div class="card animate-pop-in relative">
+
+  {# close button #}
+  <button type="button"
+          onclick="document.getElementById('unit-detail-slot').innerHTML=''"
+          aria-label="{% trans 'Close' %}"
+          class="absolute right-3 top-3 grid h-8 w-8 place-items-center rounded-lg
+                 text-slate-400 transition-colors hover:bg-slate-100
+                 hover:text-slate-600 dark:hover:bg-white/10 dark:hover:text-slate-200">
+    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M18 6 6 18M6 6l12 12" />
+    </svg>
+  </button>
+
+  <div class="mb-4 flex items-start justify-between pr-10">
+    <div>
+      <h3 class="text-lg font-semibold">{{ unit.identifier }}</h3>
+      <p class="text-sm text-slate-500 dark:text-slate-400">
+        {{ unit.get_unit_type_display }} · {{ unit.property.name }}
+      </p>
+    </div>
+    <span class="chip {% if unit.status == 'AVAIL' %}chip-green{% else %}chip-slate{% endif %}">
+      {{ unit.get_status_display }}
+    </span>
+  </div>
+
+  <dl class="mb-4 grid grid-cols-2 gap-3 text-sm">
+    <div>
+      <dt class="text-slate-500 dark:text-slate-400">{% trans "Adults" %}</dt>
+      <dd class="font-medium">{{ unit.capacity_adults }}</dd>
+    </div>
+    <div>
+      <dt class="text-slate-500 dark:text-slate-400">{% trans "Children" %}</dt>
+      <dd class="font-medium">{{ unit.capacity_children }}</dd>
+    </div>
+    <div>
+      <dt class="text-slate-500 dark:text-slate-400">{% trans "Beds" %}</dt>
+      <dd class="font-medium">{{ unit.bed_count }}</dd>
+    </div>
+    {% if unit.floor %}
+    <div>
+      <dt class="text-slate-500 dark:text-slate-400">{% trans "Floor" %}</dt>
+      <dd class="font-medium">{{ unit.floor }}</dd>
+    </div>
+    {% endif %}
+  </dl>
+
+  {% if unit.amenities.all %}
+  <div class="mb-4">
+    <h4 class="mb-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+      {% trans "Amenities" %}
+    </h4>
+    <div class="flex flex-wrap gap-1">
+      {% for amenity in unit.amenities.all %}
+      <span class="chip chip-slate">{{ amenity.name }}</span>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="border-t border-slate-100 pt-3 dark:border-slate-700">
+    <p class="text-xl font-bold text-primary-600 dark:text-primary-400">
+      MWK {{ unit.base_rate_mwk|floatformat:0 }}
+      <span class="text-sm font-normal text-slate-500">/ {% trans "night" %}</span>
+    </p>
+    {% if unit.base_rate_usd %}
+    <p class="mt-0.5 text-xs text-slate-500">
+      ≈ USD {{ unit.base_rate_usd|floatformat:2 }}
+    </p>
+    {% endif %}
+  </div>
+</div>

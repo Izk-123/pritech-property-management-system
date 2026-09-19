@@ -1,0 +1,18 @@
+{% load i18n %}
+{% if form.non_field_errors %}
+<div data-animate="zoom-in" role="alert"
+     class="flex items-start gap-3 rounded-xl border border-red-200
+            bg-red-50 p-4 dark:border-red-800 dark:bg-red-900/30">
+  <svg class="h-5 w-5 shrink-0 text-red-600 dark:text-red-400" fill="none"
+       stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"
+       stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="12" cy="12" r="10" />
+    <path d="M12 8v4M12 16h.01" />
+  </svg>
+  <div class="flex-1 text-sm text-red-700 dark:text-red-300">
+    {% for error in form.non_field_errors %}
+    <p class="{% if not forloop.first %}mt-1{% endif %}">{{ error }}</p>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}

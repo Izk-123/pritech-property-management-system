@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "My Tasks" %} — Malawi Property SaaS{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-2xl px-4 py-4 sm:px-6">
+
+  {# ── Header ────────────────────────────────────────────── #}
+  <div class="mb-4 flex items-center justify-between gap-3">
+    <h1 data-animate="fade-up" data-animate-now
+        class="text-xl font-bold tracking-tight">
+      {% trans "My Tasks" %}
+    </h1>
+    <span data-animate="fade-left" data-animate-now
+          class="chip chip-green">
+      {{ completed_today }} {% trans "done today" %}
+    </span>
+  </div>
+
+  {# ── Task cards ────────────────────────────────────────── #}
+  {% if tasks %}
+  <div data-stagger="0.06" class="space-y-3">
+    {% for task in tasks %}
+    <div data-animate="fade-up"
+         class="card">
+
+      <div class="mb-3 flex items-start justify-between gap-3">
+        <div class="min-w-0">
+          <h2 class="text-lg font-semibold">{{ task.unit.identifier }}</h2>
+          <p class="truncate text-sm text-slate-500 dark:text-slate-400">
+            {{ task.unit.property.name }} · {{ task.get_task_type_display }}
+          </p>
+        </div>
+        <span class="chip shrink-0
+          {% if task.priority == 1 %}bg-red-100 text-red-800 dark:bg-red-900/60 dark:text-red-200
+          {% elif task.priority == 2 %}bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200
+          {% else %}chip-slate{% endif %}">
+          P{{ task.priority }}
+        </span>
+      </div>
+
+      {% if task.notes %}
+      <p class="mb-3 rounded-lg bg-slate-50 p-2.5 text-sm text-slate-600
+                dark:bg-white/5 dark:text-slate-400">
+        {{ task.notes }}
+      </p>
+      {% endif %}
+
+      <div class="flex gap-2">
+        {% if task.status == 'PEND' %}
+        <form method="post" action="{% url 'housekeeping:task_status' task.pk %}" class="flex-1">
+          {% csrf_token %}
+          <input type="hidden" name="status" value="PROG">
+          <button type="submit" data-press data-hover="grow"
+                  class="btn btn-primary w-full py-3">
+            <svg viewBox="0 0 24 24" fill="currentColor" class="h-4 w-4">
+              <path d="M8 5v14l11-7z" />
+            </svg>
+            {% trans "Start" %}
+          </button>
+        </form>
+        {% elif task.status == 'PROG' %}
+        <form method="post" action="{% url 'housekeeping:task_status' task.pk %}" class="flex-1">
+          {% csrf_token %}
+          <input type="hidden" name="status" value="COMP">
+          <button type="submit" data-press data-hover="grow"
+                  class="btn w-full bg-emerald-600 py-3 text-white
+                         shadow-lg shadow-emerald-600/25 hover:bg-emerald-500 active:bg-emerald-700">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" class="h-4 w-4"
+                 stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 6 9 17l-5-5" />
+            </svg>
+            {% trans "Mark Clean" %}
+          </button>
+        </form>
+        {% elif task.status == 'COMP' %}
+        <form method="post" action="{% url 'housekeeping:task_status' task.pk %}" class="flex-1">
+          {% csrf_token %}
+          <input type="hidden" name="status" value="INSP">
+          <button type="submit" data-press data-hover="grow"
+                  class="btn w-full bg-slate-600 py-3 text-white
+                         shadow-lg shadow-slate-600/25 hover:bg-slate-500 active:bg-slate-700">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" class="h-4 w-4"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+            {% trans "Inspect" %}
+          </button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% else %}
+  <div data-animate="zoom-in" class="card py-16 text-center">
+    <svg class="mx-auto mb-4 h-16 w-16 text-emerald-300 dark:text-emerald-700"
+         fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+    <p class="text-sm text-slate-500 dark:text-slate-400">
+      {% trans "No tasks assigned. Great work!" %}
+    </p>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

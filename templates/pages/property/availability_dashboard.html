@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Property Dashboard" %} — Malawi Property SaaS{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+
+  <div class="mb-6">
+    <div data-animate="zoom-in" data-animate-now
+         class="mb-3 inline-flex items-center gap-2 rounded-full border
+                border-primary-200 bg-primary-50 px-3 py-1 text-xs font-semibold
+                text-primary-700 dark:border-primary-800 dark:bg-primary-900/30
+                dark:text-primary-300">
+      <span class="relative flex h-1.5 w-1.5">
+        <span class="absolute inline-flex h-full w-full animate-pulse-ring rounded-full bg-primary-400"></span>
+        <span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-primary-500"></span>
+      </span>
+      {% trans "Live overview" %}
+    </div>
+    <h1 data-animate="blur-in" data-animate-now data-animate-duration="0.8"
+        class="text-2xl font-bold tracking-tight sm:text-3xl">
+      {% trans "Property Dashboard" %}
+    </h1>
+    <p data-animate="fade-up" data-animate-now data-animate-delay="140"
+       class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+      {% now "l, d F Y" %}
+    </p>
+  </div>
+
+  {# Units by status #}
+  <section class="mb-8">
+    <h2 data-animate="fade-up" class="mb-3 text-lg font-semibold">
+      {% trans "Units by Status" %}
+    </h2>
+    {% if units_by_status %}
+    <div data-stagger="0.05"
+         class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      {% for row in units_by_status %}
+      <div data-animate="zoom-in" data-hover="pop" class="card text-center">
+        <p class="text-3xl font-extrabold tracking-tight">{{ row.count }}</p>
+        <p class="mt-1 text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
+          {{ row.status }}
+        </p>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div data-animate="fade-up" class="card py-8 text-center">
+      <p class="text-sm text-slate-500 dark:text-slate-400">
+        {% trans "No units registered." %}
+      </p>
+    </div>
+    {% endif %}
+  </section>
+
+  {# Expiring leases #}
+  <section class="mb-8">
+    <h2 data-animate="fade-up" class="mb-3 flex items-center gap-2 text-lg font-semibold">
+      <span class="relative flex h-2 w-2">
+        <span class="absolute inline-flex h-full w-full animate-pulse-ring rounded-full bg-amber-400"></span>
+        <span class="relative inline-flex h-2 w-2 rounded-full bg-amber-500"></span>
+      </span>
+      {% trans "Expiring Leases" %}
+      <span class="text-sm font-normal text-slate-500 dark:text-slate-400">
+        ({% trans "next 90 days" %})
+      </span>
+    </h2>
+
+    {% if expiring_leases %}
+    <div data-stagger="0.05"
+         class="card divide-y divide-slate-100 overflow-hidden p-0
+                dark:divide-slate-700/60">
+      {% for lease in expiring_leases %}
+      <a href="{% url 'property:leases:detail' lease.pk %}"
+         data-animate="fade-up" data-hover="nudge"
+         class="flex items-center justify-between gap-3 p-4
+                transition-colors hover:bg-slate-50 dark:hover:bg-white/5">
+        <div class="min-w-0">
+          <p class="truncate font-medium">{{ lease.tenant.full_name }}</p>
+          <p class="truncate text-xs text-slate-500 dark:text-slate-400">
+            {{ lease.unit.identifier }} · {{ lease.unit.property.name }}
+          </p>
+        </div>
+        <div class="shrink-0 text-right">
+          <p class="text-sm font-medium">{{ lease.end_date|date:"d M Y" }}</p>
+          <p class="text-xs
+            {% if lease.is_expiring_soon %}text-amber-600 dark:text-amber-400
+            {% else %}text-slate-500 dark:text-slate-400{% endif %}">
+            MWK {{ lease.rent_amount|floatformat:0 }} / {% trans "month" %}
+          </p>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div data-animate="fade-up" class="card py-8 text-center">
+      <p class="text-sm text-slate-500 dark:text-slate-400">
+        {% trans "No leases expiring in the next 90 days." %}
+      </p>
+    </div>
+    {% endif %}
+  </section>
+
+  {# Arrears #}
+  <section class="mb-8">
+    <h2 data-animate="fade-up" class="mb-3 flex items-center gap-2 text-lg font-semibold">
+      <span class="relative flex h-2 w-2">
+        <span class="absolute inline-flex h-full w-full animate-pulse-ring rounded-full bg-red-400"></span>
+        <span class="relative inline-flex h-2 w-2 rounded-full bg-red-500"></span>
+      </span>
+      {% trans "Rent Arrears" %}
+      <span class="text-sm font-normal text-slate-500 dark:text-slate-400">
+        ({{ arrears|length }})
+      </span>
+    </h2>
+
+    {% if arrears %}
+    <div data-stagger="0.05"
+         class="card divide-y divide-slate-100 overflow-hidden p-0
+                dark:divide-slate-700/60">
+      {% for invoice in arrears %}
+      <a href="{% url 'property:invoices:detail' invoice.pk %}"
+         data-animate="fade-up" data-hover="nudge"
+         class="flex items-center justify-between gap-3 p-4
+                transition-colors hover:bg-slate-50 dark:hover:bg-white/5">
+        <div class="min-w-0">
+          <p class="truncate font-medium">{{ invoice.tenant.full_name }}</p>
+          <p class="truncate text-xs text-slate-500 dark:text-slate-400">
+            {{ invoice.unit.identifier }} · {{ invoice.invoice_number }} ·
+            {% trans "due" %} {{ invoice.due_date|date:"d M" }}
+          </p>
+        </div>
+        <div class="shrink-0 text-right">
+          <p class="text-sm font-semibold text-red-600 dark:text-red-400">
+            MWK {{ invoice.balance|floatformat:0 }}
+          </p>
+          <p class="text-xs text-slate-500 dark:text-slate-400">
+            {{ invoice.days_overdue }} {% trans "days overdue" %}
+          </p>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div data-animate="fade-up" class="card py-8 text-center">
+      <p class="text-sm text-emerald-600 dark:text-emerald-400">
+        {% trans "No arrears. All rent collected." %}
+      </p>
+    </div>
+    {% endif %}
+  </section>
+
+  {# Sales pipeline #}
+  <section>
+    <h2 data-animate="fade-up" class="mb-3 flex items-center gap-2 text-lg font-semibold">
+      <span class="relative flex h-2 w-2">
+        <span class="absolute inline-flex h-full w-full animate-pulse-ring rounded-full bg-primary-400"></span>
+        <span class="relative inline-flex h-2 w-2 rounded-full bg-primary-500"></span>
+      </span>
+      {% trans "Sales Pipeline" %}
+      <span class="text-sm font-normal text-slate-500 dark:text-slate-400">
+        ({{ sale_pipeline|length }})
+      </span>
+    </h2>
+
+    {% if sale_pipeline %}
+    <div data-stagger="0.05"
+         class="card divide-y divide-slate-100 overflow-hidden p-0
+                dark:divide-slate-700/60">
+      {% for listing in sale_pipeline %}
+      <a href="{% url 'property:sales:listing_detail' listing.pk %}"
+         data-animate="fade-up" data-hover="nudge"
+         class="flex items-center justify-between gap-3 p-4
+                transition-colors hover:bg-slate-50 dark:hover:bg-white/5">
+        <div class="min-w-0">
+          <p class="truncate font-medium">{{ listing.property.name }}</p>
+          <p class="truncate text-xs text-slate-500 dark:text-slate-400">
+            {% if listing.unit %}{{ listing.unit.identifier }} · {% endif %}
+            {{ listing.get_status_display }}
+          </p>
+        </div>
+        <p class="shrink-0 font-semibold">
+          MWK {{ listing.asking_price|floatformat:0 }}
+        </p>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div data-animate="fade-up" class="card py-8 text-center">
+      <p class="text-sm text-slate-500 dark:text-slate-400">
+        {% trans "No active sale listings." %}
+      </p>
+    </div>
+    {% endif %}
+  </section>
+
+</div>
+{% endblock %}

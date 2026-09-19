@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Front Desk" %} — Malawi Property SaaS{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-4xl px-4 py-6 sm:px-6">
+
+  {# ── Header ────────────────────────────────────────────── #}
+  <div class="mb-6 flex items-center justify-between gap-3">
+    <div>
+      <h1 data-animate="fade-up" data-animate-now
+          class="text-2xl font-bold tracking-tight">
+        {% trans "Front Desk" %}
+      </h1>
+      <p data-animate="fade-up" data-animate-now data-animate-delay="80"
+         class="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
+        {% now "l, d F Y" %}
+      </p>
+    </div>
+    <a href="{% url 'reservations:create' %}"
+       data-animate="fade-left" data-animate-now data-press data-hover="grow"
+       class="btn btn-primary">
+      <svg viewBox="0 0 24 24" fill="none" class="h-4 w-4" stroke="currentColor"
+           stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 5v14M5 12h14" />
+      </svg>
+      <span class="hidden sm:inline">{% trans "Walk-in" %}</span>
+    </a>
+  </div>
+
+  {# ── Arrivals ──────────────────────────────────────────── #}
+  <section class="mb-8">
+    <h2 data-animate="fade-up"
+        class="mb-3 flex items-center gap-2 text-lg font-semibold">
+      <span class="relative flex h-2 w-2">
+        <span class="absolute inline-flex h-full w-full animate-pulse-ring rounded-full bg-emerald-400"></span>
+        <span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
+      </span>
+      {% trans "Today's Arrivals" %}
+      <span class="text-sm font-normal text-slate-500 dark:text-slate-400">
+        ({{ arrivals|length }})
+      </span>
+    </h2>
+
+    {% if arrivals %}
+    <div data-stagger="0.05" class="space-y-2">
+      {% for res in arrivals %}
+      <a href="{% url 'reservations:check_in' res.pk %}"
+         data-animate="fade-up" data-hover="nudge"
+         class="flex items-center justify-between gap-3 rounded-xl border
+                border-slate-200/80 bg-white/85 p-3 shadow-sm backdrop-blur
+                transition-colors hover:border-emerald-400
+                dark:border-white/10 dark:bg-slate-800/70
+                dark:hover:border-emerald-600">
+        <div class="min-w-0">
+          <p class="truncate font-medium">{{ res.primary_guest.full_name }}</p>
+          <p class="truncate text-xs text-slate-500 dark:text-slate-400">
+            {{ res.reservation_number }} · {{ res.adults }} {% trans "adults" %}
+            {% if res.children %}· {{ res.children }} {% trans "children" %}{% endif %}
+          </p>
+        </div>
+        <span class="chip chip-green shrink-0">
+          {% trans "Check In" %}
+        </span>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p data-animate="fade-up"
+       class="rounded-xl border border-slate-200/80 bg-white/70 px-3 py-4 text-sm
+              text-slate-500 dark:border-white/10 dark:bg-slate-800/50
+              dark:text-slate-400">
+      {% trans "No arrivals today." %}
+    </p>
+    {% endif %}
+  </section>
+
+  {# ── Departures ────────────────────────────────────────── #}
+  <section class="mb-8">
+    <h2 data-animate="fade-up"
+        class="mb-3 flex items-center gap-2 text-lg font-semibold">
+      <span class="relative flex h-2 w-2">
+        <span class="absolute inline-flex h-full w-full animate-pulse-ring rounded-full bg-amber-400"></span>
+        <span class="relative inline-flex h-2 w-2 rounded-full bg-amber-500"></span>
+      </span>
+      {% trans "Today's Departures" %}
+      <span class="text-sm font-normal text-slate-500 dark:text-slate-400">
+        ({{ departures|length }})
+      </span>
+    </h2>
+
+    {% if departures %}
+    <div data-stagger="0.05" class="space-y-2">
+      {% for res in departures %}
+      <a href="{% url 'reservations:check_out' res.pk %}"
+         data-animate="fade-up" data-hover="nudge"
+         class="flex items-center justify-between gap-3 rounded-xl border
+                border-slate-200/80 bg-white/85 p-3 shadow-sm backdrop-blur
+                transition-colors hover:border-amber-400
+                dark:border-white/10 dark:bg-slate-800/70
+                dark:hover:border-amber-600">
+        <div class="min-w-0">
+          <p class="truncate font-medium">{{ res.primary_guest.full_name }}</p>
+          <p class="truncate text-xs text-slate-500 dark:text-slate-400">
+            {{ res.reservation_number }}
+          </p>
+        </div>
+        {% if res.folio %}
+        <span class="shrink-0 text-sm font-semibold
+          {% if res.folio.balance > 0 %}text-red-600 dark:text-red-400
+          {% else %}text-emerald-600 dark:text-emerald-400{% endif %}">
+          MWK {{ res.folio.balance|floatformat:0 }}
+        </span>
+        {% endif %}
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p data-animate="fade-up"
+       class="rounded-xl border border-slate-200/80 bg-white/70 px-3 py-4 text-sm
+              text-slate-500 dark:border-white/10 dark:bg-slate-800/50
+              dark:text-slate-400">
+      {% trans "No departures today." %}
+    </p>
+    {% endif %}
+  </section>
+
+  {# ── In-house ──────────────────────────────────────────── #}
+  <section>
+    <h2 data-animate="fade-up"
+        class="mb-3 flex items-center gap-2 text-lg font-semibold">
+      <span class="relative flex h-2 w-2">
+        <span class="absolute inline-flex h-full w-full animate-pulse-ring rounded-full bg-primary-400"></span>
+        <span class="relative inline-flex h-2 w-2 rounded-full bg-primary-500"></span>
+      </span>
+      {% trans "In-House Guests" %}
+      <span class="text-sm font-normal text-slate-500 dark:text-slate-400">
+        ({{ in_house|length }})
+      </span>
+    </h2>
+
+    {% if in_house %}
+    <div data-stagger="0.05" class="space-y-2">
+      {% for res in in_house %}
+      <a href="{% url 'reservations:detail' res.pk %}"
+         data-animate="fade-up" data-hover="nudge"
+         class="flex items-center justify-between gap-3 rounded-xl border
+                border-slate-200/80 bg-white/85 p-3 shadow-sm backdrop-blur
+                transition-colors hover:border-primary-400
+                dark:border-white/10 dark:bg-slate-800/70
+                dark:hover:border-primary-600">
+        <div class="min-w-0">
+          <p class="truncate font-medium">{{ res.primary_guest.full_name }}</p>
+          <p class="truncate text-xs text-slate-500 dark:text-slate-400">
+            {{ res.reservation_number }} · {% trans "until" %} {{ res.check_out|date:"d M" }}
+          </p>
+        </div>
+        {% if res.folio %}
+        <span class="shrink-0 text-sm font-semibold
+          {% if res.folio.balance > 0 %}text-red-600 dark:text-red-400
+          {% else %}text-emerald-600 dark:text-emerald-400{% endif %}">
+          MWK {{ res.folio.balance|floatformat:0 }}
+        </span>
+        {% endif %}
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p data-animate="fade-up"
+       class="rounded-xl border border-slate-200/80 bg-white/70 px-3 py-4 text-sm
+              text-slate-500 dark:border-white/10 dark:bg-slate-800/50
+              dark:text-slate-400">
+      {% trans "No guests in-house." %}
+    </p>
+    {% endif %}
+  </section>
+
+</div>
+{% endblock %}

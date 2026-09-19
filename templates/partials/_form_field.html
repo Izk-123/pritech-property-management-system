@@ -1,0 +1,71 @@
+{% load i18n %}
+{% if field.field.widget.input_type == 'checkbox' %}
+  {# ── Checkbox layout ─────────────────────────────────────── #}
+  <div{% if field.errors %} data-field-invalid{% endif %}
+       class="flex items-start gap-3">
+    {{ field }}
+    <div class="-mt-0.5">
+      <label for="{{ field.id_for_label }}"
+             class="cursor-pointer text-sm font-medium
+                    text-slate-700 dark:text-slate-300">
+        {{ field.label }}
+        {% if field.field.required %}<span class="text-red-500" aria-hidden="true">*</span>{% endif %}
+      </label>
+
+      {% if field.help_text %}
+      <p id="{{ field.name }}_help"
+         class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+        {{ field.help_text }}
+      </p>
+      {% endif %}
+
+      {% for error in field.errors %}
+      <p class="mt-1 flex items-center gap-1 text-xs font-medium
+                text-red-600 dark:text-red-400">
+        <svg class="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor"
+             viewBox="0 0 24 24" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="10" />
+          <path d="M12 8v4M12 16h.01" />
+        </svg>
+        <span>{{ error }}</span>
+      </p>
+      {% endfor %}
+    </div>
+  </div>
+
+{% else %}
+  {# ── Standard input / select / textarea layout ───────────── #}
+  <div{% if field.errors %} data-field-invalid{% endif %}>
+    <label for="{{ field.id_for_label }}"
+           class="mb-1.5 flex items-center gap-1 text-sm font-medium
+                  text-slate-700 dark:text-slate-300">
+      {{ field.label }}
+      {% if field.field.required %}
+      <span class="text-red-500" aria-hidden="true">*</span>
+      {% endif %}
+    </label>
+
+    {{ field }}
+
+    {% if field.help_text %}
+    <p id="{{ field.name }}_help"
+       class="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+      {{ field.help_text }}
+    </p>
+    {% endif %}
+
+    {% for error in field.errors %}
+    <p class="mt-1.5 flex items-start gap-1.5 text-xs font-medium
+              text-red-600 dark:text-red-400">
+      <svg class="mt-0.5 h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor"
+           viewBox="0 0 24 24" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="10" />
+        <path d="M12 8v4M12 16h.01" />
+      </svg>
+      <span>{{ error }}</span>
+    </p>
+    {% endfor %}
+  </div>
+{% endif %}

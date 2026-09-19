@@ -5,7 +5,148 @@
 
 {% block content %}
 
-{# ── HERO ────────────────────────────────────────────────── #}
+{% if user.is_authenticated and user.is_staff %}
+
+{# STAFF QUICK-ACCESS PANEL #}
+<div class="mx-auto max-w-4xl px-4 py-10 sm:px-6 sm:py-14">
+
+  {# Greeting #}
+  <div class="mb-8">
+    <div data-animate="zoom-in" data-animate-now
+         class="mb-3 inline-flex items-center gap-2 rounded-full border
+                border-primary-200 bg-primary-50 px-3 py-1 text-xs font-semibold
+                text-primary-700 dark:border-primary-800 dark:bg-primary-900/30
+                dark:text-primary-300">
+      <span class="relative flex h-1.5 w-1.5">
+        <span class="absolute inline-flex h-full w-full animate-pulse-ring rounded-full bg-emerald-400"></span>
+        <span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+      </span>
+      {% trans "Staff workspace" %}
+    </div>
+    <h1 data-animate="blur-in" data-animate-now data-animate-duration="0.9"
+        class="text-2xl font-extrabold tracking-tight sm:text-3xl">
+      {% blocktrans with name=user.get_full_name|default:user.email %}
+      Welcome back, <span class="text-gradient animate-gradient-x">{{ name }}</span>
+      {% endblocktrans %}
+    </h1>
+    <p data-animate="fade-up" data-animate-now data-animate-delay="160"
+       class="mt-2 text-slate-500 dark:text-slate-400">
+      {% trans "Quick access to your daily tools." %}
+    </p>
+  </div>
+
+  {# Quick-access grid #}
+  <div data-stagger="0.07" class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+
+    <a href="{% url 'reservations:front_desk' %}"
+       data-animate="fade-up" data-hover="lift"
+       class="card group">
+      <div class="flex items-start gap-4">
+        <div class="grid h-11 w-11 shrink-0 place-items-center rounded-xl
+                    bg-emerald-500/10 text-emerald-600 transition-transform duration-300
+                    group-hover:scale-110 dark:bg-emerald-500/15 dark:text-emerald-400">
+          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+          </svg>
+        </div>
+        <div class="min-w-0">
+          <h3 class="font-semibold">{% trans "Front Desk" %}</h3>
+          <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+            {% trans "Arrivals, departures, in-house guests" %}
+          </p>
+        </div>
+      </div>
+    </a>
+
+    <a href="{% url 'housekeeping:tasks' %}"
+       data-animate="fade-up" data-hover="lift"
+       class="card group">
+      <div class="flex items-start gap-4">
+        <div class="grid h-11 w-11 shrink-0 place-items-center rounded-xl
+                    bg-sky-500/10 text-sky-600 transition-transform duration-300
+                    group-hover:scale-110 dark:bg-sky-500/15 dark:text-sky-400">
+          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
+            <rect x="9" y="3" width="6" height="4" rx="1" />
+            <path d="M9 12h6M9 16h4" />
+          </svg>
+        </div>
+        <div class="min-w-0">
+          <h3 class="font-semibold">{% trans "Housekeeping" %}</h3>
+          <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+            {% trans "Room cleaning tasks and inspections" %}
+          </p>
+        </div>
+      </div>
+    </a>
+
+    <a href="{% url 'property:dashboard' %}"
+       data-animate="fade-up" data-hover="lift"
+       class="card group">
+      <div class="flex items-start gap-4">
+        <div class="grid h-11 w-11 shrink-0 place-items-center rounded-xl
+                    bg-primary-500/10 text-primary-600 transition-transform duration-300
+                    group-hover:scale-110 dark:bg-primary-500/15 dark:text-primary-400">
+          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 3v18h18" />
+            <path d="M7 15l4-4 3 3 5-6" />
+          </svg>
+        </div>
+        <div class="min-w-0">
+          <h3 class="font-semibold">{% trans "Property Dashboard" %}</h3>
+          <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+            {% trans "Leases, rent arrears, sales pipeline" %}
+          </p>
+        </div>
+      </div>
+    </a>
+
+    <a href="/admin/"
+       data-animate="fade-up" data-hover="lift"
+       class="card group">
+      <div class="flex items-start gap-4">
+        <div class="grid h-11 w-11 shrink-0 place-items-center rounded-xl
+                    bg-slate-500/10 text-slate-600 transition-transform duration-300
+                    group-hover:scale-110 dark:bg-slate-500/20 dark:text-slate-300">
+          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.09a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+          </svg>
+        </div>
+        <div class="min-w-0">
+          <h3 class="font-semibold">{% trans "Admin" %}</h3>
+          <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+            {% trans "Full admin interface" %}
+          </p>
+        </div>
+      </div>
+    </a>
+  </div>
+
+  {# Public link #}
+  <div data-animate="fade-up" data-animate-delay="400"
+       class="mt-10 border-t border-slate-200 pt-6 dark:border-white/5">
+    <a href="{% url 'properties:list' %}"
+       data-hover="nudge"
+       class="inline-flex items-center gap-1.5 text-sm font-medium
+              text-primary-600 transition-colors hover:text-primary-500
+              dark:text-primary-400 dark:hover:text-primary-300">
+      {% trans "Browse public property listings" %}
+      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M5 12h14M13 6l6 6-6 6" />
+      </svg>
+    </a>
+  </div>
+</div>
+
+{% else %}
+
+{# PUBLIC HERO #}
 <section class="relative overflow-hidden px-4 pb-16 pt-14 sm:px-6 sm:pt-20 lg:pt-24">
   <div class="mx-auto max-w-3xl text-center">
 
@@ -44,7 +185,7 @@
           <path d="M5 12h14M13 6l6 6-6 6" />
         </svg>
       </a>
-      <a href="/admin/"
+      <a href="{% url 'login' %}"
          data-animate="fade-up" data-press data-hover="lift"
          class="btn btn-ghost w-full border border-slate-200 px-7 py-3 text-base
                 dark:border-white/10 sm:w-auto">
@@ -59,10 +200,9 @@
   </div>
 </section>
 
-{# ── BROWSE SHORTCUTS ────────────────────────────────────── #}
+{# Browse shortcuts #}
 <section class="px-4 pb-20 sm:px-6 lg:px-8">
   <div class="mx-auto max-w-5xl">
-
     <div data-stagger="0.09" class="grid gap-4 sm:grid-cols-3">
 
       <a href="{% url 'properties:list' %}?type=HOTEL"
@@ -121,5 +261,7 @@
     </div>
   </div>
 </section>
+
+{% endif %}
 
 {% endblock %}

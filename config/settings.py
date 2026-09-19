@@ -49,12 +49,27 @@ SHARED_APPS = [
     'theme',
     
     'auditlog',
+    'django_celery_beat',
+    'django_celery_results',
 ]
 
 TENANT_APPS = [
+    # Core
     'apps.core.properties',
     'apps.core.people',
     'apps.core.documents',
+
+    # Hospitality
+    'apps.hospitality.rates',
+    'apps.hospitality.reservations',
+    'apps.hospitality.folios',
+    'apps.hospitality.housekeeping',
+
+    # Property
+    'apps.property.leases',
+    'apps.property.rent_invoicing',
+    'apps.property.maintenance',
+    'apps.property.sales',
 ]
 
 INSTALLED_APPS = SHARED_APPS + [app for app in TENANT_APPS if app not in SHARED_APPS]
@@ -223,58 +238,92 @@ UNFOLD = {
             {
                 'title': 'Dashboard',
                 'items': [
-                    {
-                        'title': 'Home',
-                        'icon': 'dashboard',
-                        'link': '/admin/',
-                    },
+                    {'title': 'Home', 'icon': 'dashboard', 'link': '/admin/'},
+                    {'title': 'Front Desk', 'icon': 'front_desk', 'link': '/reservations/front-desk/'},
+                ],
+            },
+            {
+                'title': 'Hospitality',
+                'items': [
+                    {'title': 'Reservations', 'icon': 'event', 'link': '/reservations/'},
+                    {'title': 'Housekeeping', 'icon': 'cleaning_services', 'link': '/housekeeping/tasks/'},
+                    {'title': 'Rate Plans', 'icon': 'price_change', 'link': '/admin/rates/rateplan/'},
                 ],
             },
             {
                 'title': 'Core',
                 'items': [
-                    {
-                        'title': 'Properties',
-                        'icon': 'apartment',
-                        'link': '/admin/properties/property/',
-                    },
-                    {
-                        'title': 'Units',
-                        'icon': 'meeting_room',
-                        'link': '/admin/properties/unit/',
-                    },
-                    {
-                        'title': 'Amenities',
-                        'icon': 'star',
-                        'link': '/admin/properties/amenity/',
-                    },
-                    {
-                        'title': 'People',
-                        'icon': 'people',
-                        'link': '/admin/people/person/',
-                    },
-                    {
-                        'title': 'Documents',
-                        'icon': 'description',
-                        'link': '/admin/documents/document/',
-                    },
+                    {'title': 'Properties', 'icon': 'apartment', 'link': '/admin/properties/property/'},
+                    {'title': 'Units', 'icon': 'meeting_room', 'link': '/admin/properties/unit/'},
+                    {'title': 'Amenities', 'icon': 'star', 'link': '/admin/properties/amenity/'},
+                    {'title': 'People', 'icon': 'people', 'link': '/admin/people/person/'},
+                    {'title': 'Documents', 'icon': 'description', 'link': '/admin/documents/document/'},
                 ],
             },
             {
                 'title': 'Administration',
                 'items': [
+                    {'title': 'Users', 'icon': 'manage_accounts', 'link': '/admin/shared_users/user/'},
+                    {'title': 'Audit Log', 'icon': 'history', 'link': '/admin/auditlog/logentry/'},
+                    {'title': 'Periodic Tasks', 'icon': 'schedule', 'link': '/admin/django_celery_beat/periodictask/'},
+                ],
+            },
+            {
+                'title': 'Property',
+                'items': [
                     {
-                        'title': 'Users',
-                        'icon': 'manage_accounts',
-                        'link': '/admin/shared_users/user/',
+                        'title': 'Dashboard',
+                        'icon': 'analytics',
+                        'link': '/property/',
                     },
                     {
-                        'title': 'Audit Log',
-                        'icon': 'history',
-                        'link': '/admin/auditlog/logentry/',
+                        'title': 'Leases',
+                        'icon': 'contract',
+                        'link': '/property/leases/',
+                    },
+                    {
+                        'title': 'Rent Invoices',
+                        'icon': 'receipt_long',
+                        'link': '/property/invoices/',
+                    },
+                    {
+                        'title': 'Maintenance',
+                        'icon': 'build',
+                        'link': '/admin/maintenance/maintenancerequest/',
+                    },
+                    {
+                        'title': 'Sale Listings',
+                        'icon': 'sell',
+                        'link': '/admin/sales/salelisting/',
                     },
                 ],
             },
         ],
+    },
+}
+
+CELERY_BROKER_URL = 'redis://localhost:6379/0'
+CELERY_RESULT_BACKEND = 'django-db'
+CELERY_CACHE_BACKEND = 'django-cache'
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
+
+from celery.schedules import crontab
+
+CELERY_BEAT_SCHEDULE = {
+    'generate-monthly-rent-invoices': {
+        'task': 'apps.property.rent_invoicing.tasks.generate_monthly_rent_invoices',
+        'schedule': crontab(day_of_month=1, hour=6, minute=0),
+    },
+    'apply-overdue-late-fees': {
+        'task': 'apps.property.rent_invoicing.tasks.apply_overdue_late_fees',
+        'schedule': crontab(hour=7, minute=0),
+    },
+    'flag-overdue-invoices': {
+        'task': 'apps.property.rent_invoicing.tasks.flag_overdue_invoices',
+        'schedule': crontab(hour=7, minute=30),
     },
 }

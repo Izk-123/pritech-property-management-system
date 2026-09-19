@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{{ request.title }} — Malawi Property SaaS{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-3xl px-4 py-6 sm:px-6">
+
+  <nav data-animate="fade-right" data-animate-now class="mb-4 text-sm">
+    <a href="{% url 'property:maintenance:list' %}"
+       class="inline-flex items-center gap-1 text-primary-600 transition-colors
+              hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300">
+      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M19 12H5M12 19l-7-7 7-7" />
+      </svg>
+      {% trans "All maintenance" %}
+    </a>
+  </nav>
+
+  <header class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <div>
+      <h1 data-animate="blur-in" data-animate-now data-animate-duration="0.8"
+          class="text-2xl font-bold tracking-tight">
+        {{ request.title }}
+      </h1>
+      <p data-animate="fade-up" data-animate-now data-animate-delay="140"
+         class="mt-0.5 text-slate-500 dark:text-slate-400">
+        {{ request.unit.identifier }} · {{ request.unit.property.name }}
+      </p>
+      <div data-stagger="0.06" data-animate-immediate class="mt-2 flex flex-wrap gap-2">
+        <span data-animate="fade-up" class="chip
+          {% if request.priority == 'EMERG' %}bg-red-100 text-red-800 dark:bg-red-900/60 dark:text-red-200
+          {% elif request.priority == 'HIGH' %}bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200
+          {% else %}chip-slate{% endif %}">
+          {{ request.get_priority_display }}
+        </span>
+        <span data-animate="fade-up" class="chip
+          {% if request.status == 'COMP' or request.status == 'VER' %}chip-green
+          {% elif request.status == 'PROG' %}bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-200
+          {% else %}chip-slate{% endif %}">
+          {{ request.get_status_display }}
+        </span>
+        <span data-animate="fade-up" class="chip chip-slate">
+          {{ request.get_category_display }}
+        </span>
+      </div>
+    </div>
+
+    <div data-stagger="0.08" data-animate-immediate class="flex flex-wrap gap-2">
+      {% if request.status == 'SUBM' %}
+      <a href="{% url 'property:maintenance:assign' request.pk %}"
+         data-animate="fade-left" data-press data-hover="grow"
+         class="btn btn-primary">
+        {% trans "Assign" %}
+      </a>
+      {% elif request.status == 'ACK' or request.status == 'PROG' %}
+      <a href="{% url 'property:maintenance:complete' request.pk %}"
+         data-animate="fade-left" data-press data-hover="grow"
+         class="btn bg-emerald-600 text-white shadow-lg shadow-emerald-600/25
+                hover:bg-emerald-500 active:bg-emerald-700">
+        {% trans "Complete" %}
+      </a>
+      {% elif request.status == 'COMP' %}
+      <form method="post" action="{% url 'property:maintenance:status' request.pk %}">
+        {% csrf_token %}
+        <input type="hidden" name="status" value="VER">
+        <button type="submit" data-press data-hover="grow"
+                data-animate="fade-left"
+                class="btn bg-slate-600 text-white shadow-lg shadow-slate-600/25
+                       hover:bg-slate-500 active:bg-slate-700">
+          {% trans "Verify" %}
+        </button>
+      </form>
+      {% endif %}
+    </div>
+  </header>
+
+  <section data-stagger="0.08" class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <div data-animate="fade-up" class="card">
+      <h2 class="mb-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+        {% trans "Details" %}
+      </h2>
+      <dl class="space-y-2 text-sm">
+        <div class="flex justify-between">
+          <dt class="text-slate-500 dark:text-slate-400">{% trans "Submitted" %}</dt>
+          <dd class="font-medium">{{ request.created_at|date:"d M Y H:i" }}</dd>
+        </div>
+        {% if request.submitted_by %}
+        <div class="flex justify-between">
+          <dt class="text-slate-500 dark:text-slate-400">{% trans "By" %}</dt>
+          <dd class="font-medium">{{ request.submitted_by.full_name }}</dd>
+        </div>
+        {% endif %}
+        {% if request.assigned_to %}
+        <div class="flex justify-between">
+          <dt class="text-slate-500 dark:text-slate-400">{% trans "Assigned to" %}</dt>
+          <dd class="font-medium">{{ request.assigned_to.get_full_name|default:request.assigned_to.email }}</dd>
+        </div>
+        {% elif request.assigned_to_name %}
+        <div class="flex justify-between">
+          <dt class="text-slate-500 dark:text-slate-400">{% trans "Contractor" %}</dt>
+          <dd class="font-medium">{{ request.assigned_to_name }}</dd>
+        </div>
+        {% endif %}
+        {% if request.acknowledged_at %}
+        <div class="flex justify-between">
+          <dt class="text-slate-500 dark:text-slate-400">{% trans "Acknowledged" %}</dt>
+          <dd class="font-medium">{{ request.acknowledged_at|date:"d M H:i" }}</dd>
+        </div>
+        {% endif %}
+        {% if request.completed_at %}
+        <div class="flex justify-between">
+          <dt class="text-slate-500 dark:text-slate-400">{% trans "Completed" %}</dt>
+          <dd class="font-medium">{{ request.completed_at|date:"d M H:i" }}</dd>
+        </div>
+        {% endif %}
+      </dl>
+    </div>
+
+    <div data-animate="fade-up" class="card">
+      <h2 class="mb-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+        {% trans "Costs" %}
+      </h2>
+      <dl class="space-y-2 text-sm">
+        <div class="flex justify-between">
+          <dt class="text-slate-500 dark:text-slate-400">{% trans "Parts" %}</dt>
+          <dd class="font-medium">MWK {{ request.parts_cost|floatformat:0 }}</dd>
+        </div>
+        <div class="flex justify-between">
+          <dt class="text-slate-500 dark:text-slate-400">{% trans "Labour" %}</dt>
+          <dd class="font-medium">MWK {{ request.labour_cost|floatformat:0 }}</dd>
+        </div>
+        <div class="mt-2 flex justify-between border-t border-slate-200 pt-2
+                    dark:border-slate-700/60">
+          <dt class="font-semibold">{% trans "Total" %}</dt>
+          <dd class="font-bold">MWK {{ request.total_cost|floatformat:0 }}</dd>
+        </div>
+      </dl>
+    </div>
+  </section>
+
+  <section class="mb-6">
+    <h2 data-animate="fade-up" class="mb-3 text-lg font-semibold">
+      {% trans "Description" %}
+    </h2>
+    <div data-animate="fade-up" data-animate-delay="80"
+         class="card whitespace-pre-line text-sm text-slate-600 dark:text-slate-400">
+      {{ request.description }}
+    </div>
+  </section>
+
+  {% if request.resolution_notes %}
+  <section class="mb-6">
+    <h2 data-animate="fade-up" class="mb-3 text-lg font-semibold">
+      {% trans "Resolution" %}
+    </h2>
+    <div data-animate="fade-up" data-animate-delay="80"
+         class="card whitespace-pre-line text-sm text-slate-600 dark:text-slate-400">
+      {{ request.resolution_notes }}
+    </div>
+  </section>
+  {% endif %}
+
+</div>
+{% endblock %}

@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{{ invoice.invoice_number }} — Malawi Property SaaS{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-3xl px-4 py-6 sm:px-6">
+
+  <nav data-animate="fade-right" data-animate-now class="mb-4 text-sm">
+    <a href="{% url 'property:invoices:list' %}"
+       class="inline-flex items-center gap-1 text-primary-600 transition-colors
+              hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300">
+      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M19 12H5M12 19l-7-7 7-7" />
+      </svg>
+      {% trans "All invoices" %}
+    </a>
+  </nav>
+
+  <header class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <div>
+      <h1 data-animate="blur-in" data-animate-now data-animate-duration="0.8"
+          class="text-2xl font-bold tracking-tight">
+        {{ invoice.invoice_number }}
+      </h1>
+      <p data-animate="fade-up" data-animate-now data-animate-delay="140"
+         class="mt-0.5 text-slate-500 dark:text-slate-400">
+        {{ invoice.tenant.full_name }} · {{ invoice.unit.identifier }}
+      </p>
+      <div data-stagger="0.06" data-animate-immediate class="mt-2 flex flex-wrap gap-2">
+        <span data-animate="fade-up" class="chip
+          {% if invoice.status == 'PAID' %}chip-green
+          {% elif invoice.status == 'PART' %}bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200
+          {% elif invoice.status == 'OVER' %}bg-red-100 text-red-800 dark:bg-red-900/60 dark:text-red-200
+          {% else %}chip-slate{% endif %}">
+          {{ invoice.get_status_display }}
+        </span>
+        {% if invoice.days_overdue > 0 %}
+        <span data-animate="fade-up"
+              class="chip bg-red-100 text-red-800 dark:bg-red-900/60 dark:text-red-200">
+          {{ invoice.days_overdue }} {% trans "days overdue" %}
+        </span>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if invoice.status != 'PAID' and invoice.status != 'VOID' %}
+    <div data-stagger="0.08" data-animate-immediate class="flex flex-wrap gap-2">
+      <a href="{% url 'property:invoices:payment' invoice.pk %}"
+         data-animate="fade-left" data-press data-hover="grow"
+         class="btn bg-emerald-600 text-white shadow-lg shadow-emerald-600/25
+                hover:bg-emerald-500 active:bg-emerald-700">
+        {% trans "Record Payment" %}
+      </a>
+      <a href="{% url 'property:invoices:line_add' invoice.pk %}"
+         data-animate="fade-left" data-press data-hover="lift"
+         class="btn border border-slate-200 bg-slate-100 text-slate-700
+                hover:bg-slate-200 dark:border-white/10 dark:bg-white/5
+                dark:text-slate-200 dark:hover:bg-white/10">
+        {% trans "Add Line" %}
+      </a>
+    </div>
+    {% endif %}
+  </header>
+
+  {# Summary tiles #}
+  <section data-stagger="0.06" class="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+    <div data-animate="fade-up" class="card">
+      <p class="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
+        {% trans "Period" %}
+      </p>
+      <p class="mt-1 text-sm font-medium">
+        {{ invoice.period_start|date:"d M" }} → {{ invoice.period_end|date:"d M Y" }}
+      </p>
+    </div>
+    <div data-animate="fade-up" class="card">
+      <p class="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
+        {% trans "Due date" %}
+      </p>
+      <p class="mt-1 text-sm font-medium">{{ invoice.due_date|date:"D, d M Y" }}</p>
+    </div>
+    <div data-animate="fade-up" class="card">
+      <p class="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
+        {% trans "Balance" %}
+      </p>
+      <p class="mt-1 text-lg font-bold
+        {% if invoice.balance > 0 %}text-red-600 dark:text-red-400
+        {% else %}text-emerald-600 dark:text-emerald-400{% endif %}">
+        MWK {{ invoice.balance|floatformat:0 }}
+      </p>
+    </div>
+  </section>
+
+  {# Charges #}
+  <section class="mb-6">
+    <h2 data-animate="fade-up" class="mb-3 text-lg font-semibold">
+      {% trans "Charges" %}
+    </h2>
+    <div data-animate="fade-up" data-animate-delay="80"
+         class="card overflow-hidden p-0">
+      {% if invoice.lines.all %}
+      <table class="w-full text-sm">
+        <thead class="bg-slate-50 dark:bg-white/5">
+          <tr class="text-left text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            <th class="px-4 py-2 font-semibold">{% trans "Description" %}</th>
+            <th class="px-4 py-2 text-right font-semibold">{% trans "Amount" %}</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 dark:divide-slate-700/60">
+          {% for line in invoice.lines.all %}
+          <tr class="transition-colors hover:bg-slate-50 dark:hover:bg-white/5">
+            <td class="px-4 py-2">
+              <span class="font-medium">{{ line.get_line_type_display }}</span>
+              <span class="text-slate-500 dark:text-slate-400"> — {{ line.description }}</span>
+            </td>
+            <td class="px-4 py-2 text-right font-medium">
+              {{ invoice.currency }} {{ line.amount|floatformat:0 }}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot class="bg-slate-50 dark:bg-white/5">
+          <tr>
+            <td class="px-4 py-2 text-right font-semibold">{% trans "Total" %}</td>
+            <td class="px-4 py-2 text-right font-bold">
+              {{ invoice.currency }} {{ invoice.total_due|floatformat:0 }}
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+      {% else %}
+      <p class="p-4 text-sm text-slate-500 dark:text-slate-400">
+        {% trans "No charges on this invoice." %}
+      </p>
+      {% endif %}
+    </div>
+  </section>
+
+  {# Payments #}
+  <section class="mb-6">
+    <h2 data-animate="fade-up" class="mb-3 text-lg font-semibold">
+      {% trans "Payments" %}
+    </h2>
+    <div data-stagger="0.04"
+         class="card divide-y divide-slate-100 overflow-hidden p-0
+                dark:divide-slate-700/60">
+      {% if invoice.payments.all %}
+        {% for payment in invoice.payments.all %}
+        <div data-animate="fade-up" class="flex items-center justify-between gap-3 px-4 py-3">
+          <div>
+            <p class="text-sm font-medium">{{ payment.get_method_display }}</p>
+            <p class="text-xs text-slate-500 dark:text-slate-400">
+              {{ payment.created_at|date:"d M Y" }}
+              {% if payment.reference %}· {{ payment.reference }}{% endif %}
+            </p>
+          </div>
+          <p class="shrink-0 font-semibold text-emerald-600 dark:text-emerald-400">
+            −{{ payment.currency }} {{ payment.amount|floatformat:0 }}
+          </p>
+        </div>
+        {% endfor %}
+      {% else %}
+      <p class="p-4 text-sm text-slate-500 dark:text-slate-400">
+        {% trans "No payments recorded yet." %}
+      </p>
+      {% endif %}
+    </div>
+  </section>
+
+</div>
+{% endblock %}

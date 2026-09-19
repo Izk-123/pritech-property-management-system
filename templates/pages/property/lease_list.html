@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Leases" %} — Malawi Property SaaS{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-5xl px-4 py-6 sm:px-6">
+
+  <div class="mb-6 flex items-center justify-between gap-3">
+    <h1 data-animate="fade-up" data-animate-now
+        class="text-2xl font-bold tracking-tight">
+      {% trans "Leases" %}
+    </h1>
+    <a href="{% url 'property:leases:create' %}"
+       data-animate="fade-left" data-animate-now data-press data-hover="grow"
+       class="btn btn-primary">
+      <svg viewBox="0 0 24 24" fill="none" class="h-4 w-4" stroke="currentColor"
+           stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 5v14M5 12h14" />
+      </svg>
+      <span class="hidden sm:inline">{% trans "New Lease" %}</span>
+    </a>
+  </div>
+
+  <form method="get"
+        data-animate="fade-up" data-animate-now data-animate-delay="120"
+        class="card mb-4 p-3">
+    <div class="flex flex-col gap-2 sm:flex-row">
+      <input type="search" name="q" value="{{ search_query }}"
+             placeholder="{% trans 'Lease #, tenant, or unit…' %}"
+             class="field flex-1" />
+      <select name="status" class="field sm:w-48">
+        <option value="">{% trans "All statuses" %}</option>
+        {% for value, label in statuses %}
+        <option value="{{ value }}" {% if current_status == value %}selected{% endif %}>
+          {{ label }}
+        </option>
+        {% endfor %}
+      </select>
+      <button type="submit" data-press data-hover="lift"
+              class="btn border border-slate-200 bg-slate-100 text-slate-700
+                     hover:bg-slate-200 dark:border-white/10 dark:bg-white/5
+                     dark:text-slate-200 dark:hover:bg-white/10">
+        {% trans "Filter" %}
+      </button>
+    </div>
+  </form>
+
+  {% if leases %}
+  <div data-stagger="0.04"
+       class="card divide-y divide-slate-100 overflow-hidden p-0
+              dark:divide-slate-700/60">
+    {% for lease in leases %}
+    <a href="{% url 'property:leases:detail' lease.pk %}"
+       data-animate="fade-up" data-hover="nudge"
+       class="flex items-center justify-between gap-3 p-4
+              transition-colors hover:bg-slate-50 dark:hover:bg-white/5">
+      <div class="min-w-0 flex-1">
+        <p class="truncate font-medium">{{ lease.tenant.full_name }}</p>
+        <p class="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">
+          {{ lease.lease_number }} ·
+          {{ lease.unit.identifier }} · {{ lease.unit.property.name }} ·
+          {{ lease.start_date|date:"d M Y" }} → {{ lease.end_date|date:"d M Y" }}
+        </p>
+      </div>
+      <div class="shrink-0 text-right">
+        <p class="text-sm font-semibold">
+          MWK {{ lease.rent_amount|floatformat:0 }}
+        </p>
+        <span class="chip mt-0.5
+          {% if lease.status == 'ACT' %}chip-green
+          {% elif lease.status == 'REN' %}bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-200
+          {% elif lease.status == 'TERM' or lease.status == 'EXP' %}bg-red-100 text-red-800 dark:bg-red-900/60 dark:text-red-200
+          {% else %}chip-slate{% endif %}">
+          {{ lease.get_status_display }}
+        </span>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+
+  {% if is_paginated %}
+  <nav data-animate="fade-up" class="mt-6 flex items-center justify-center gap-2">
+    {% if page_obj.has_previous %}
+    <a href="?{% querystring page=page_obj.previous_page_number %}"
+       data-press data-hover="lift"
+       class="rounded-lg border border-slate-200 bg-white/80 px-3 py-2 text-sm
+              hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10">
+      ← {% trans "Previous" %}
+    </a>
+    {% endif %}
+    <span class="px-3 text-sm text-slate-500 dark:text-slate-400">
+      {% trans "Page" %} {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}
+    </span>
+    {% if page_obj.has_next %}
+    <a href="?{% querystring page=page_obj.next_page_number %}"
+       data-press data-hover="lift"
+       class="rounded-lg border border-slate-200 bg-white/80 px-3 py-2 text-sm
+              hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10">
+      {% trans "Next" %} →
+    </a>
+    {% endif %}
+  </nav>
+  {% endif %}
+
+  {% else %}
+  <div data-animate="zoom-in" class="card py-16 text-center">
+    <svg class="mx-auto mb-4 h-14 w-14 text-slate-300 dark:text-slate-600"
+         fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+            d="M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2z" />
+    </svg>
+    <p class="text-sm text-slate-500 dark:text-slate-400">
+      {% trans "No leases found." %}
+    </p>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Sale Listings" %} — Malawi Property SaaS{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-5xl px-4 py-6 sm:px-6">
+
+  <div class="mb-6 flex items-center justify-between gap-3">
+    <h1 data-animate="fade-up" data-animate-now
+        class="text-2xl font-bold tracking-tight">
+      {% trans "Sale Listings" %}
+    </h1>
+    <a href="{% url 'property:sales:listing_create' %}"
+       data-animate="fade-left" data-animate-now data-press data-hover="grow"
+       class="btn btn-primary">
+      <svg viewBox="0 0 24 24" fill="none" class="h-4 w-4" stroke="currentColor"
+           stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 5v14M5 12h14" />
+      </svg>
+      <span class="hidden sm:inline">{% trans "New Listing" %}</span>
+    </a>
+  </div>
+
+  <form method="get"
+        data-animate="fade-up" data-animate-now data-animate-delay="120"
+        class="card mb-4 p-3">
+    <div class="flex gap-2">
+      <select name="status" class="field flex-1">
+        <option value="">{% trans "All statuses" %}</option>
+        {% for value, label in statuses %}
+        <option value="{{ value }}" {% if current_status == value %}selected{% endif %}>
+          {{ label }}
+        </option>
+        {% endfor %}
+      </select>
+      <button type="submit" data-press data-hover="lift"
+              class="btn border border-slate-200 bg-slate-100 text-slate-700
+                     hover:bg-slate-200 dark:border-white/10 dark:bg-white/5
+                     dark:text-slate-200 dark:hover:bg-white/10">
+        {% trans "Filter" %}
+      </button>
+    </div>
+  </form>
+
+  {% if listings %}
+  <div data-stagger="0.04"
+       class="card divide-y divide-slate-100 overflow-hidden p-0
+              dark:divide-slate-700/60">
+    {% for listing in listings %}
+    <a href="{% url 'property:sales:listing_detail' listing.pk %}"
+       data-animate="fade-up" data-hover="nudge"
+       class="flex items-center justify-between gap-3 p-4
+              transition-colors hover:bg-slate-50 dark:hover:bg-white/5">
+      <div class="min-w-0 flex-1">
+        <p class="truncate font-medium">{{ listing.property.name }}</p>
+        <p class="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">
+          {% if listing.unit %}{{ listing.unit.identifier }} · {% endif %}
+          {% if listing.agent %}{{ listing.agent.full_name }} · {% endif %}
+          {{ listing.listing_date|date:"d M Y" }}
+        </p>
+      </div>
+      <div class="shrink-0 text-right">
+        <p class="text-sm font-semibold">
+          {{ listing.currency }} {{ listing.asking_price|floatformat:0 }}
+        </p>
+        <span class="chip mt-0.5
+          {% if listing.status == 'COMP' %}chip-green
+          {% elif listing.status == 'OFFER' or listing.status == 'AGR' %}bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-200
+          {% elif listing.status == 'WDR' %}bg-red-100 text-red-800 dark:bg-red-900/60 dark:text-red-200
+          {% else %}chip-slate{% endif %}">
+          {{ listing.get_status_display }}
+        </span>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div data-animate="zoom-in" class="card py-16 text-center">
+    <p class="text-sm text-slate-500 dark:text-slate-400">
+      {% trans "No sale listings found." %}
+    </p>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

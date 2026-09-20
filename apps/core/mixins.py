@@ -38,23 +38,24 @@ class TenantContextMixin:
         return ctx
 
 
-class PublicSchemaOnlyMixin(TenantContextMixin, UserPassesTestMixin):
+class PublicSchemaOnlyMixin(TenantContextMixin):
     """
     Restrict view to the public schema only.
     Useful for signup, tenant management, and marketing pages.
+
+    Uses dispatch() rather than UserPassesTestMixin so it composes safely
+    with other access mixins (LoginRequiredMixin, PlatformAdminRequiredMixin).
+    Tenant-schema users hitting a public-only page get redirected home;
+    anonymous users get redirected to login.
     """
 
-    def test_func(self):
+    def dispatch(self, request, *args, **kwargs):
         if not self.is_public_schema():
-            return False
-        return super().test_func() if hasattr(super(), 'test_func') else True
-
-    def handle_no_permission(self):
-        if self.request.user.is_authenticated and not self.is_public_schema():
-            # Redirect tenant users to their dashboard
             from django.shortcuts import redirect
-            return redirect('home')
-        return super().handle_no_permission()
+            if request.user.is_authenticated:
+                return redirect('home')
+            return redirect('login')
+        return super().dispatch(request, *args, **kwargs)
 
 
 class TenantSchemaOnlyMixin(TenantContextMixin):

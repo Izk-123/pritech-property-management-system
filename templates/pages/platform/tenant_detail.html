@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{{ tenant.name }} — Pritech PMS{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-4xl px-4 py-6 sm:px-6">
+
+  <nav data-animate="fade-right" data-animate-now class="mb-4 text-sm">
+    <a href="{% url 'platform:tenant_list' %}"
+       class="inline-flex items-center gap-1 text-primary-600 transition-colors
+              hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300">
+      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M19 12H5M12 19l-7-7 7-7" />
+      </svg>
+      {% trans "All tenants" %}
+    </a>
+  </nav>
+
+  <header class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <div>
+      <h1 data-animate="blur-in" data-animate-now data-animate-duration="0.8"
+          class="text-2xl font-bold tracking-tight">
+        {{ tenant.name }}
+      </h1>
+      <p data-animate="fade-up" data-animate-now data-animate-delay="140"
+         class="mt-0.5 text-slate-500 dark:text-slate-400">
+        <span class="font-mono text-sm">{{ tenant.schema_name }}</span>
+        {% if domains %}
+          ·
+          {% for d in domains %}
+          <span class="font-mono text-xs">{{ d.domain }}{% if not forloop.last %}, {% endif %}</span>
+          {% endfor %}
+        {% endif %}
+      </p>
+      <div data-stagger="0.06" data-animate-immediate class="mt-2 flex flex-wrap gap-2">
+        <span data-animate="fade-up" class="chip chip-slate">
+          {{ tenant.get_plan_display }}
+        </span>
+        <span data-animate="fade-up" class="chip
+          {% if tenant.is_active %}chip-green
+          {% else %}bg-red-100 text-red-800 dark:bg-red-900/60 dark:text-red-200{% endif %}">
+          {% if tenant.is_active %}{% trans "Active" %}{% else %}{% trans "Suspended" %}{% endif %}
+        </span>
+        {% if tenant.on_trial %}
+        <span data-animate="fade-up"
+              class="chip bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200">
+          {% trans "Trial" %}
+        </span>
+        {% endif %}
+      </div>
+    </div>
+
+    <div data-stagger="0.08" data-animate-immediate class="flex flex-wrap gap-2">
+      <a href="{% url 'platform:tenant_update' tenant.pk %}"
+         data-animate="fade-left" data-press data-hover="lift"
+         class="btn border border-slate-200 bg-slate-100 text-slate-700
+                hover:bg-slate-200 dark:border-white/10 dark:bg-white/5
+                dark:text-slate-200 dark:hover:bg-white/10">
+        {% trans "Edit" %}
+      </a>
+      {% if tenant.is_active %}
+      <form method="post" action="{% url 'platform:tenant_suspend' tenant.pk %}">
+        {% csrf_token %}
+        <button type="submit"
+                onclick="return confirm('Suspend this tenant? Data is preserved.')"
+                data-animate="fade-left" data-press data-hover="grow"
+                class="btn bg-amber-600 text-white shadow-lg shadow-amber-600/25
+                       hover:bg-amber-500 active:bg-amber-700">
+          {% trans "Suspend" %}
+        </button>
+      </form>
+      {% else %}
+      <form method="post" action="{% url 'platform:tenant_reactivate' tenant.pk %}">
+        {% csrf_token %}
+        <button type="submit"
+                data-animate="fade-left" data-press data-hover="grow"
+                class="btn bg-emerald-600 text-white shadow-lg shadow-emerald-600/25
+                       hover:bg-emerald-500 active:bg-emerald-700">
+          {% trans "Reactivate" %}
+        </button>
+      </form>
+      {% endif %}
+    </div>
+  </header>
+
+  {# Stats #}
+  {% if stats %}
+  <section data-stagger="0.05" class="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-5">
+    <div data-animate="fade-up" class="card">
+      <p class="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
+        {% trans "Properties" %}
+      </p>
+      <p class="mt-1 text-2xl font-bold">{{ stats.properties }}</p>
+    </div>
+    <div data-animate="fade-up" class="card">
+      <p class="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
+        {% trans "Units" %}
+      </p>
+      <p class="mt-1 text-2xl font-bold">{{ stats.units }}</p>
+    </div>
+    <div data-animate="fade-up" class="card">
+      <p class="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
+        {% trans "People" %}
+      </p>
+      <p class="mt-1 text-2xl font-bold">{{ stats.people }}</p>
+    </div>
+    <div data-animate="fade-up" class="card">
+      <p class="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
+        {% trans "Reservations" %}
+      </p>
+      <p class="mt-1 text-2xl font-bold">{{ stats.reservations }}</p>
+    </div>
+    <div data-animate="fade-up" class="card">
+      <p class="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
+        {% trans "Active Leases" %}
+      </p>
+      <p class="mt-1 text-2xl font-bold">{{ stats.active_leases }}</p>
+    </div>
+  </section>
+  {% elif stats_error %}
+  <div data-animate="zoom-in"
+       class="mb-6 flex items-start gap-3 rounded-xl border border-amber-200
+              bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/30">
+    <svg class="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" fill="none"
+         stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+    </svg>
+    <p class="text-sm text-amber-800 dark:text-amber-200">
+      {% trans "Could not load tenant stats:" %} {{ stats_error }}
+    </p>
+  </div>
+  {% endif %}
+
+  {# Contact + Subscription #}
+  <section data-stagger="0.08" class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <div data-animate="fade-up" class="card">
+      <h2 class="mb-3 text-xs font-bold uppercase tracking-wider
+                 text-slate-500 dark:text-slate-400">
+        {% trans "Contact" %}
+      </h2>
+      <dl class="space-y-2 text-sm">
+        <div class="flex justify-between">
+          <dt class="text-slate-500 dark:text-slate-400">{% trans "Name" %}</dt>
+          <dd class="font-medium">{{ tenant.contact_name|default:"—" }}</dd>
+        </div>
+        <div class="flex justify-between">
+          <dt class="text-slate-500 dark:text-slate-400">{% trans "Email" %}</dt>
+          <dd class="font-medium">{{ tenant.contact_email|default:"—" }}</dd>
+        </div>
+        <div class="flex justify-between">
+          <dt class="text-slate-500 dark:text-slate-400">{% trans "Phone" %}</dt>
+          <dd class="font-medium">{{ tenant.contact_phone|default:"—" }}</dd>
+        </div>
+      </dl>
+    </div>
+
+    <div data-animate="fade-up" class="card">
+      <h2 class="mb-3 text-xs font-bold uppercase tracking-wider
+                 text-slate-500 dark:text-slate-400">
+        {% trans "Subscription" %}
+      </h2>
+      <dl class="space-y-2 text-sm">
+        <div class="flex justify-between">
+          <dt class="text-slate-500 dark:text-slate-400">{% trans "Plan" %}</dt>
+          <dd class="font-medium">{{ tenant.get_plan_display }}</dd>
+        </div>
+        <div class="flex justify-between">
+          <dt class="text-slate-500 dark:text-slate-400">{% trans "On trial" %}</dt>
+          <dd class="font-medium">
+            {% if tenant.on_trial %}{% trans "Yes" %}{% else %}{% trans "No" %}{% endif %}
+          </dd>
+        </div>
+        <div class="flex justify-between">
+          <dt class="text-slate-500 dark:text-slate-400">{% trans "Paid until" %}</dt>
+          <dd class="font-medium">{{ tenant.paid_until|date:"d M Y"|default:"—" }}</dd>
+        </div>
+        <div class="flex justify-between">
+          <dt class="text-slate-500 dark:text-slate-400">{% trans "Created" %}</dt>
+          <dd class="font-medium">{{ tenant.created_at|date:"d M Y" }}</dd>
+        </div>
+      </dl>
+    </div>
+  </section>
+
+  {# Domains #}
+  <section class="mb-6">
+    <h2 data-animate="fade-up" class="mb-3 text-lg font-semibold">
+      {% trans "Domains" %}
+    </h2>
+    <div data-stagger="0.04"
+         class="card divide-y divide-slate-100 overflow-hidden p-0
+                dark:divide-slate-700/60">
+      {% for domain in domains %}
+      <div data-animate="fade-up" class="flex items-center justify-between gap-3 p-4">
+        <p class="font-mono text-sm">{{ domain.domain }}</p>
+        {% if domain.is_primary %}
+        <span class="chip chip-primary">{% trans "Primary" %}</span>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  {# Danger zone #}
+  <section data-animate="zoom-in"
+           class="mt-8 rounded-xl border border-red-200 bg-red-50 p-5
+                  dark:border-red-900/60 dark:bg-red-950/30">
+    <h2 class="mb-2 text-xs font-bold uppercase tracking-wider
+               text-red-800 dark:text-red-300">
+      {% trans "Danger Zone" %}
+    </h2>
+    <p class="mb-4 text-xs text-red-700 dark:text-red-400">
+      {% trans "Permanently delete this tenant and drop their entire schema. This action cannot be undone." %}
+    </p>
+    <form method="post" action="{% url 'platform:tenant_delete' tenant.pk %}">
+      {% csrf_token %}
+      <label class="mb-1 block text-xs text-red-800 dark:text-red-300">
+        {% trans "Type the tenant name to confirm:" %}
+        <strong class="font-mono">{{ tenant.name }}</strong>
+      </label>
+      <input type="text" name="confirm_name" required
+             class="field mb-3 border-red-300 dark:border-red-800" />
+      <button type="submit"
+              onclick="return confirm('This will permanently delete all data for this tenant. Are you absolutely sure?');"
+              data-press data-hover="grow"
+              class="btn bg-red-600 text-white shadow-lg shadow-red-600/25
+                     hover:bg-red-500 active:bg-red-700">
+        {% trans "Permanently Delete Tenant" %}
+      </button>
+    </form>
+  </section>
+
+</div>
+{% endblock %}

@@ -1,0 +1,10 @@
+{% load i18n %}<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>{% trans "Health Check" %} — Pritech PMS</title>
+</head>
+<body style="font-family: monospace; padding: 20px;">
+{% if db_ok %}OK{% else %}DB_UNAVAILABLE{% endif %}
+</body>
+</html>

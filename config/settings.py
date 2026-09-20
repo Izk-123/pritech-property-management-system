@@ -4,8 +4,11 @@ Django settings for the Pritech Property Management System
 
 Single-file settings. Environment-driven via python-decouple.
 
-    Local dev  : .env with DEBUG=True  → SQLite, console email, no SSL
-    Production : .env with DEBUG=False → PostgreSQL, Redis, SMTP, SSL, WhiteNoise
+Phase 5: multi-tenant via django-tenants (PostgreSQL schema isolation).
+PostgreSQL is required in BOTH dev and prod — SQLite cannot host tenants.
+
+    Local dev  : .env with DEBUG=True  → Postgres (pritech_pms_dev), console email
+    Production : .env with DEBUG=False → Postgres (pritech_pms), SMTP, SSL
 
 Entry points (wsgi.py / asgi.py / celery.py) should read
 DJANGO_SETTINGS_MODULE from the environment and default to 'config.settings'.
@@ -30,27 +33,50 @@ DEBUG = config('DEBUG', default=True, cast=bool)
 
 ALLOWED_HOSTS = config(
     'ALLOWED_HOSTS',
-    default='localhost,127.0.0.1',
+    default='localhost,127.0.0.1,.lvh.me',
     cast=Csv(),
 )
 
 CSRF_TRUSTED_ORIGINS = config(
     'CSRF_TRUSTED_ORIGINS',
-    default='http://localhost:8000,http://127.0.0.1:8000',
+    default='http://localhost:8000,http://127.0.0.1:8000,http://*.lvh.me:8000',
     cast=Csv(),
 )
 
 # Public URL — used to build absolute links in emails, invoices, etc.
-SITE_URL = config('SITE_URL', default='http://127.0.0.1:8000')
+SITE_URL = config('SITE_URL', default='http://pms.lvh.me:8000')
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Multi-tenancy (django-tenants)
+# ─────────────────────────────────────────────────────────────────────
+TENANT_MODEL = 'tenants.Tenant'
+TENANT_DOMAIN_MODEL = 'tenants.Domain'
+
+PUBLIC_SCHEMA_NAME = 'public'
+PUBLIC_SCHEMA_URLCONF = 'config.urls_public'
+ROOT_URLCONF = 'config.urls'
+
+DATABASE_ROUTERS = ('django_tenants.routers.TenantSyncRouter',)
+
+SHOW_PUBLIC_IF_NO_TENANT_FOUND = config(
+    'SHOW_PUBLIC_IF_NO_TENANT_FOUND', default=False, cast=bool,
+)
+
+SESSION_COOKIE_DOMAIN = config('SESSION_COOKIE_DOMAIN', default=None)
+CSRF_COOKIE_DOMAIN = config('CSRF_COOKIE_DOMAIN', default=None)
 
 
 # ─────────────────────────────────────────────────────────────────────
 # Applications
-# SHARED_APPS  → public schema (Phase 5 multi-tenancy)
-# TENANT_APPS  → per-tenant schema
+# SHARED_APPS  → public schema (tenant registry, users, admin, celery)
+# TENANT_APPS  → per-tenant schema (business data)
 # ─────────────────────────────────────────────────────────────────────
 SHARED_APPS = [
-    'unfold',                       # must come first
+    'django_tenants',               # must be first
+    'apps.shared.tenants',          # Tenant + Domain models
+
+    'unfold',                       # must come before django.contrib.admin
     'unfold.contrib.filters',
     'unfold.contrib.forms',
 
@@ -87,16 +113,26 @@ TENANT_APPS = [
     'apps.property.rent_invoicing',
     'apps.property.maintenance',
     'apps.property.sales',
+
+    # Compliance (Phase 4)
+    'apps.compliance.eis',
+    'apps.compliance.paychangu',
+    'apps.compliance.tourism_levy',
+    'apps.compliance.forex',
+    'apps.compliance.fcy',
 ]
 
-INSTALLED_APPS = SHARED_APPS + [app for app in TENANT_APPS if app not in SHARED_APPS]
+INSTALLED_APPS = list(SHARED_APPS) + [
+    app for app in TENANT_APPS if app not in SHARED_APPS
+]
 
 
 # ─────────────────────────────────────────────────────────────────────
 # Middleware
-# WhiteNoise is inserted only when not DEBUG.
+# TenantMainMiddleware MUST be first.
 # ─────────────────────────────────────────────────────────────────────
 MIDDLEWARE = [
+    'django_tenants.middleware.main.TenantMainMiddleware',   # must be first
     'django.middleware.security.SecurityMiddleware',
 ]
 
@@ -114,7 +150,6 @@ MIDDLEWARE += [
 ]
 
 
-ROOT_URLCONF = 'config.urls'
 WSGI_APPLICATION = 'config.wsgi.application'
 ASGI_APPLICATION = 'config.asgi.application'
 
@@ -141,32 +176,27 @@ TEMPLATES = [
 
 
 # ─────────────────────────────────────────────────────────────────────
-# Database — SQLite in dev, PostgreSQL in prod
+# Database — PostgreSQL in BOTH dev and prod (django-tenants requirement)
 # ─────────────────────────────────────────────────────────────────────
-if DEBUG:
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
-        }
+DATABASES = {
+    'default': {
+        'ENGINE': 'django_tenants.postgresql_backend',
+        'NAME': config('DB_NAME', default='pritech_pms_dev' if DEBUG else 'pritech_pms'),
+        'USER': config('DB_USER', default='postgres'),
+        'PASSWORD': config('DB_PASSWORD', default='dev-password'),
+        'HOST': config('DB_HOST', default='127.0.0.1'),
+        'PORT': config('DB_PORT', default='5432'),
+        'CONN_MAX_AGE': config('DB_CONN_MAX_AGE', default=600, cast=int),
+        'CONN_HEALTH_CHECKS': True,
+        'OPTIONS': {
+            'connect_timeout': 10,
+        },
     }
-else:
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.postgresql',
-            'NAME': config('DB_NAME'),
-            'USER': config('DB_USER'),
-            'PASSWORD': config('DB_PASSWORD'),
-            'HOST': config('DB_HOST', default='127.0.0.1'),
-            'PORT': config('DB_PORT', default='5432'),
-            'CONN_MAX_AGE': 600,
-            'CONN_HEALTH_CHECKS': True,
-            'OPTIONS': {
-                'connect_timeout': 10,
-                'options': '-c statement_timeout=30000',   # 30s cap
-            },
-        }
-    }
+}
+
+# 30-second query cap only in prod (dev may want long queries while testing).
+if not DEBUG:
+    DATABASES['default']['OPTIONS']['options'] = '-c statement_timeout=30000'
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -213,7 +243,7 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 LOGIN_URL = 'login'
-LOGIN_REDIRECT_URL = 'reservations:front_desk'
+LOGIN_REDIRECT_URL = 'home'
 LOGOUT_REDIRECT_URL = 'login'
 
 
@@ -239,8 +269,6 @@ LOCALE_PATHS = [BASE_DIR / 'locale']
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
-# Only include the custom static dir if it actually exists — avoids
-# W004 warnings on fresh clones.
 if (BASE_DIR / 'static').exists():
     STATICFILES_DIRS = [BASE_DIR / 'static']
 
@@ -249,16 +277,21 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# Whitenoise only in prod; manifest storage hashes filenames.
+# Tenant-aware file storage — see apps/core/storage.py
+STORAGES = {
+    'default': {
+        'BACKEND': 'apps.core.storage.TenantFileStorage',
+    },
+    'staticfiles': {
+        'BACKEND': (
+            'whitenoise.storage.CompressedManifestStaticFilesStorage'
+            if not DEBUG else
+            'django.contrib.staticfiles.storage.StaticFilesStorage'
+        ),
+    },
+}
+
 if not DEBUG:
-    STORAGES = {
-        'default': {
-            'BACKEND': 'django.core.files.storage.FileSystemStorage',
-        },
-        'staticfiles': {
-            'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
-        },
-    }
     WHITENOISE_MAX_AGE = 31536000
     WHITENOISE_USE_FINDERS = False
 
@@ -331,6 +364,13 @@ CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
 
 CELERY_BEAT_SCHEDULE = {
+    # ─── Phase 5 — Multi-tenant night audit (runs across all tenants) ───
+    'run-night-audit-all-tenants': {
+        'task': 'apps.hospitality.reservations.tasks.run_night_audit_for_all_tenants',
+        'schedule': crontab(hour=2, minute=0),        # 02:00 daily
+    },
+
+    # ─── Phase 3 — Property module ─────────────────────────────────────
     'generate-monthly-rent-invoices': {
         'task': 'apps.property.rent_invoicing.tasks.generate_monthly_rent_invoices',
         'schedule': crontab(day_of_month=1, hour=6, minute=0),
@@ -343,8 +383,28 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'apps.property.rent_invoicing.tasks.flag_overdue_invoices',
         'schedule': crontab(hour=7, minute=30),
     },
-    # Phase 4 will add: fetch-forex-rates, sync-offline-eis-invoices,
-    # generate-monthly-levy-report, generate-rbm-returns
+
+    # ─── Phase 4 — Compliance ──────────────────────────────────────────
+    'fetch-forex-rates': {
+        'task': 'apps.compliance.forex.tasks.fetch_forex_rates',
+        'schedule': crontab(minute=0, hour='*/6'),
+    },
+    'sync-eis-configs': {
+        'task': 'apps.compliance.eis.tasks.sync_all_terminal_configs',
+        'schedule': crontab(hour=5, minute=0),
+    },
+    'sync-offline-eis-invoices': {
+        'task': 'apps.compliance.eis.tasks.sync_offline_eis_invoices',
+        'schedule': crontab(minute='*/15'),
+    },
+    'generate-monthly-levy-report': {
+        'task': 'apps.compliance.tourism_levy.tasks.generate_monthly_levy_report',
+        'schedule': crontab(day_of_month=1, hour=6, minute=0),
+    },
+    'generate-monthly-rbm-returns': {
+        'task': 'apps.compliance.fcy.tasks.generate_monthly_rbm_returns',
+        'schedule': crontab(day_of_month=1, hour=7, minute=0),
+    },
 }
 
 
@@ -358,6 +418,14 @@ INTERNAL_IPS = ['127.0.0.1']
 
 # ─────────────────────────────────────────────────────────────────────
 # Django Unfold (admin theme)
+#
+# Sidebar order:
+#   Platform → Dashboard → Hospitality → Property → Compliance
+#   → Core → Administration
+#
+# Platform section appears first because on the public schema, platform
+# admins only care about Tenants/Domains/Users. On tenant schemas, the
+# Platform links still show for superusers but are harmless.
 # ─────────────────────────────────────────────────────────────────────
 UNFOLD = {
     'SITE_TITLE': 'Pritech PMS',
@@ -386,6 +454,26 @@ UNFOLD = {
         'show_search': True,
         'show_all_applications': True,
         'navigation': [
+            {
+                'title': 'Platform',
+                'items': [
+                    {
+                        'title': 'Tenants',
+                        'icon': 'domain',
+                        'link': '/platform/tenants/',
+                    },
+                    {
+                        'title': 'Domains',
+                        'icon': 'link',
+                        'link': '/admin/tenants/domain/',
+                    },
+                    {
+                        'title': 'Users',
+                        'icon': 'manage_accounts',
+                        'link': '/admin/shared_users/user/',
+                    },
+                ],
+            },
             {
                 'title': 'Dashboard',
                 'items': [
@@ -418,6 +506,27 @@ UNFOLD = {
                 ],
             },
             {
+                'title': 'Compliance',
+                'items': [
+                    {'title': 'Overview', 'icon': 'verified_user',
+                     'link': '/compliance/'},
+                    {'title': 'MRA EIS Terminals', 'icon': 'point_of_sale',
+                     'link': '/compliance/eis/terminals/'},
+                    {'title': 'EIS Invoice Log', 'icon': 'description',
+                     'link': '/compliance/eis/invoices/'},
+                    {'title': 'EIS Offline Queue', 'icon': 'cloud_off',
+                     'link': '/compliance/eis/offline-queue/'},
+                    {'title': 'PayChangu', 'icon': 'payments',
+                     'link': '/compliance/paychangu/transactions/'},
+                    {'title': 'Tourism Levy', 'icon': 'receipt_long',
+                     'link': '/compliance/levy/report/'},
+                    {'title': 'Forex Rates', 'icon': 'currency_exchange',
+                     'link': '/compliance/forex/rates/'},
+                    {'title': 'FCY & RBM', 'icon': 'account_balance',
+                     'link': '/compliance/fcy/'},
+                ],
+            },
+            {
                 'title': 'Core',
                 'items': [
                     {'title': 'Properties', 'icon': 'apartment',
@@ -435,8 +544,6 @@ UNFOLD = {
             {
                 'title': 'Administration',
                 'items': [
-                    {'title': 'Users', 'icon': 'manage_accounts',
-                     'link': '/admin/shared_users/user/'},
                     {'title': 'Audit Log', 'icon': 'history',
                      'link': '/admin/auditlog/logentry/'},
                     {'title': 'Periodic Tasks', 'icon': 'schedule',
@@ -493,6 +600,11 @@ LOGGING = {
             'handlers': ['console'],
             'propagate': False,
         },
+        'django_tenants': {
+            'level': 'INFO',
+            'handlers': ['console'],
+            'propagate': False,
+        },
         'celery': {
             'level': 'INFO',
             'handlers': ['console'],
@@ -509,7 +621,6 @@ LOGGING = {
 if not DEBUG:
     LOG_DIR.mkdir(exist_ok=True)
 
-    # Add rotating file handlers
     LOGGING['handlers']['file'] = {
         'class': 'logging.handlers.RotatingFileHandler',
         'filename': str(LOG_DIR / 'django.log'),
@@ -532,7 +643,6 @@ if not DEBUG:
         'formatter': 'verbose',
     }
 
-    # Route loggers through file handlers too
     LOGGING['root']['handlers']                        = ['console', 'file']
     LOGGING['loggers']['django']['handlers']           = ['console', 'file']
     LOGGING['loggers']['django.request']['handlers']   = ['console', 'file']
@@ -561,15 +671,22 @@ if SENTRY_DSN and not DEBUG:
 
 
 # ─────────────────────────────────────────────────────────────────────
-# Phase 4 placeholders — harmless until wired up
+# Phase 4 — Compliance
 # ─────────────────────────────────────────────────────────────────────
+
+# ─── PayChangu (mobile money, cards) ────────────────────────────────
 PAYCHANGU_ENABLED = config('PAYCHANGU_ENABLED', default=False, cast=bool)
 PAYCHANGU_BASE_URL = config('PAYCHANGU_BASE_URL', default='https://api.paychangu.com')
 PAYCHANGU_SECRET_KEY = config('PAYCHANGU_SECRET_KEY', default='')
 PAYCHANGU_WEBHOOK_SECRET = config('PAYCHANGU_WEBHOOK_SECRET', default='')
 PAYCHANGU_TIMEOUT = config('PAYCHANGU_TIMEOUT', default=15, cast=int)
 
+# ─── MRA Electronic Invoicing System (EIS) ──────────────────────────
 EIS_ENABLED = config('EIS_ENABLED', default=False, cast=bool)
-EIS_BASE_URL = config('EIS_BASE_URL', default='')
+EIS_API_BASE_URL = config(
+    'EIS_API_BASE_URL',
+    default='https://dev-eis-api.mra.mw/api/v1',
+)
+EIS_SANDBOX_MODE = config('EIS_SANDBOX_MODE', default=True, cast=bool)
 EIS_API_KEY = config('EIS_API_KEY', default='')
 EIS_TIN = config('EIS_TIN', default='')

@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Forex Rates" %} — Malawi Property SaaS{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-5xl px-4 py-6 sm:px-6">
+
+  <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <div>
+      <h1 data-animate="fade-up" data-animate-now
+          class="text-2xl font-bold tracking-tight">
+        {% trans "Forex Rates" %}
+      </h1>
+      <p data-animate="fade-up" data-animate-now data-animate-delay="80"
+         class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+        {% trans "Cached exchange rates. Auto-refreshed every 6 hours." %}
+      </p>
+    </div>
+    <form method="post" action="{% url 'compliance:forex:refresh' %}">
+      {% csrf_token %}
+      <button type="submit"
+              data-animate="fade-left" data-animate-now data-press data-hover="grow"
+              class="btn btn-primary">
+        {% trans "Refresh Now" %}
+      </button>
+    </form>
+  </div>
+
+  {# Current rates #}
+  <section data-stagger="0.07" class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+    {% for currency, rate in current_rates.items %}
+    <div data-animate="zoom-in" class="card">
+      <p class="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
+        1 {{ currency }} → MWK
+      </p>
+      <p class="mt-2 text-3xl font-extrabold tracking-tight
+                text-primary-600 dark:text-primary-400">
+        {% if rate %}{{ rate.rate|floatformat:2 }}{% else %}—{% endif %}
+      </p>
+      {% if rate %}
+      <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">
+        {{ rate.get_source_display }} · {{ rate.effective_from|date:"d M Y H:i" }}
+      </p>
+      {% else %}
+      <p class="mt-2 text-xs text-amber-600 dark:text-amber-400">
+        {% trans "No cached rate. Refresh to fetch." %}
+      </p>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </section>
+
+  {# Historical rates #}
+  <section>
+    <h2 data-animate="fade-up" class="mb-3 text-lg font-semibold">
+      {% trans "Rate History" %}
+    </h2>
+
+    <form method="get"
+          data-animate="fade-up" data-animate-delay="80"
+          class="card mb-4 p-3">
+      <div class="flex gap-2">
+        <select name="currency" class="field flex-1">
+          <option value="">{% trans "All currencies" %}</option>
+          {% for c in currencies %}
+          <option value="{{ c }}" {% if current_currency == c %}selected{% endif %}>
+            {{ c }}
+          </option>
+          {% endfor %}
+        </select>
+        <button type="submit" data-press data-hover="lift"
+                class="btn border border-slate-200 bg-slate-100 text-slate-700
+                       hover:bg-slate-200 dark:border-white/10 dark:bg-white/5
+                       dark:text-slate-200 dark:hover:bg-white/10">
+          {% trans "Filter" %}
+        </button>
+      </div>
+    </form>
+
+    {% if rates %}
+    <div data-animate="fade-up" class="card overflow-hidden p-0">
+      <table class="w-full text-sm">
+        <thead class="bg-slate-50 dark:bg-white/5">
+          <tr class="text-left text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            <th class="px-4 py-2 font-semibold">{% trans "Pair" %}</th>
+            <th class="px-4 py-2 text-right font-semibold">{% trans "Rate" %}</th>
+            <th class="px-4 py-2 font-semibold">{% trans "Source" %}</th>
+            <th class="px-4 py-2 font-semibold">{% trans "Effective From" %}</th>
+            <th class="px-4 py-2 font-semibold">{% trans "Effective To" %}</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 dark:divide-slate-700/60">
+          {% for rate in rates %}
+          <tr class="transition-colors hover:bg-slate-50 dark:hover:bg-white/5">
+            <td class="px-4 py-2 font-medium">
+              {{ rate.quote_currency }}/{{ rate.base_currency }}
+            </td>
+            <td class="px-4 py-2 text-right font-mono">
+              {{ rate.rate|floatformat:4 }}
+            </td>
+            <td class="px-4 py-2 text-xs text-slate-500 dark:text-slate-400">
+              {{ rate.get_source_display }}
+            </td>
+            <td class="px-4 py-2 text-xs">
+              {{ rate.effective_from|date:"d M Y H:i" }}
+            </td>
+            <td class="px-4 py-2 text-xs">
+              {% if rate.effective_to %}
+                {{ rate.effective_to|date:"d M Y H:i" }}
+              {% else %}
+                <span class="font-medium text-emerald-600 dark:text-emerald-400">
+                  {% trans "Current" %}
+                </span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if is_paginated %}
+    <nav data-animate="fade-up" class="mt-6 flex items-center justify-center gap-2">
+      {% if page_obj.has_previous %}
+      <a href="?{% querystring page=page_obj.previous_page_number %}"
+         data-press data-hover="lift"
+         class="rounded-lg border border-slate-200 bg-white/80 px-3 py-2 text-sm
+                hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10">
+        ← {% trans "Previous" %}
+      </a>
+      {% endif %}
+      <span class="px-3 text-sm text-slate-500 dark:text-slate-400">
+        {% trans "Page" %} {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}
+      </span>
+      {% if page_obj.has_next %}
+      <a href="?{% querystring page=page_obj.next_page_number %}"
+         data-press data-hover="lift"
+         class="rounded-lg border border-slate-200 bg-white/80 px-3 py-2 text-sm
+                hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10">
+        {% trans "Next" %} →
+      </a>
+      {% endif %}
+    </nav>
+    {% endif %}
+
+    {% else %}
+    <div data-animate="zoom-in" class="card py-8 text-center">
+      <p class="text-sm text-slate-500 dark:text-slate-400">
+        {% trans "No rates cached yet." %}
+      </p>
+    </div>
+    {% endif %}
+  </section>
+
+</div>
+{% endblock %}

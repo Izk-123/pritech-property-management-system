@@ -17,3 +17,4 @@ python-decouple
 django-tailwind
 django-auditlog
 psycopg2-binary
+dj-lite-tenant

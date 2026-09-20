@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "PayChangu Transactions" %} — Malawi Property SaaS{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-5xl px-4 py-6 sm:px-6">
+
+  <div class="mb-6">
+    <h1 data-animate="fade-up" data-animate-now
+        class="text-2xl font-bold tracking-tight">
+      {% trans "PayChangu Transactions" %}
+    </h1>
+    <p data-animate="fade-up" data-animate-now data-animate-delay="80"
+       class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+      {% trans "Mobile money and card payments processed through PayChangu." %}
+    </p>
+  </div>
+
+  {# Today's summary #}
+  <div data-stagger="0.06" class="mb-6 grid grid-cols-2 gap-3">
+    <div data-animate="fade-up" class="card">
+      <p class="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
+        {% trans "Today's Volume" %}
+      </p>
+      <p class="mt-1 text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+        MWK {{ today_total|floatformat:0 }}
+      </p>
+    </div>
+    <div data-animate="fade-up" class="card">
+      <p class="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
+        {% trans "Today's Count" %}
+      </p>
+      <p class="mt-1 text-2xl font-bold">{{ today_count }}</p>
+    </div>
+  </div>
+
+  {# Filters #}
+  <form method="get"
+        data-animate="fade-up" data-animate-now data-animate-delay="120"
+        class="card mb-4 p-3">
+    <div class="flex flex-col gap-2 sm:flex-row">
+      <input type="search" name="q" value="{{ search_query }}"
+             placeholder="{% trans 'Charge ID, ref, phone, name…' %}"
+             class="field flex-1" />
+      <select name="status" class="field sm:w-40">
+        <option value="">{% trans "All statuses" %}</option>
+        {% for value, label in statuses %}
+        <option value="{{ value }}" {% if current_status == value %}selected{% endif %}>
+          {{ label }}
+        </option>
+        {% endfor %}
+      </select>
+      <select name="method" class="field sm:w-40">
+        <option value="">{% trans "All methods" %}</option>
+        {% for value, label in methods %}
+        <option value="{{ value }}" {% if current_method == value %}selected{% endif %}>
+          {{ label }}
+        </option>
+        {% endfor %}
+      </select>
+      <button type="submit" data-press data-hover="lift"
+              class="btn border border-slate-200 bg-slate-100 text-slate-700
+                     hover:bg-slate-200 dark:border-white/10 dark:bg-white/5
+                     dark:text-slate-200 dark:hover:bg-white/10">
+        {% trans "Filter" %}
+      </button>
+    </div>
+  </form>
+
+  {# Transactions #}
+  {% if transactions %}
+  <div data-stagger="0.03"
+       class="card divide-y divide-slate-100 overflow-hidden p-0
+              dark:divide-slate-700/60">
+    {% for txn in transactions %}
+    <div data-animate="fade-up" class="flex items-center justify-between gap-3 p-4">
+      <div class="min-w-0 flex-1">
+        <p class="truncate font-mono text-sm font-medium">{{ txn.charge_id }}</p>
+        <p class="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">
+          {{ txn.created_at|date:"d M Y H:i" }}
+          {% if txn.payer_mobile %}· {{ txn.payer_mobile }}{% endif %}
+          {% if txn.payer_name %}· {{ txn.payer_name }}{% endif %}
+        </p>
+      </div>
+      <div class="shrink-0 text-right">
+        <p class="text-sm font-semibold">
+          {{ txn.currency }} {{ txn.amount|floatformat:0 }}
+        </p>
+        <div class="mt-0.5 flex justify-end gap-1">
+          {% if txn.method %}
+          <span class="chip chip-slate">{{ txn.get_method_display }}</span>
+          {% endif %}
+          <span class="chip
+            {% if txn.status == 'SUCC' %}chip-green
+            {% elif txn.status == 'PEND' or txn.status == 'INIT' %}bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200
+            {% else %}bg-red-100 text-red-800 dark:bg-red-900/60 dark:text-red-200{% endif %}">
+            {{ txn.get_status_display }}
+          </span>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% if is_paginated %}
+  <nav data-animate="fade-up" class="mt-6 flex items-center justify-center gap-2">
+    {% if page_obj.has_previous %}
+    <a href="?{% querystring page=page_obj.previous_page_number %}"
+       data-press data-hover="lift"
+       class="rounded-lg border border-slate-200 bg-white/80 px-3 py-2 text-sm
+              hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10">
+      ← {% trans "Previous" %}
+    </a>
+    {% endif %}
+    <span class="px-3 text-sm text-slate-500 dark:text-slate-400">
+      {% trans "Page" %} {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}
+    </span>
+    {% if page_obj.has_next %}
+    <a href="?{% querystring page=page_obj.next_page_number %}"
+       data-press data-hover="lift"
+       class="rounded-lg border border-slate-200 bg-white/80 px-3 py-2 text-sm
+              hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10">
+      {% trans "Next" %} →
+    </a>
+    {% endif %}
+  </nav>
+  {% endif %}
+
+  {% else %}
+  <div data-animate="zoom-in" class="card py-16 text-center">
+    <svg class="mx-auto mb-4 h-14 w-14 text-slate-300 dark:text-slate-600"
+         fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+            d="M17 9V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2m2 4h10a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2zm7-5a2 2 0 1 1-4 0 2 2 0 0 1 4 0z" />
+    </svg>
+    <p class="text-sm text-slate-500 dark:text-slate-400">
+      {% trans "No transactions found." %}
+    </p>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

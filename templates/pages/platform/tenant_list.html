@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Tenants" %} — Pritech PMS{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+
+  {# Heading #}
+  <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <div>
+      <div data-animate="zoom-in" data-animate-now
+           class="mb-3 inline-flex items-center gap-2 rounded-full border
+                  border-primary-200 bg-primary-50 px-3 py-1 text-xs font-semibold
+                  text-primary-700 dark:border-primary-800 dark:bg-primary-900/30
+                  dark:text-primary-300">
+        <span class="relative flex h-1.5 w-1.5">
+          <span class="absolute inline-flex h-full w-full animate-pulse-ring rounded-full bg-primary-400"></span>
+          <span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-primary-500"></span>
+        </span>
+        {% trans "Platform admin" %}
+      </div>
+      <h1 data-animate="blur-in" data-animate-now data-animate-duration="0.8"
+          class="text-2xl font-bold tracking-tight sm:text-3xl">
+        {% trans "Tenants" %}
+      </h1>
+      <p data-animate="fade-up" data-animate-now data-animate-delay="140"
+         class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+        {% trans "Manage all client workspaces on the platform." %}
+      </p>
+    </div>
+    <a href="{% url 'platform:tenant_create' %}"
+       data-animate="fade-left" data-animate-now data-press data-hover="grow"
+       class="btn btn-primary">
+      <svg viewBox="0 0 24 24" fill="none" class="h-4 w-4" stroke="currentColor"
+           stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 5v14M5 12h14" />
+      </svg>
+      <span class="hidden sm:inline">{% trans "New Tenant" %}</span>
+    </a>
+  </div>
+
+  {# Stats #}
+  <div data-stagger="0.07" class="mb-6 grid grid-cols-2 gap-3">
+    <div data-animate="fade-up" class="card">
+      <p class="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
+        {% trans "Active" %}
+      </p>
+      <p class="mt-1 text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+        {{ total_active }}
+      </p>
+    </div>
+    <div data-animate="fade-up" class="card">
+      <p class="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
+        {% trans "Suspended" %}
+      </p>
+      <p class="mt-1 text-2xl font-bold text-red-600 dark:text-red-400">
+        {{ total_suspended }}
+      </p>
+    </div>
+  </div>
+
+  {# Filters #}
+  <form method="get"
+        data-animate="fade-up" data-animate-now data-animate-delay="120"
+        class="card mb-4 p-3">
+    <div class="flex flex-col gap-2 sm:flex-row">
+      <input type="search" name="q" value="{{ search_query }}"
+             placeholder="{% trans 'Search by name, subdomain, or email…' %}"
+             class="field flex-1" />
+      <select name="status" class="field sm:w-40">
+        <option value="">{% trans "All statuses" %}</option>
+        <option value="active" {% if current_status == 'active' %}selected{% endif %}>
+          {% trans "Active" %}
+        </option>
+        <option value="suspended" {% if current_status == 'suspended' %}selected{% endif %}>
+          {% trans "Suspended" %}
+        </option>
+      </select>
+      <select name="plan" class="field sm:w-40">
+        <option value="">{% trans "All plans" %}</option>
+        {% for value, label in plans %}
+        <option value="{{ value }}" {% if current_plan == value %}selected{% endif %}>
+          {{ label }}
+        </option>
+        {% endfor %}
+      </select>
+      <button type="submit" data-press data-hover="lift"
+              class="btn border border-slate-200 bg-slate-100 text-slate-700
+                     hover:bg-slate-200 dark:border-white/10 dark:bg-white/5
+                     dark:text-slate-200 dark:hover:bg-white/10">
+        {% trans "Filter" %}
+      </button>
+    </div>
+  </form>
+
+  {# Tenant list #}
+  {% if tenants %}
+  <div data-stagger="0.04"
+       class="card divide-y divide-slate-100 overflow-hidden p-0
+              dark:divide-slate-700/60">
+    {% for tenant in tenants %}
+    <a href="{% url 'platform:tenant_detail' tenant.pk %}"
+       data-animate="fade-up" data-hover="nudge"
+       class="flex items-center justify-between gap-3 p-4
+              transition-colors hover:bg-slate-50 dark:hover:bg-white/5">
+      <div class="min-w-0 flex-1">
+        <p class="truncate font-medium">{{ tenant.name }}</p>
+        <p class="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">
+          <span class="font-mono">{{ tenant.schema_name }}</span>
+          · {{ tenant.contact_email|default:"—" }}
+          · {% trans "created" %} {{ tenant.created_at|date:"d M Y" }}
+        </p>
+      </div>
+      <div class="flex shrink-0 items-center gap-2">
+        <span class="chip chip-slate">{{ tenant.get_plan_display }}</span>
+        <span class="chip
+          {% if tenant.is_active %}chip-green
+          {% else %}bg-red-100 text-red-800 dark:bg-red-900/60 dark:text-red-200{% endif %}">
+          {% if tenant.is_active %}{% trans "Active" %}{% else %}{% trans "Suspended" %}{% endif %}
+        </span>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+
+  {% if is_paginated %}
+  <nav data-animate="fade-up" class="mt-6 flex items-center justify-center gap-2">
+    {% if page_obj.has_previous %}
+    <a href="?{% querystring page=page_obj.previous_page_number %}"
+       data-press data-hover="lift"
+       class="rounded-lg border border-slate-200 bg-white/80 px-3 py-2 text-sm
+              hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10">
+      ← {% trans "Previous" %}
+    </a>
+    {% endif %}
+    <span class="px-3 text-sm text-slate-500 dark:text-slate-400">
+      {% trans "Page" %} {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}
+    </span>
+    {% if page_obj.has_next %}
+    <a href="?{% querystring page=page_obj.next_page_number %}"
+       data-press data-hover="lift"
+       class="rounded-lg border border-slate-200 bg-white/80 px-3 py-2 text-sm
+              hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10">
+      {% trans "Next" %} →
+    </a>
+    {% endif %}
+  </nav>
+  {% endif %}
+
+  {% else %}
+  <div data-animate="zoom-in" class="card py-16 text-center">
+    <svg class="mx-auto mb-4 h-14 w-14 text-slate-300 dark:text-slate-600"
+         fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+            d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+    </svg>
+    <p class="text-sm text-slate-500 dark:text-slate-400">
+      {% trans "No tenants found." %}
+    </p>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

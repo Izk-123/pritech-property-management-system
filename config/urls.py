@@ -5,10 +5,14 @@ from django.contrib.auth import views as auth_views
 from django.urls import path, include
 from django.views.generic import TemplateView
 
+
 urlpatterns = [
-    # Public
     path('', TemplateView.as_view(template_name='pages/home.html'), name='home'),
+
+    # Core
     path('properties/', include('apps.core.properties.urls')),
+    path('people/', include('apps.core.people.urls')),
+    path('documents/', include('apps.core.documents.urls')),
 
     # Auth
     path('login/', auth_views.LoginView.as_view(
@@ -16,12 +20,16 @@ urlpatterns = [
     ), name='login'),
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),
 
-    # Staff — Hospitality
+    # Hospitality
     path('reservations/', include('apps.hospitality.reservations.urls')),
     path('folios/', include('apps.hospitality.folios.urls')),
     path('housekeeping/', include('apps.hospitality.housekeeping.urls')),
-    
+
+    # Property
     path('property/', include('apps.property.urls')),
+
+    # Compliance
+    path('compliance/', include('apps.compliance.urls')),
 
     # Admin
     path('admin/', admin.site.urls),

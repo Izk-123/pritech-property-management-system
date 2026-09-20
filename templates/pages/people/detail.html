@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{{ person.full_name }} — Pritech PMS{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-4xl px-4 py-6 sm:px-6">
+
+  <nav data-animate="fade-right" data-animate-now class="mb-4 text-sm">
+    <a href="{% url 'people:list' %}"
+       class="inline-flex items-center gap-1 text-primary-600 transition-colors
+              hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300">
+      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M19 12H5M12 19l-7-7 7-7" />
+      </svg>
+      {% trans "All people" %}
+    </a>
+  </nav>
+
+  <header class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <div>
+      <h1 data-animate="blur-in" data-animate-now data-animate-duration="0.8"
+          class="flex flex-wrap items-center gap-2 text-2xl font-bold tracking-tight">
+        {{ person.full_name }}
+        {% if person.is_blacklisted %}
+        <span class="chip bg-red-100 text-red-800 dark:bg-red-900/60 dark:text-red-200">
+          {% trans "Blacklisted" %}
+        </span>
+        {% endif %}
+      </h1>
+      <p data-animate="fade-up" data-animate-now data-animate-delay="140"
+         class="mt-0.5 text-slate-500 dark:text-slate-400">
+        {{ person.nationality }} · {{ person.get_preferred_language_display }}
+      </p>
+    </div>
+    <a href="{% url 'people:edit' person.pk %}"
+       data-animate="fade-left" data-animate-now data-press data-hover="lift"
+       class="btn border border-slate-200 bg-slate-100 text-slate-700
+              hover:bg-slate-200 dark:border-white/10 dark:bg-white/5
+              dark:text-slate-200 dark:hover:bg-white/10">
+      {% trans "Edit" %}
+    </a>
+  </header>
+
+  {% if person.is_blacklisted %}
+  <div data-animate="zoom-in" role="alert"
+       class="mb-6 flex items-start gap-3 rounded-xl border border-red-200
+              bg-red-50 p-4 dark:border-red-800 dark:bg-red-900/30">
+    <svg class="h-5 w-5 shrink-0 text-red-600 dark:text-red-400" fill="none"
+         stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+    </svg>
+    <div>
+      <p class="text-sm font-semibold text-red-800 dark:text-red-300">
+        {% trans "This person is blacklisted" %}
+      </p>
+      <p class="mt-1 text-sm text-red-700 dark:text-red-400">
+        {{ person.blacklist_reason }}
+      </p>
+    </div>
+  </div>
+  {% endif %}
+
+  <section data-stagger="0.08" class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+
+    <div data-animate="fade-up" class="card">
+      <h2 class="mb-3 text-xs font-bold uppercase tracking-wider
+                 text-slate-500 dark:text-slate-400">
+        {% trans "Contact" %}
+      </h2>
+      <dl class="space-y-2 text-sm">
+        <div>
+          <dt class="text-slate-500 dark:text-slate-400">{% trans "Primary phone" %}</dt>
+          <dd class="font-medium">{{ person.phone_primary }}</dd>
+        </div>
+        {% if person.phone_secondary %}
+        <div>
+          <dt class="text-slate-500 dark:text-slate-400">{% trans "Secondary phone" %}</dt>
+          <dd class="font-medium">{{ person.phone_secondary }}</dd>
+        </div>
+        {% endif %}
+        {% if person.email %}
+        <div>
+          <dt class="text-slate-500 dark:text-slate-400">{% trans "Email" %}</dt>
+          <dd class="truncate font-medium">{{ person.email }}</dd>
+        </div>
+        {% endif %}
+        {% if person.address %}
+        <div>
+          <dt class="text-slate-500 dark:text-slate-400">{% trans "Address" %}</dt>
+          <dd class="whitespace-pre-line font-medium">{{ person.address }}</dd>
+        </div>
+        {% endif %}
+        {% if person.district %}
+        <div>
+          <dt class="text-slate-500 dark:text-slate-400">{% trans "District" %}</dt>
+          <dd class="font-medium">{{ person.district }}</dd>
+        </div>
+        {% endif %}
+      </dl>
+    </div>
+
+    <div data-animate="fade-up" class="card">
+      <h2 class="mb-3 text-xs font-bold uppercase tracking-wider
+                 text-slate-500 dark:text-slate-400">
+        {% trans "Identity" %}
+      </h2>
+      <dl class="space-y-2 text-sm">
+        {% if person.id_type %}
+        <div>
+          <dt class="text-slate-500 dark:text-slate-400">{% trans "ID type" %}</dt>
+          <dd class="font-medium">{{ person.get_id_type_display }}</dd>
+        </div>
+        {% endif %}
+        {% if person.id_number %}
+        <div>
+          <dt class="text-slate-500 dark:text-slate-400">{% trans "ID number" %}</dt>
+          <dd class="font-mono font-medium">{{ person.id_number }}</dd>
+        </div>
+        {% endif %}
+        {% if person.date_of_birth %}
+        <div>
+          <dt class="text-slate-500 dark:text-slate-400">{% trans "Date of birth" %}</dt>
+          <dd class="font-medium">{{ person.date_of_birth|date:"d M Y" }}</dd>
+        </div>
+        {% endif %}
+        <div>
+          <dt class="text-slate-500 dark:text-slate-400">{% trans "Nationality" %}</dt>
+          <dd class="font-medium">{{ person.nationality }}</dd>
+        </div>
+        <div>
+          <dt class="text-slate-500 dark:text-slate-400">{% trans "Added" %}</dt>
+          <dd class="font-medium">{{ person.created_at|date:"d M Y" }}</dd>
+        </div>
+      </dl>
+    </div>
+  </section>
+
+  {# Property roles #}
+  <section>
+    <h2 data-animate="fade-up" class="mb-3 text-lg font-semibold">
+      {% trans "Property Roles" %}
+    </h2>
+
+    {% if roles %}
+    <div data-stagger="0.04"
+         class="card divide-y divide-slate-100 overflow-hidden p-0
+                dark:divide-slate-700/60">
+      {% for role in roles %}
+      <div data-animate="fade-up" class="flex items-center justify-between gap-3 p-4">
+        <div class="min-w-0">
+          <p class="truncate text-sm font-medium">{{ role.property.name }}</p>
+          <p class="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">
+            {{ role.get_role_display }} ·
+            {% trans "since" %} {{ role.start_date|date:"d M Y" }}
+            {% if role.end_date %}· {% trans "until" %} {{ role.end_date|date:"d M Y" }}{% endif %}
+          </p>
+        </div>
+        <span class="chip shrink-0
+          {% if role.is_active %}chip-green
+          {% else %}chip-slate{% endif %}">
+          {% if role.is_active %}{% trans "Active" %}{% else %}{% trans "Inactive" %}{% endif %}
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div data-animate="fade-up" class="card py-8 text-center">
+      <p class="text-sm text-slate-500 dark:text-slate-400">
+        {% trans "No property roles assigned yet." %}
+      </p>
+    </div>
+    {% endif %}
+  </section>
+
+</div>
+{% endblock %}

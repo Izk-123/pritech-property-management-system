@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 {% load i18n %}
 
-{% block title %}{% trans "Properties" %} — Malawi Property SaaS{% endblock %}
+{% block title %}{% trans "Properties" %} — Pritech PMS{% endblock %}
 
 {% block content %}
 <div class="mx-auto max-w-6xl px-4 py-6 sm:px-6">
 
-  {# ── Header ────────────────────────────────────────────── #}
+  {# Header #}
   <div class="mb-6">
     <h1 data-animate="fade-up" data-animate-now
         class="text-2xl font-bold tracking-tight sm:text-3xl">
@@ -22,7 +22,7 @@
     </p>
   </div>
 
-  {# ── Search & filter bar ───────────────────────────────── #}
+  {# Search & filters #}
   <form method="get"
         data-animate="fade-up" data-animate-now data-animate-delay="140"
         class="card mb-6 p-3 sm:p-4">
@@ -69,8 +69,7 @@
     </div>
 
     <div class="mt-3 flex gap-2">
-      <button type="submit" data-press data-hover="grow"
-              class="btn btn-primary">
+      <button type="submit" data-press data-hover="grow" class="btn btn-primary">
         {% trans "Search" %}
       </button>
       {% if current_filters.q or current_filters.type or current_filters.region or current_filters.district %}
@@ -84,9 +83,9 @@
     </div>
   </form>
 
-  {# ── Results ───────────────────────────────────────────── #}
+  {# Results #}
   {% if properties %}
-  <div data-stagger="0.06" class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+  <div data-stagger="0.05" class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
     {% for property in properties %}
     <a href="{% url 'properties:detail' property.pk %}"
        data-animate="fade-up" data-hover="lift"
@@ -95,7 +94,6 @@
               hover:border-primary-300 dark:border-white/10 dark:bg-slate-800/70
               dark:hover:border-primary-700">
 
-      {# Image placeholder #}
       <div class="aspect-video flex items-center justify-center
                   bg-gradient-to-br from-primary-100 to-primary-200
                   dark:from-primary-900/60 dark:to-primary-800/60">
@@ -138,7 +136,6 @@
     {% endfor %}
   </div>
 
-  {# ── Pagination ────────────────────────────────────────── #}
   {% if is_paginated %}
   <nav data-animate="fade-up" class="mt-8 flex items-center justify-center gap-2">
     {% if page_obj.has_previous %}
@@ -168,9 +165,7 @@
   {% endif %}
 
   {% else %}
-  {# ── Empty state ───────────────────────────────────────── #}
-  <div data-animate="zoom-in"
-       class="card py-16 text-center">
+  <div data-animate="zoom-in" class="card py-16 text-center">
     <svg class="mx-auto mb-4 h-16 w-16 text-slate-300 dark:text-slate-600"
          fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"

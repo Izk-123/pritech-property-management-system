@@ -4,7 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="color-scheme" content="light dark" />
-  <title>{% block title %}Pritech PMS — Property Management System{% endblock %}</title>
+  <meta name="description" content="{% trans 'Property management for Malawi hotels, lodges, and rentals.' %}" />
+  <title>{% block title %}Pritech PMS{% endblock %}</title>
 
   {# Theme bootstrap — runs before paint to prevent dark-mode flash #}
   <script>
@@ -137,6 +138,20 @@
                hover:bg-white dark:border-white/10 dark:bg-white/5
                dark:text-slate-300 dark:hover:bg-white/10;
       }
+      .menu-item {
+        @apply block px-4 py-2 text-sm text-slate-700 transition-colors
+               hover:bg-slate-100 hover:text-slate-900
+               dark:text-slate-200 dark:hover:bg-white/10 dark:hover:text-white;
+      }
+      .drawer-section {
+        @apply px-3 pb-1 text-[10px] font-bold uppercase tracking-wider
+               text-slate-400 dark:text-slate-500;
+      }
+      .drawer-item {
+        @apply block rounded-lg px-3 py-2.5 text-sm font-medium
+               text-slate-700 hover:bg-slate-100
+               dark:text-slate-200 dark:hover:bg-white/10;
+      }
     }
     @layer utilities {
       .text-gradient {
@@ -183,279 +198,12 @@
                 dark:bg-[radial-gradient(ellipse_at_top,transparent_40%,rgb(15_23_42)_100%)]"></div>
   </div>
 
-  {# TOP NAVIGATION #}
-  {% block nav %}
-  <header class="sticky top-0 z-40 border-b border-slate-200/70
-                 bg-white/85 backdrop-blur-xl
-                 dark:border-white/5 dark:bg-slate-900/85">
-
-    <div class="mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
-
-      {# Brand #}
-      <a href="{% url 'home' %}"
-         data-animate="fade-right" data-animate-now data-hover="nudge"
-         class="group flex shrink-0 items-center gap-2.5 rounded-xl">
-        <span class="relative grid h-8 w-8 place-items-center rounded-lg
-                     bg-gradient-to-br from-primary-500 to-fuchsia-500 text-white
-                     shadow-lg shadow-primary-500/30">
-          <svg viewBox="0 0 24 24" fill="none" class="h-4 w-4" stroke="currentColor"
-               stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M3 10.5 12 3l9 7.5" />
-            <path d="M5 9.5V21h14V9.5" />
-          </svg>
-        </span>
-        <span class="hidden flex-col leading-none sm:flex">
-          <span class="text-sm font-bold tracking-tight">Pritech PMS</span>
-          <span class="text-[10px] font-medium uppercase tracking-[0.16em]
-                       text-slate-400 dark:text-slate-500">Property Management System</span>
-        </span>
-      </a>
-
-      {# Desktop navigation #}
-      <nav class="hidden items-center gap-1 md:flex">
-
-        <a href="{% url 'properties:list' %}"
-           data-animate="fade-down" data-animate-now data-hover="lift"
-           class="nav-link">{% trans "Properties" %}</a>
-
-        {% if user.is_authenticated and user.is_staff %}
-        <span aria-hidden="true"
-              class="mx-1 h-5 w-px bg-slate-300 dark:bg-slate-600"></span>
-
-        <a href="{% url 'reservations:front_desk' %}"
-           data-animate="fade-down" data-animate-now data-animate-delay="40"
-           data-hover="lift" class="nav-link">{% trans "Front Desk" %}</a>
-
-        <a href="{% url 'reservations:list' %}"
-           data-animate="fade-down" data-animate-now data-animate-delay="80"
-           data-hover="lift" class="nav-link">{% trans "Reservations" %}</a>
-
-        <a href="{% url 'housekeeping:tasks' %}"
-           data-animate="fade-down" data-animate-now data-animate-delay="120"
-           data-hover="lift" class="nav-link">{% trans "Housekeeping" %}</a>
-
-        {# Property dropdown #}
-        <div data-nav-dropdown class="relative" data-animate="fade-down" data-animate-now data-animate-delay="160">
-          <button type="button" data-nav-dropdown-trigger
-                  aria-haspopup="true" aria-expanded="false"
-                  class="nav-link inline-flex items-center gap-1">
-            {% trans "Property" %}
-            <svg data-nav-caret class="h-3 w-3 transition-transform duration-200"
-                 fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                 stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="m6 9 6 6 6-6" />
-            </svg>
-          </button>
-          <div data-nav-dropdown-menu
-               class="absolute right-0 z-50 mt-1 hidden w-52 overflow-hidden rounded-xl border
-                      border-slate-200 bg-white/95 py-1 shadow-soft backdrop-blur-xl
-                      dark:border-white/10 dark:bg-slate-800/95">
-            <a href="{% url 'property:dashboard' %}"
-               class="block px-4 py-2 text-sm text-slate-700 transition-colors
-                      hover:bg-slate-100 hover:text-slate-900
-                      dark:text-slate-200 dark:hover:bg-white/10 dark:hover:text-white">
-              {% trans "Dashboard" %}
-            </a>
-            <a href="{% url 'property:leases:list' %}"
-               class="block px-4 py-2 text-sm text-slate-700 transition-colors
-                      hover:bg-slate-100 hover:text-slate-900
-                      dark:text-slate-200 dark:hover:bg-white/10 dark:hover:text-white">
-              {% trans "Leases" %}
-            </a>
-            <a href="{% url 'property:invoices:list' %}"
-               class="block px-4 py-2 text-sm text-slate-700 transition-colors
-                      hover:bg-slate-100 hover:text-slate-900
-                      dark:text-slate-200 dark:hover:bg-white/10 dark:hover:text-white">
-              {% trans "Rent Invoices" %}
-            </a>
-            <a href="{% url 'property:maintenance:list' %}"
-               class="block px-4 py-2 text-sm text-slate-700 transition-colors
-                      hover:bg-slate-100 hover:text-slate-900
-                      dark:text-slate-200 dark:hover:bg-white/10 dark:hover:text-white">
-              {% trans "Maintenance" %}
-            </a>
-            <a href="{% url 'property:sales:listing_list' %}"
-               class="block px-4 py-2 text-sm text-slate-700 transition-colors
-                      hover:bg-slate-100 hover:text-slate-900
-                      dark:text-slate-200 dark:hover:bg-white/10 dark:hover:text-white">
-              {% trans "Sale Listings" %}
-            </a>
-          </div>
-        </div>
-        {% endif %}
-
-        {# Theme toggle #}
-        <button type="button"
-                onclick="window.motion && window.motion.toggleTheme()"
-                aria-label="{% trans 'Toggle dark mode' %}"
-                data-animate="fade-left" data-animate-now data-press
-                class="nav-icon-btn">
-          <svg class="h-4 w-4 dark:hidden" viewBox="0 0 24 24" fill="none"
-               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="4" />
-            <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
-          </svg>
-          <svg class="hidden h-4 w-4 dark:block" viewBox="0 0 24 24" fill="none"
-               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-          </svg>
-        </button>
-
-        {# Auth actions #}
-        {% if user.is_authenticated %}
-          {% if user.is_staff %}
-          <a href="/admin/"
-             data-animate="fade-left" data-animate-now data-animate-delay="60"
-             data-hover="lift" class="nav-link">{% trans "Admin" %}</a>
-          {% endif %}
-          <form method="post" action="{% url 'logout' %}" class="inline">
-            {% csrf_token %}
-            <button type="submit"
-                    data-animate="fade-left" data-animate-now data-animate-delay="100"
-                    data-press data-hover="lift"
-                    class="rounded-xl border border-slate-200 bg-slate-100 px-3 py-1.5
-                           text-sm font-medium text-slate-700 transition-colors
-                           hover:bg-slate-200 dark:border-white/10 dark:bg-white/5
-                           dark:text-slate-200 dark:hover:bg-white/10">
-              {% trans "Sign Out" %}
-            </button>
-          </form>
-        {% else %}
-          <a href="{% url 'login' %}"
-             data-animate="fade-left" data-animate-now data-press data-hover="grow"
-             class="btn btn-primary px-4 py-1.5 text-xs">{% trans "Staff" %}</a>
-        {% endif %}
-      </nav>
-
-      {# Mobile controls #}
-      <div class="flex items-center gap-1.5 md:hidden">
-        <button type="button"
-                onclick="window.motion && window.motion.toggleTheme()"
-                aria-label="{% trans 'Toggle dark mode' %}"
-                data-press class="nav-icon-btn">
-          <svg class="h-4 w-4 dark:hidden" viewBox="0 0 24 24" fill="none"
-               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="4" />
-            <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
-          </svg>
-          <svg class="hidden h-4 w-4 dark:block" viewBox="0 0 24 24" fill="none"
-               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-          </svg>
-        </button>
-
-        <button type="button"
-                data-nav-toggle
-                aria-label="{% trans 'Menu' %}" aria-expanded="false" aria-controls="mobile-nav"
-                data-press class="nav-icon-btn">
-          <svg data-nav-open-icon class="h-4 w-4" fill="none" stroke="currentColor"
-               viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M4 6h16M4 12h16M4 18h16" />
-          </svg>
-          <svg data-nav-close-icon class="hidden h-4 w-4" fill="none" stroke="currentColor"
-               viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M18 6 6 18M6 6l12 12" />
-          </svg>
-        </button>
-      </div>
-    </div>
-
-    {# Mobile drawer #}
-    <div id="mobile-nav" data-nav-drawer
-         class="hidden border-t border-slate-200 bg-white
-                dark:border-white/5 dark:bg-slate-900 md:hidden">
-      <nav class="mx-auto max-w-6xl space-y-1 px-4 py-3">
-
-        <a href="{% url 'properties:list' %}"
-           class="block rounded-lg px-3 py-2.5 text-sm font-medium
-                  text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-white/10">
-          {% trans "Properties" %}
-        </a>
-
-        {% if user.is_authenticated and user.is_staff %}
-        <div class="mt-3 border-t border-slate-200 pt-3 dark:border-white/5">
-          <p class="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider
-                    text-slate-400 dark:text-slate-500">
-            {% trans "Staff" %}
-          </p>
-          <a href="{% url 'reservations:front_desk' %}"
-             class="block rounded-lg px-3 py-2.5 text-sm font-medium
-                    text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-white/10">
-            {% trans "Front Desk" %}
-          </a>
-          <a href="{% url 'reservations:list' %}"
-             class="block rounded-lg px-3 py-2.5 text-sm font-medium
-                    text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-white/10">
-            {% trans "Reservations" %}
-          </a>
-          <a href="{% url 'housekeeping:tasks' %}"
-             class="block rounded-lg px-3 py-2.5 text-sm font-medium
-                    text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-white/10">
-            {% trans "Housekeeping" %}
-          </a>
-        </div>
-
-        <div class="mt-3 border-t border-slate-200 pt-3 dark:border-white/5">
-          <p class="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider
-                    text-slate-400 dark:text-slate-500">
-            {% trans "Property" %}
-          </p>
-          <a href="{% url 'property:dashboard' %}"
-             class="block rounded-lg px-3 py-2.5 text-sm font-medium
-                    text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-white/10">
-            {% trans "Dashboard" %}
-          </a>
-          <a href="{% url 'property:leases:list' %}"
-             class="block rounded-lg px-3 py-2.5 text-sm font-medium
-                    text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-white/10">
-            {% trans "Leases" %}
-          </a>
-          <a href="{% url 'property:invoices:list' %}"
-             class="block rounded-lg px-3 py-2.5 text-sm font-medium
-                    text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-white/10">
-            {% trans "Rent Invoices" %}
-          </a>
-          <a href="{% url 'property:maintenance:list' %}"
-             class="block rounded-lg px-3 py-2.5 text-sm font-medium
-                    text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-white/10">
-            {% trans "Maintenance" %}
-          </a>
-          <a href="{% url 'property:sales:listing_list' %}"
-             class="block rounded-lg px-3 py-2.5 text-sm font-medium
-                    text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-white/10">
-            {% trans "Sale Listings" %}
-          </a>
-          <a href="/admin/"
-             class="block rounded-lg px-3 py-2.5 text-sm font-medium
-                    text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-white/10">
-            {% trans "Admin" %}
-          </a>
-        </div>
-        {% endif %}
-
-        <div class="mt-3 border-t border-slate-200 pt-3 dark:border-white/5">
-          {% if user.is_authenticated %}
-          <form method="post" action="{% url 'logout' %}">
-            {% csrf_token %}
-            <button type="submit"
-                    class="w-full rounded-lg px-3 py-2.5 text-left text-sm font-medium
-                           text-slate-700 hover:bg-slate-100
-                           dark:text-slate-200 dark:hover:bg-white/10">
-              {% trans "Sign Out" %}
-            </button>
-          </form>
-          {% else %}
-          <a href="{% url 'login' %}"
-             class="block rounded-lg bg-primary-600 px-3 py-2.5 text-center text-sm
-                    font-semibold text-white transition-colors hover:bg-primary-500">
-            {% trans "Staff Sign In" %}
-          </a>
-          {% endif %}
-        </div>
-      </nav>
-    </div>
-  </header>
-  {% endblock %}
+  {# HEADER — adaptive to public vs tenant schema #}
+  {% if request.tenant and request.tenant.schema_name == 'public' %}
+    {% include "partials/_header_public.html" %}
+  {% else %}
+    {% include "partials/_header_tenant.html" %}
+  {% endif %}
 
   {# Main #}
   <main data-page class="flex-1">
@@ -470,19 +218,20 @@
                 px-4 py-5 text-xs text-slate-500 dark:text-slate-400 sm:flex-row sm:px-6">
       <div data-animate="fade-right" class="flex items-center gap-2">
         <span class="grid h-6 w-6 place-items-center rounded-md
-                     bg-gradient-to-br from-primary-500 to-fuchsia-500 text-white">
-          <svg viewBox="0 0 24 24" fill="none" class="h-3 w-3" stroke="currentColor"
-               stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M3 10.5 12 3l9 7.5" />
-            <path d="M5 9.5V21h14V9.5" />
-          </svg>
+                     bg-gradient-to-br from-primary-500 to-fuchsia-500
+                     text-xs font-bold text-white">
+          P
         </span>
-        <span class="font-medium text-slate-600 dark:text-slate-300">
-          Malawi Property SaaS
+        <span>
+          © {% now "Y" %} <strong class="font-semibold text-slate-600 dark:text-slate-300">Pritech PMS</strong>
+          · {% trans "Property Management System" %}
         </span>
       </div>
       <p data-animate="fade-left">
-        © {% now "Y" %} Malawi Property SaaS · {% trans "Made in Malawi" %}
+        {% if request.tenant and request.tenant.schema_name != 'public' %}
+          {{ request.tenant.name }} ·
+        {% endif %}
+        {% trans "Made in Malawi" %}
       </p>
     </div>
   </footer>
@@ -525,7 +274,6 @@
       pop:    { enter: { scale: 1.08 },               leave: { scale: 1 } },
     };
 
-    /* Fallbacks */
     function revealAll() {
       document.querySelectorAll('[data-animate]').forEach(function (el) {
         el.classList.add('is-animated');
@@ -534,7 +282,6 @@
       document.body.classList.add('no-motion');
     }
 
-    /* Stagger */
     function initStagger() {
       document.querySelectorAll('[data-stagger]').forEach(function (group) {
         var step = parseFloat(group.dataset.stagger) || 0.08;
@@ -549,7 +296,6 @@
       });
     }
 
-    /* Entry */
     function initEnter(root) {
       var scope = root || document;
       scope.querySelectorAll('[data-animate]').forEach(function (el) {
@@ -573,7 +319,6 @@
       });
     }
 
-    /* Hover */
     function initHover(root) {
       if (!canHover.matches) return;
       (root || document).querySelectorAll('[data-hover]:not([data-hover-bound])').forEach(function (el) {
@@ -589,7 +334,6 @@
       });
     }
 
-    /* Press */
     function initPress(root) {
       (root || document).querySelectorAll('[data-press]:not([data-press-bound])').forEach(function (el) {
         el.setAttribute('data-press-bound', '1');
@@ -602,7 +346,6 @@
       });
     }
 
-    /* Page transitions */
     function initPageTransition() {
       var page = document.querySelector('[data-page]');
       if (!page) return;
@@ -633,7 +376,6 @@
       });
     }
 
-    /* Theme toggle */
     function toggleTheme() {
       var apply = function () {
         var dark = document.documentElement.classList.toggle('dark');
@@ -648,16 +390,25 @@
       }
     }
 
-    /* Nav: dropdown + mobile drawer */
     function initNav() {
-      /* Desktop dropdown */
-      var dropdown = document.querySelector('[data-nav-dropdown]');
-      if (dropdown) {
+      var dropdowns = document.querySelectorAll('[data-nav-dropdown]');
+
+      dropdowns.forEach(function (dropdown) {
         var trigger = dropdown.querySelector('[data-nav-dropdown-trigger]');
         var menu    = dropdown.querySelector('[data-nav-dropdown-menu]');
         var caret   = dropdown.querySelector('[data-nav-caret]');
+        if (!trigger || !menu) return;
 
         var openMenu = function () {
+          dropdowns.forEach(function (other) {
+            if (other === dropdown) return;
+            var otherMenu = other.querySelector('[data-nav-dropdown-menu]');
+            var otherTrigger = other.querySelector('[data-nav-dropdown-trigger]');
+            var otherCaret = other.querySelector('[data-nav-caret]');
+            if (otherMenu) otherMenu.classList.add('hidden');
+            if (otherTrigger) otherTrigger.setAttribute('aria-expanded', 'false');
+            if (otherCaret) otherCaret.style.transform = '';
+          });
           menu.classList.remove('hidden');
           trigger.setAttribute('aria-expanded', 'true');
           if (caret) caret.style.transform = 'rotate(180deg)';
@@ -666,29 +417,52 @@
                       { duration: 0.18, easing: EASE_OUT });
           }
         };
+
         var closeMenu = function () {
           menu.classList.add('hidden');
           trigger.setAttribute('aria-expanded', 'false');
           if (caret) caret.style.transform = '';
         };
+
         var isOpen = function () { return !menu.classList.contains('hidden'); };
 
         trigger.addEventListener('click', function (e) {
           e.stopPropagation();
           isOpen() ? closeMenu() : openMenu();
         });
-        document.addEventListener('click', function (e) {
-          if (!dropdown.contains(e.target) && isOpen()) closeMenu();
-        });
-        document.addEventListener('keydown', function (e) {
-          if (e.key === 'Escape' && isOpen()) closeMenu();
-        });
+
         menu.querySelectorAll('a').forEach(function (a) {
           a.addEventListener('click', closeMenu);
         });
-      }
+      });
 
-      /* Mobile drawer */
+      document.addEventListener('click', function () {
+        dropdowns.forEach(function (d) {
+          var menu = d.querySelector('[data-nav-dropdown-menu]');
+          var trigger = d.querySelector('[data-nav-dropdown-trigger]');
+          var caret = d.querySelector('[data-nav-caret]');
+          if (menu && !menu.classList.contains('hidden')) {
+            menu.classList.add('hidden');
+            trigger.setAttribute('aria-expanded', 'false');
+            if (caret) caret.style.transform = '';
+          }
+        });
+      });
+
+      document.addEventListener('keydown', function (e) {
+        if (e.key !== 'Escape') return;
+        dropdowns.forEach(function (d) {
+          var menu = d.querySelector('[data-nav-dropdown-menu]');
+          var trigger = d.querySelector('[data-nav-dropdown-trigger]');
+          var caret = d.querySelector('[data-nav-caret]');
+          if (menu && !menu.classList.contains('hidden')) {
+            menu.classList.add('hidden');
+            trigger.setAttribute('aria-expanded', 'false');
+            if (caret) caret.style.transform = '';
+          }
+        });
+      });
+
       var toggle    = document.querySelector('[data-nav-toggle]');
       var drawer    = document.querySelector('[data-nav-drawer]');
       var openIcon  = document.querySelector('[data-nav-open-icon]');
@@ -731,7 +505,6 @@
       }
     }
 
-    /* Invalid field marking */
     function markInvalidFields() {
       document.querySelectorAll('[data-field-invalid]').forEach(function (el) {
         var input = el.querySelector('input:not([type=hidden]), select, textarea');
@@ -739,7 +512,6 @@
       });
     }
 
-    /* Dirty form guard */
     function initDirtyForms() {
       document.querySelectorAll('form[data-form-dirty-warn]').forEach(function (form) {
         var dirty = false;
@@ -753,7 +525,6 @@
       });
     }
 
-    /* Public API */
     window.motion = {
       animate: M ? M.animate : function () {},
       enter: function (el, name, opts) {
@@ -783,7 +554,6 @@
       toggleTheme: toggleTheme,
     };
 
-    /* Boot */
     function boot() {
       if (!M || reduced.matches) {
         revealAll();

@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Documents" %} — Pritech PMS{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-5xl px-4 py-6 sm:px-6">
+
+  {# Header #}
+  <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <div>
+      <h1 data-animate="fade-up" data-animate-now
+          class="text-2xl font-bold tracking-tight">
+        {% trans "Documents" %}
+      </h1>
+      <p data-animate="fade-up" data-animate-now data-animate-delay="80"
+         class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+        {% trans "Contracts, IDs, invoices, and property photos." %}
+      </p>
+    </div>
+    <a href="{% url 'documents:upload' %}"
+       data-animate="fade-left" data-animate-now data-press data-hover="grow"
+       class="btn btn-primary">
+      <svg viewBox="0 0 24 24" fill="none" class="h-4 w-4" stroke="currentColor"
+           stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 5v14M5 12h14" />
+      </svg>
+      <span class="hidden sm:inline">{% trans "Upload" %}</span>
+    </a>
+  </div>
+
+  {# Stats #}
+  <div data-stagger="0.07" class="mb-6 grid grid-cols-2 gap-3">
+    <div data-animate="fade-up" class="card">
+      <p class="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
+        {% trans "Total" %}
+      </p>
+      <p class="mt-1 text-2xl font-bold">{{ total_documents }}</p>
+    </div>
+    <div data-animate="fade-up" class="card">
+      <p class="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
+        {% trans "Current" %}
+      </p>
+      <p class="mt-1 text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+        {{ current_documents }}
+      </p>
+    </div>
+  </div>
+
+  {# Filters #}
+  <form method="get"
+        data-animate="fade-up" data-animate-now data-animate-delay="120"
+        class="card mb-4 p-3">
+    <div class="flex flex-col gap-2 sm:flex-row">
+      <input type="search" name="q" value="{{ search_query }}"
+             placeholder="{% trans 'Search by title or notes…' %}"
+             class="field flex-1" />
+      <select name="type" class="field sm:w-44">
+        <option value="">{% trans "All types" %}</option>
+        {% for value, label in doc_types %}
+        <option value="{{ value }}" {% if current_type == value %}selected{% endif %}>
+          {{ label }}
+        </option>
+        {% endfor %}
+      </select>
+      <label class="flex cursor-pointer items-center gap-2 rounded-lg border
+                    border-slate-300 bg-slate-50/70 px-3 py-2 text-sm
+                    dark:border-slate-600 dark:bg-slate-900/70">
+        <input type="checkbox" name="current" value="1"
+               {% if show_only_current %}checked{% endif %}
+               class="h-4 w-4 rounded border-slate-300 text-primary-600
+                      focus:ring-primary-500 dark:border-slate-600 dark:bg-slate-900" />
+        <span class="text-slate-700 dark:text-slate-200">{% trans "Current only" %}</span>
+      </label>
+      <button type="submit" data-press data-hover="lift"
+              class="btn border border-slate-200 bg-slate-100 text-slate-700
+                     hover:bg-slate-200 dark:border-white/10 dark:bg-white/5
+                     dark:text-slate-200 dark:hover:bg-white/10">
+        {% trans "Filter" %}
+      </button>
+    </div>
+  </form>
+
+  {# Results #}
+  {% if documents %}
+  <div data-stagger="0.04"
+       class="card divide-y divide-slate-100 overflow-hidden p-0
+              dark:divide-slate-700/60">
+    {% for doc in documents %}
+    <div data-animate="fade-up" class="flex items-center justify-between gap-3 p-4">
+      <div class="min-w-0 flex-1">
+        <p class="truncate font-medium">{{ doc.title }}</p>
+        <p class="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">
+          {{ doc.get_doc_type_display }} ·
+          {{ doc.content_type.name|default:"—" }} #{{ doc.object_id }} ·
+          {{ doc.created_at|date:"d M Y" }}
+          {% if doc.file_size %}· {{ doc.file_size|filesizeformat }}{% endif %}
+        </p>
+      </div>
+      <div class="flex shrink-0 items-center gap-2">
+        {% if doc.is_current %}
+        <span class="chip chip-green">{% trans "Current" %}</span>
+        {% endif %}
+        {% if doc.file %}
+        <a href="{{ doc.file.url }}" target="_blank"
+           data-press data-hover="lift"
+           class="rounded-lg border border-slate-200 bg-slate-100 px-3 py-1
+                  text-xs font-medium text-slate-700 transition-colors
+                  hover:bg-slate-200 dark:border-white/10 dark:bg-white/5
+                  dark:text-slate-200 dark:hover:bg-white/10">
+          {% trans "Open" %}
+        </a>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% if is_paginated %}
+  <nav data-animate="fade-up" class="mt-6 flex items-center justify-center gap-2">
+    {% if page_obj.has_previous %}
+    <a href="?{% querystring page=page_obj.previous_page_number %}"
+       data-press data-hover="lift"
+       class="rounded-lg border border-slate-200 bg-white/80 px-3 py-2 text-sm
+              hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10">
+      ← {% trans "Previous" %}
+    </a>
+    {% endif %}
+    <span class="px-3 text-sm text-slate-500 dark:text-slate-400">
+      {% trans "Page" %} {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}
+    </span>
+    {% if page_obj.has_next %}
+    <a href="?{% querystring page=page_obj.next_page_number %}"
+       data-press data-hover="lift"
+       class="rounded-lg border border-slate-200 bg-white/80 px-3 py-2 text-sm
+              hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10">
+      {% trans "Next" %} →
+    </a>
+    {% endif %}
+  </nav>
+  {% endif %}
+
+  {% else %}
+  <div data-animate="zoom-in" class="card py-16 text-center">
+    <svg class="mx-auto mb-4 h-16 w-16 text-slate-300 dark:text-slate-600"
+         fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+    </svg>
+    <h3 class="text-lg font-semibold text-slate-700 dark:text-slate-300">
+      {% trans "No documents yet" %}
+    </h3>
+    <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+      {% trans "Upload lease agreements, IDs, and invoices here." %}
+    </p>
+    <a href="{% url 'documents:upload' %}" data-press data-hover="grow"
+       class="btn btn-primary mt-4">
+      + {% trans "Upload Document" %}
+    </a>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

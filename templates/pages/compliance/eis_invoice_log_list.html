@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "EIS Invoice Log" %} — Malawi Property SaaS{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-5xl px-4 py-6 sm:px-6">
+
+  <div class="mb-6">
+    <h1 data-animate="fade-up" data-animate-now
+        class="text-2xl font-bold tracking-tight">
+      {% trans "EIS Invoice Log" %}
+    </h1>
+    <p data-animate="fade-up" data-animate-now data-animate-delay="80"
+       class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+      {% trans "Every invoice submitted to MRA EIS with submission status." %}
+    </p>
+  </div>
+
+  {# Filters #}
+  <form method="get"
+        data-animate="fade-up" data-animate-now data-animate-delay="120"
+        class="card mb-4 p-3">
+    <div class="flex flex-col gap-2 sm:flex-row">
+      <input type="search" name="q" value="{{ search_query }}"
+             placeholder="{% trans 'Invoice number or MRA number…' %}"
+             class="field flex-1" />
+      <select name="status" class="field sm:w-40">
+        <option value="">{% trans "All statuses" %}</option>
+        {% for value, label in statuses %}
+        <option value="{{ value }}" {% if current_status == value %}selected{% endif %}>
+          {{ label }}
+        </option>
+        {% endfor %}
+      </select>
+      <select name="terminal" class="field sm:w-48">
+        <option value="">{% trans "All terminals" %}</option>
+        {% for t in terminals %}
+        <option value="{{ t.pk }}"
+                {% if current_terminal == t.pk|stringformat:"s" %}selected{% endif %}>
+          {{ t.terminal_code }}
+        </option>
+        {% endfor %}
+      </select>
+      <button type="submit" data-press data-hover="lift"
+              class="btn border border-slate-200 bg-slate-100 text-slate-700
+                     hover:bg-slate-200 dark:border-white/10 dark:bg-white/5
+                     dark:text-slate-200 dark:hover:bg-white/10">
+        {% trans "Filter" %}
+      </button>
+    </div>
+  </form>
+
+  {# Logs #}
+  {% if logs %}
+  <div data-stagger="0.03"
+       class="card divide-y divide-slate-100 overflow-hidden p-0
+              dark:divide-slate-700/60">
+    {% for log in logs %}
+    <div data-animate="fade-up" class="flex items-center justify-between gap-3 p-4">
+      <div class="min-w-0 flex-1">
+        <p class="truncate text-sm font-medium">{{ log.invoice_number }}</p>
+        <p class="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">
+          {{ log.terminal.terminal_code }} · {{ log.terminal.property.name }} ·
+          {{ log.created_at|date:"d M Y H:i" }}
+          {% if log.retry_count %}· {{ log.retry_count }} {% trans "retries" %}{% endif %}
+        </p>
+      </div>
+      <div class="shrink-0 text-right">
+        {% if log.mra_invoice_number %}
+        <p class="font-mono text-xs text-slate-600 dark:text-slate-400">
+          #{{ log.mra_invoice_number }}
+        </p>
+        {% endif %}
+        <span class="chip mt-0.5
+          {% if log.submission_status == 'VAL' %}chip-green
+          {% elif log.submission_status == 'OFFQ' %}bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200
+          {% elif log.submission_status == 'FAIL' %}bg-red-100 text-red-800 dark:bg-red-900/60 dark:text-red-200
+          {% elif log.submission_status == 'DUP' %}bg-violet-100 text-violet-800 dark:bg-violet-900/60 dark:text-violet-200
+          {% else %}chip-slate{% endif %}">
+          {{ log.get_submission_status_display }}
+        </span>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% if is_paginated %}
+  <nav data-animate="fade-up" class="mt-6 flex items-center justify-center gap-2">
+    {% if page_obj.has_previous %}
+    <a href="?{% querystring page=page_obj.previous_page_number %}"
+       data-press data-hover="lift"
+       class="rounded-lg border border-slate-200 bg-white/80 px-3 py-2 text-sm
+              hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10">
+      ← {% trans "Previous" %}
+    </a>
+    {% endif %}
+    <span class="px-3 text-sm text-slate-500 dark:text-slate-400">
+      {% trans "Page" %} {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}
+    </span>
+    {% if page_obj.has_next %}
+    <a href="?{% querystring page=page_obj.next_page_number %}"
+       data-press data-hover="lift"
+       class="rounded-lg border border-slate-200 bg-white/80 px-3 py-2 text-sm
+              hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10">
+      {% trans "Next" %} →
+    </a>
+    {% endif %}
+  </nav>
+  {% endif %}
+
+  {% else %}
+  <div data-animate="zoom-in" class="card py-16 text-center">
+    <svg class="mx-auto mb-4 h-14 w-14 text-slate-300 dark:text-slate-600"
+         fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+            d="M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2z" />
+    </svg>
+    <p class="text-sm text-slate-500 dark:text-slate-400">
+      {% trans "No invoices in the log." %}
+    </p>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "EIS Products" %} — Malawi Property SaaS{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-5xl px-4 py-6 sm:px-6">
+
+  <div class="mb-6">
+    <h1 data-animate="fade-up" data-animate-now
+        class="text-2xl font-bold tracking-tight">
+      {% trans "MRA Product Mappings" %}
+    </h1>
+    <p data-animate="fade-up" data-animate-now data-animate-delay="80"
+       class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+      {% trans "Internal service codes mapped to MRA product codes for EIS submissions." %}
+    </p>
+  </div>
+
+  {% if products %}
+  <div data-animate="fade-up" class="card overflow-hidden p-0">
+    <table class="w-full text-sm">
+      <thead class="bg-slate-50 dark:bg-white/5">
+        <tr class="text-left text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
+          <th class="px-4 py-2 font-semibold">{% trans "Internal Code" %}</th>
+          <th class="px-4 py-2 font-semibold">{% trans "Description" %}</th>
+          <th class="px-4 py-2 font-semibold">{% trans "MRA Code" %}</th>
+          <th class="px-4 py-2 font-semibold">{% trans "Property" %}</th>
+          <th class="px-4 py-2 font-semibold">{% trans "Status" %}</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100 dark:divide-slate-700/60">
+        {% for product in products %}
+        <tr class="transition-colors hover:bg-slate-50 dark:hover:bg-white/5">
+          <td class="px-4 py-2 font-mono text-xs">{{ product.internal_code }}</td>
+          <td class="px-4 py-2">{{ product.description }}</td>
+          <td class="px-4 py-2 font-mono text-xs">
+            {{ product.mra_product_code|default:"—" }}
+          </td>
+          <td class="px-4 py-2 text-xs text-slate-500 dark:text-slate-400">
+            {{ product.property.name }}
+          </td>
+          <td class="px-4 py-2">
+            <span class="chip
+              {% if product.is_approved %}chip-green
+              {% else %}bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200{% endif %}">
+              {% if product.is_approved %}{% trans "Approved" %}{% else %}{% trans "Pending" %}{% endif %}
+            </span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div data-animate="zoom-in" class="card py-16 text-center">
+    <svg class="mx-auto mb-4 h-14 w-14 text-slate-300 dark:text-slate-600"
+         fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+            d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+    </svg>
+    <p class="text-sm text-slate-500 dark:text-slate-400">
+      {% trans "No products mapped yet." %}
+    </p>
+    <p class="mt-2 text-xs text-slate-400 dark:text-slate-500">
+      {% trans "Map your services to MRA product codes in the admin panel." %}
+    </p>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

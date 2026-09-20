@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Workspace created" %} — Pritech PMS{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-lg px-4 py-16 text-center sm:px-6 sm:py-24">
+
+  <div data-animate="zoom-in" data-animate-now data-hover="pop"
+       class="mx-auto mb-6 grid h-20 w-20 place-items-center rounded-full
+              bg-emerald-100 text-emerald-600
+              dark:bg-emerald-900/40 dark:text-emerald-300">
+    <svg class="h-10 w-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+         stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M5 13l4 4L19 7" />
+    </svg>
+  </div>
+
+  <h1 data-animate="blur-in" data-animate-now data-animate-duration="0.8"
+      class="text-3xl font-bold tracking-tight">
+    {% if tenant_name %}
+      {% blocktrans %}{{ tenant_name }} is ready!{% endblocktrans %}
+    {% else %}
+      {% trans "Your workspace is ready!" %}
+    {% endif %}
+  </h1>
+
+  <p data-animate="fade-up" data-animate-now data-animate-delay="160"
+     class="mt-3 text-slate-500 dark:text-slate-400">
+    {% trans "Your property management system is set up and waiting for you." %}
+  </p>
+
+  {% if tenant_domain %}
+  <div data-animate="zoom-in" data-animate-now data-animate-delay="240"
+       class="card mx-auto mt-8">
+    <p class="text-xs font-semibold uppercase tracking-wider
+              text-slate-500 dark:text-slate-400">
+      {% trans "Your workspace URL" %}
+    </p>
+    <p class="mt-2 break-all font-mono text-sm">
+      https://{{ tenant_domain }}
+    </p>
+  </div>
+
+  <div data-animate="fade-up" data-animate-now data-animate-delay="320"
+       class="mt-8">
+    <a href="https://{{ tenant_domain }}/login/"
+       data-press data-hover="grow"
+       class="btn btn-primary px-8 py-3 text-base">
+      {% trans "Sign in to your workspace" %}
+      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M5 12h14M13 6l6 6-6 6" />
+      </svg>
+    </a>
+  </div>
+  {% else %}
+  <div data-animate="fade-up" data-animate-now data-animate-delay="240"
+       class="mt-8">
+    <a href="{% url 'public_home' %}"
+       data-press data-hover="lift"
+       class="btn border border-slate-200 bg-slate-100 px-8 py-3 text-slate-700
+              hover:bg-slate-200 dark:border-white/10 dark:bg-white/5
+              dark:text-slate-200 dark:hover:bg-white/10">
+      {% trans "Back to home" %}
+    </a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

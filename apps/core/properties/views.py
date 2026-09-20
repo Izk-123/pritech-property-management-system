@@ -1,10 +1,13 @@
-from django.db.models import Count, Q, Prefetch
-from django.views.generic import ListView, DetailView, View
-from django.template.loader import render_to_string
-from django.shortcuts import get_object_or_404
-from django.http import HttpResponse
-from .models import Property, Unit
+"""
+Public property browsing views.
 
+PropertyListView and PropertyDetailView are available to anonymous
+visitors browsing the tenant's public listings. Data is automatically
+scoped to the current tenant schema by django-tenants.
+"""
+from django.db.models import Count, Prefetch, Q
+from django.views.generic import ListView, DetailView
+from .models import Property, Unit
 
 
 class PropertyListView(ListView):
@@ -25,8 +28,10 @@ class PropertyListView(ListView):
                 unit_count=Count('units', filter=Q(units__is_active=True)),
                 available_count=Count(
                     'units',
-                    filter=Q(units__is_active=True,
-                             units__status=Unit.Status.AVAILABLE),
+                    filter=Q(
+                        units__is_active=True,
+                        units__status=Unit.Status.AVAILABLE,
+                    ),
                 ),
             )
             .order_by('name')
@@ -76,7 +81,8 @@ class PropertyListView(ListView):
             'district': self.request.GET.get('district', ''),
         }
         return ctx
-    
+
+
 class PropertyDetailView(DetailView):
     """
     Public detail view of a single property with its units.
@@ -104,31 +110,10 @@ class PropertyDetailView(DetailView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         units = self.object.active_units
-        ctx['available_units'] = [u for u in units
-                                  if u.status == Unit.Status.AVAILABLE]
-        ctx['unavailable_units'] = [u for u in units
-                                    if u.status != Unit.Status.AVAILABLE]
+        ctx['available_units'] = [
+            u for u in units if u.status == Unit.Status.AVAILABLE
+        ]
+        ctx['unavailable_units'] = [
+            u for u in units if u.status != Unit.Status.AVAILABLE
+        ]
         return ctx
-    
-
-
-class UnitDetailPartialView(View):
-    """
-    HTMX partial: returns HTML for a single unit's detail card.
-    """
-
-    def get(self, request, pk):
-        unit = get_object_or_404(
-            Unit.objects
-                .select_related('property')
-                .prefetch_related('amenities'),
-            pk=pk,
-            is_active=True,
-        )
-        return HttpResponse(
-            render_to_string(
-                'partials/_unit_detail.html',
-                {'unit': unit},
-                request=request,
-            )
-        )

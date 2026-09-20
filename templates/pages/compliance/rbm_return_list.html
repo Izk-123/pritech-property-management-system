@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "RBM Returns" %} — Malawi Property SaaS{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-5xl px-4 py-6 sm:px-6">
+
+  <nav data-animate="fade-right" data-animate-now class="mb-4 text-sm">
+    <a href="{% url 'compliance:fcy:dashboard' %}"
+       class="inline-flex items-center gap-1 text-primary-600 transition-colors
+              hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300">
+      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M19 12H5M12 19l-7-7 7-7" />
+      </svg>
+      {% trans "FCY Dashboard" %}
+    </a>
+  </nav>
+
+  <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <div>
+      <h1 data-animate="fade-up" data-animate-now
+          class="text-2xl font-bold tracking-tight">
+        {% trans "RBM Returns" %}
+      </h1>
+      <p data-animate="fade-up" data-animate-now data-animate-delay="80"
+         class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+        {% trans "Reserve Bank of Malawi monthly foreign currency returns." %}
+      </p>
+    </div>
+    <form method="post"
+          action="{% url 'compliance:fcy:rbm_return_generate' %}">
+      {% csrf_token %}
+      <button type="submit"
+              data-animate="fade-left" data-animate-now data-press data-hover="grow"
+              class="btn btn-primary">
+        {% trans "Generate Last Month" %}
+      </button>
+    </form>
+  </div>
+
+  {# Filters #}
+  <form method="get"
+        data-animate="fade-up" data-animate-now data-animate-delay="120"
+        class="card mb-4 p-3">
+    <div class="flex flex-col gap-2 sm:flex-row">
+      <input type="month" name="month" value="{{ current_month }}"
+             class="field flex-1" />
+      <select name="currency" class="field sm:w-44">
+        <option value="">{% trans "All currencies" %}</option>
+        {% for c in currencies %}
+        <option value="{{ c }}" {% if current_currency == c %}selected{% endif %}>
+          {{ c }}
+        </option>
+        {% endfor %}
+      </select>
+      <button type="submit" data-press data-hover="lift"
+              class="btn border border-slate-200 bg-slate-100 text-slate-700
+                     hover:bg-slate-200 dark:border-white/10 dark:bg-white/5
+                     dark:text-slate-200 dark:hover:bg-white/10">
+        {% trans "Filter" %}
+      </button>
+    </div>
+  </form>
+
+  {# Returns #}
+  {% if returns %}
+  <div data-stagger="0.04"
+       class="card divide-y divide-slate-100 overflow-hidden p-0
+              dark:divide-slate-700/60">
+    {% for ret in returns %}
+    <div data-animate="fade-up" class="flex items-center justify-between gap-3 p-4">
+      <div class="min-w-0 flex-1">
+        <p class="truncate text-sm font-medium">
+          {{ ret.property.name }} — {{ ret.currency }}
+        </p>
+        <p class="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">
+          {{ ret.return_month|date:"F Y" }} · {{ ret.transaction_count }} {% trans "transactions" %}
+        </p>
+      </div>
+      <div class="shrink-0 text-right">
+        <p class="text-sm font-semibold">
+          {{ ret.currency }} {{ ret.total_receipts|floatformat:0 }}
+        </p>
+        {% if ret.submitted_to_rbm %}
+        <span class="mt-0.5 inline-block text-xs text-emerald-600 dark:text-emerald-400">
+          {% trans "Submitted" %} {{ ret.submitted_at|date:"d M" }}
+        </span>
+        {% else %}
+        <form method="post"
+              action="{% url 'compliance:fcy:rbm_return_mark_submitted' ret.pk %}"
+              class="inline">
+          {% csrf_token %}
+          <button type="submit" data-press
+                  class="text-xs font-medium text-amber-600 transition-colors
+                         hover:text-amber-700 hover:underline
+                         dark:text-amber-400 dark:hover:text-amber-300">
+            {% trans "Mark Submitted" %}
+          </button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% if is_paginated %}
+  <nav data-animate="fade-up" class="mt-6 flex items-center justify-center gap-2">
+    {% if page_obj.has_previous %}
+    <a href="?{% querystring page=page_obj.previous_page_number %}"
+       data-press data-hover="lift"
+       class="rounded-lg border border-slate-200 bg-white/80 px-3 py-2 text-sm
+              hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10">
+      ← {% trans "Previous" %}
+    </a>
+    {% endif %}
+    <span class="px-3 text-sm text-slate-500 dark:text-slate-400">
+      {% trans "Page" %} {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}
+    </span>
+    {% if page_obj.has_next %}
+    <a href="?{% querystring page=page_obj.next_page_number %}"
+       data-press data-hover="lift"
+       class="rounded-lg border border-slate-200 bg-white/80 px-3 py-2 text-sm
+              hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10">
+      {% trans "Next" %} →
+    </a>
+    {% endif %}
+  </nav>
+  {% endif %}
+
+  {% else %}
+  <div data-animate="zoom-in" class="card py-16 text-center">
+    <svg class="mx-auto mb-4 h-14 w-14 text-slate-300 dark:text-slate-600"
+         fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+            d="M3 21v-4m0 0V5a2 2 0 0 1 2-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 0 0-2 2zm9-13.5V9" />
+    </svg>
+    <p class="text-sm text-slate-500 dark:text-slate-400">
+      {% trans "No RBM returns generated yet." %}
+    </p>
+    <p class="mt-2 text-xs text-slate-400 dark:text-slate-500">
+      {% trans "Click 'Generate Last Month' to create returns from last month's transactions." %}
+    </p>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

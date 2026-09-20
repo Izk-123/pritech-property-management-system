@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "EIS Offline Queue" %} — Malawi Property SaaS{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-4xl px-4 py-6 sm:px-6">
+
+  <nav data-animate="fade-right" data-animate-now class="mb-4 text-sm">
+    <a href="{% url 'compliance:eis:terminal_list' %}"
+       class="inline-flex items-center gap-1 text-primary-600 transition-colors
+              hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300">
+      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M19 12H5M12 19l-7-7 7-7" />
+      </svg>
+      {% trans "All terminals" %}
+    </a>
+  </nav>
+
+  <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <div>
+      <div data-animate="zoom-in" data-animate-now
+           class="mb-3 inline-flex items-center gap-2 rounded-full border
+                  border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold
+                  text-amber-700 dark:border-amber-800 dark:bg-amber-900/30
+                  dark:text-amber-300">
+        <span class="relative flex h-1.5 w-1.5">
+          <span class="absolute inline-flex h-full w-full animate-pulse-ring rounded-full bg-amber-400"></span>
+          <span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-amber-500"></span>
+        </span>
+        {% trans "Offline queue" %}
+      </div>
+      <h1 data-animate="blur-in" data-animate-now data-animate-duration="0.8"
+          class="text-2xl font-bold tracking-tight">
+        {% trans "Offline Queue" %}
+      </h1>
+      <p data-animate="fade-up" data-animate-now data-animate-delay="140"
+         class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+        {% trans "Invoices waiting to sync with MRA EIS. These were generated during outages." %}
+      </p>
+    </div>
+    {% if queued_count %}
+    <form method="post" action="{% url 'compliance:eis:force_sync' %}">
+      {% csrf_token %}
+      <button type="submit"
+              data-animate="fade-left" data-animate-now data-press data-hover="grow"
+              class="btn btn-primary">
+        {% trans "Force Sync Now" %}
+      </button>
+    </form>
+    {% endif %}
+  </div>
+
+  {# Stats #}
+  <div data-stagger="0.06" class="mb-6 grid grid-cols-2 gap-3">
+    <div data-animate="fade-up" class="card">
+      <p class="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
+        {% trans "Queued" %}
+      </p>
+      <p class="mt-1 text-2xl font-bold text-amber-600 dark:text-amber-400">
+        {{ queued_count }}
+      </p>
+    </div>
+    <div data-animate="fade-up" class="card">
+      <p class="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
+        {% trans "Failed" %}
+      </p>
+      <p class="mt-1 text-2xl font-bold text-red-600 dark:text-red-400">
+        {{ failed_count }}
+      </p>
+    </div>
+  </div>
+
+  {# Queue list #}
+  {% if queued_logs %}
+  <div data-stagger="0.04"
+       class="card divide-y divide-slate-100 overflow-hidden p-0
+              dark:divide-slate-700/60">
+    {% for log in queued_logs %}
+    <div data-animate="fade-up" class="flex items-center justify-between gap-3 p-4">
+      <div class="min-w-0 flex-1">
+        <p class="truncate text-sm font-medium">{{ log.invoice_number }}</p>
+        <p class="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">
+          {{ log.terminal.terminal_code }} ·
+          {{ log.offline_generated_at|date:"d M Y H:i"|default:log.created_at|date:"d M Y H:i" }}
+          {% if log.retry_count %}· {{ log.retry_count }} {% trans "retries" %}{% endif %}
+        </p>
+        {% if log.error_message %}
+        <p class="mt-1 truncate text-xs text-red-600 dark:text-red-400">
+          {{ log.error_message|truncatechars:80 }}
+        </p>
+        {% endif %}
+      </div>
+      <span class="chip shrink-0
+        {% if log.submission_status == 'OFFQ' %}bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200
+        {% elif log.submission_status == 'FAIL' %}bg-red-100 text-red-800 dark:bg-red-900/60 dark:text-red-200
+        {% else %}chip-slate{% endif %}">
+        {{ log.get_submission_status_display }}
+      </span>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div data-animate="zoom-in" class="card py-16 text-center">
+    <svg class="mx-auto mb-4 h-16 w-16 text-emerald-300 dark:text-emerald-700"
+         fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+      <path stroke-linecap="round" stroke-linejoin="round"
+            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+    <p class="font-medium text-slate-500 dark:text-slate-400">
+      {% trans "Queue is empty" %}
+    </p>
+    <p class="mt-1 text-xs text-slate-400 dark:text-slate-500">
+      {% trans "All invoices have been synced with MRA." %}
+    </p>
+  </div>
+  {% endif %}
+
+  <p data-animate="fade-up" class="mt-6 text-xs text-slate-500 dark:text-slate-400">
+    {% trans "The sync task runs automatically every 15 minutes. Failed invoices retry up to 5 times before requiring manual intervention." %}
+  </p>
+
+</div>
+{% endblock %}

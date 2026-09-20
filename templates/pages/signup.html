@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Create your workspace" %} — Pritech PMS{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-lg px-4 py-12 pb-32 sm:px-6 sm:pb-12">
+
+  <div class="mb-8 text-center">
+    <div data-animate="zoom-in" data-animate-now
+         class="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl
+                bg-gradient-to-br from-primary-500 to-fuchsia-500 text-white
+                shadow-lg shadow-primary-500/30">
+      <svg viewBox="0 0 24 24" fill="none" class="h-6 w-6" stroke="currentColor"
+           stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 10.5 12 3l9 7.5" />
+        <path d="M5 9.5V21h14V9.5" />
+      </svg>
+    </div>
+    <h1 data-animate="blur-in" data-animate-now data-animate-duration="0.8"
+        class="text-3xl font-bold tracking-tight">
+      {% trans "Create your workspace" %}
+    </h1>
+    <p data-animate="fade-up" data-animate-now data-animate-delay="140"
+       class="mt-2 text-slate-500 dark:text-slate-400">
+      {% trans "Set up your property management system in under a minute." %}
+    </p>
+  </div>
+
+  <form method="post" novalidate
+        data-animate="fade-up" data-animate-now data-animate-delay="200"
+        data-form-dirty-warn
+        class="card space-y-5 p-6">
+    {% csrf_token %}
+
+    {% include "partials/_form_errors.html" %}
+
+    {% for field in form %}
+      {% include "partials/_form_field.html" with field=field %}
+    {% endfor %}
+
+    <div class="hidden sm:block">
+      <button type="submit" data-press data-hover="grow"
+              class="btn btn-primary w-full py-3">
+        {% trans "Create workspace" %}
+        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 12h14M13 6l6 6-6 6" />
+        </svg>
+      </button>
+    </div>
+
+    <p class="text-center text-xs text-slate-500 dark:text-slate-400">
+      {% trans "Already have an account?" %}
+      <a href="{% url 'login' %}"
+         class="font-medium text-primary-600 transition-colors
+                hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300">
+        {% trans "Sign in" %}
+      </a>
+    </p>
+  </form>
+</div>
+
+<div class="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200
+            bg-white/95 px-4 py-3 backdrop-blur-xl
+            dark:border-white/10 dark:bg-slate-900/95 sm:hidden">
+  <div class="mx-auto max-w-lg">
+    <button type="submit"
+            onclick="document.querySelector('form[data-form-dirty-warn]').requestSubmit()"
+            data-press class="btn btn-primary w-full py-3">
+      {% trans "Create workspace" %}
+    </button>
+  </div>
+</div>
+{% endblock %}

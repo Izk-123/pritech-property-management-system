@@ -1,5 +1,6 @@
 from django.contrib import messages
 from django.urls import reverse_lazy
+from django.conf import settings
 from django.views.generic import FormView, TemplateView
 from apps.core.mixins import PublicSchemaOnlyMixin
 from .forms import TenantSignupForm
@@ -16,7 +17,7 @@ class TenantSignupView(PublicSchemaOnlyMixin, FormView):
     def form_valid(self, form):
         data = form.cleaned_data
         subdomain = data['subdomain']
-        domain_name = f'{subdomain}.pms.pritechmw.com'
+        domain_name = f'{subdomain}.{settings.TENANT_BASE_DOMAIN}'
 
         try:
             tenant = provision_tenant(

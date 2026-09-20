@@ -4,6 +4,7 @@ from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
 from django.views import View
 from django.views.generic import ListView, DetailView, CreateView, UpdateView
+from django.conf import settings
 
 from apps.core.mixins import PlatformAdminRequiredMixin, PublicSchemaOnlyMixin
 from .models import Tenant, Domain
@@ -101,7 +102,7 @@ class TenantCreateView(PublicSchemaOnlyMixin, PlatformAdminRequiredMixin, Create
 
     def form_valid(self, form):
         data = form.cleaned_data
-        domain_name = f'{data["subdomain"]}.pms.pritechmw.com'
+        domain_name = f'{data["subdomain"]}.{settings.TENANT_BASE_DOMAIN}'
 
         try:
             tenant = provision_tenant(

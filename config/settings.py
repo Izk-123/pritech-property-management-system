@@ -49,6 +49,13 @@ CSRF_TRUSTED_ORIGINS = config(
 # Public URL — used to build absolute links in emails, invoices, etc.
 SITE_URL = config('SITE_URL', default='http://pms.lvh.me:8000')
 
+# Base domain for tenant subdomains.
+# Dev: 'pms.lvh.me:8004' → signup for 'test1' creates test1.pms.lvh.me
+# Prod: 'pms.pritechmw.com' → signup for 'acme' creates acme.pms.pritechmw.com
+TENANT_BASE_DOMAIN = config(
+    'TENANT_BASE_DOMAIN',
+    default='pms.lvh.me:8004' if DEBUG else 'pms.pritechmw.com',
+)
 
 # ─────────────────────────────────────────────────────────────────────
 # Multi-tenancy (django-tenants)

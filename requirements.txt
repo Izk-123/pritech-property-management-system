@@ -1,4 +1,4 @@
-Django>=5.2
+Django>=5.2,<6.0
 djangorestframework
 djangorestframework-simplejwt
 django-filter
@@ -17,4 +17,8 @@ python-decouple
 django-tailwind
 django-auditlog
 psycopg2-binary
-dj-lite-tenant
+django-tenants
+celery
+redis
+django-celery-beat
+django-celery-results

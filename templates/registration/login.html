@@ -7,7 +7,7 @@
 <div class="flex min-h-[80vh] items-center justify-center px-4 py-10">
   <div class="w-full max-w-sm">
 
-    {# ── Brand + heading ─────────────────────────────────── #}
+    {# Brand + heading #}
     <div class="mb-8 text-center">
       <div data-animate="zoom-in" data-animate-now
            class="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl
@@ -29,7 +29,7 @@
       </p>
     </div>
 
-    {# ── Form ────────────────────────────────────────────── #}
+    {# Form #}
     <form method="post" novalidate
           data-animate="fade-up" data-animate-now data-animate-delay="280"
           class="card space-y-4 p-6">
@@ -37,6 +37,7 @@
 
       {% include "partials/_form_errors.html" %}
 
+      {# Username #}
       <div>
         <label for="id_username"
                class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
@@ -47,6 +48,7 @@
                class="field" />
       </div>
 
+      {# Password with show/hide toggle #}
       <div>
         <div class="mb-1.5 flex items-center justify-between">
           <label for="id_password"
@@ -54,14 +56,46 @@
             {% trans "Password" %}
           </label>
           <a href="#"
+             data-no-fade
              class="text-xs font-medium text-primary-600 transition-colors
                     hover:text-primary-500 dark:text-primary-400
                     dark:hover:text-primary-300">
             {% trans "Forgot?" %}
           </a>
         </div>
-        <input type="password" name="password" id="id_password"
-               autocomplete="current-password" required class="field" />
+
+        <div class="relative">
+          <input type="password" name="password" id="id_password"
+                 autocomplete="current-password" required
+                 class="field pr-11" />
+
+          <button type="button"
+                  data-password-toggle="#id_password"
+                  aria-pressed="false"
+                  aria-label="{% trans 'Show password' %}"
+                  class="absolute inset-y-0 right-0 grid w-10 place-items-center
+                         text-slate-400 transition-colors
+                         hover:text-slate-600
+                         focus-visible:outline-none focus-visible:text-primary-600
+                         dark:hover:text-slate-200 dark:focus-visible:text-primary-400">
+            <svg data-password-show-icon class="h-4 w-4" fill="none"
+                 stroke="currentColor" viewBox="0 0 24 24"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                 aria-hidden="true">
+              <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+            <svg data-password-hide-icon class="hidden h-4 w-4" fill="none"
+                 stroke="currentColor" viewBox="0 0 24 24"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                 aria-hidden="true">
+              <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" />
+              <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" />
+              <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" />
+              <path d="m2 2 20 20" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       <input type="hidden" name="next" value="{{ next }}">
@@ -76,17 +110,18 @@
       </button>
     </form>
 
+    {# Back link — guarded against request.tenant being None #}
     <p data-animate="fade-up" data-animate-now data-animate-delay="400"
        class="mt-6 text-center text-xs text-slate-500 dark:text-slate-400">
-      {% if request.tenant.schema_name == 'public' %}
-        <a href="{% url 'public_home' %}"
-           class="transition-colors hover:text-primary-600 dark:hover:text-primary-400">
-          ← {% trans "Back to home" %}
-        </a>
-      {% else %}
+      {% if request.tenant and request.tenant.schema_name != 'public' %}
         <a href="{% url 'home' %}"
            class="transition-colors hover:text-primary-600 dark:hover:text-primary-400">
           ← {% trans "Back to dashboard" %}
+        </a>
+      {% else %}
+        <a href="{% url 'public_home' %}"
+           class="transition-colors hover:text-primary-600 dark:hover:text-primary-400">
+          ← {% trans "Back to home" %}
         </a>
       {% endif %}
     </p>

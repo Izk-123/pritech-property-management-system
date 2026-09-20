@@ -39,7 +39,10 @@ ALLOWED_HOSTS = config(
 
 CSRF_TRUSTED_ORIGINS = config(
     'CSRF_TRUSTED_ORIGINS',
-    default='http://localhost:8000,http://127.0.0.1:8000,http://*.lvh.me:8000',
+    default=(
+        'http://localhost:8000,http://127.0.0.1:8000,'
+        'http://*.lvh.me:8000,http://*.lvh.me:8004'
+    ),
     cast=Csv(),
 )
 
@@ -243,7 +246,7 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 LOGIN_URL = 'login'
-LOGIN_REDIRECT_URL = 'home'
+LOGIN_REDIRECT_URL = '/'      # was 'home' — resolves on BOTH schemas
 LOGOUT_REDIRECT_URL = 'login'
 
 

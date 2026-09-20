@@ -198,11 +198,11 @@
                 dark:bg-[radial-gradient(ellipse_at_top,transparent_40%,rgb(15_23_42)_100%)]"></div>
   </div>
 
-  {# HEADER — adaptive to public vs tenant schema #}
-  {% if request.tenant and request.tenant.schema_name == 'public' %}
-    {% include "partials/_header_public.html" %}
-  {% else %}
+  {# HEADER — tenant if a non-public tenant is present, else public #}
+  {% if request.tenant and request.tenant.schema_name != 'public' %}
     {% include "partials/_header_tenant.html" %}
+  {% else %}
+    {% include "partials/_header_public.html" %}
   {% endif %}
 
   {# Main #}
@@ -360,7 +360,8 @@
         if (!href || href.charAt(0) === '#' || a.target === '_blank' ||
             a.hasAttribute('download') || a.hasAttribute('data-no-transition') ||
             a.hasAttribute('hx-get') || a.hasAttribute('hx-post') ||
-            a.hasAttribute('data-nav-dropdown-trigger')) return;
+            a.hasAttribute('data-nav-dropdown-trigger') ||
+            a.hasAttribute('data-no-fade')) return;
         var url = new URL(a.href, location.href);
         if (url.origin !== location.origin) return;
         if (url.pathname === location.pathname && url.search === location.search) return;
@@ -525,6 +526,34 @@
       });
     }
 
+    /* Password show / hide — delegated, works with HTMX swaps too */
+    function initPasswordToggles() {
+      document.addEventListener('click', function (e) {
+        var btn = e.target.closest('[data-password-toggle]');
+        if (!btn) return;
+
+        var selector = btn.getAttribute('data-password-toggle');
+        var input = document.querySelector(selector);
+        if (!input) return;
+
+        var isHidden = input.type === 'password';
+        input.type = isHidden ? 'text' : 'password';
+
+        btn.setAttribute('aria-pressed', isHidden ? 'true' : 'false');
+        btn.setAttribute(
+          'aria-label',
+          isHidden ? 'Hide password' : 'Show password'
+        );
+
+        var showIcon = btn.querySelector('[data-password-show-icon]');
+        var hideIcon = btn.querySelector('[data-password-hide-icon]');
+        if (showIcon && hideIcon) {
+          showIcon.classList.toggle('hidden', isHidden);
+          hideIcon.classList.toggle('hidden', !isHidden);
+        }
+      });
+    }
+
     window.motion = {
       animate: M ? M.animate : function () {},
       enter: function (el, name, opts) {
@@ -559,6 +588,7 @@
         revealAll();
         initNav();
         markInvalidFields();
+        initPasswordToggles();
         return;
       }
       initStagger();
@@ -569,6 +599,7 @@
       initNav();
       markInvalidFields();
       initDirtyForms();
+      initPasswordToggles();
     }
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

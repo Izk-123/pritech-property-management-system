@@ -1,5 +1,7 @@
 from django import forms
 from django.core.validators import RegexValidator
+
+from apps.shared.forms import FormControlMixin
 from .models import Tenant
 
 
@@ -16,7 +18,7 @@ RESERVED_SUBDOMAINS = {
 }
 
 
-class TenantForm(forms.ModelForm):
+class TenantForm(FormControlMixin, forms.ModelForm):
     """Form for creating or editing a tenant."""
 
     subdomain = forms.SlugField(
@@ -34,6 +36,12 @@ class TenantForm(forms.ModelForm):
         ]
         widgets = {
             'paid_until': forms.DateInput(attrs={'type': 'date'}),
+        }
+        help_texts = {
+            'name': 'Human-readable name shown in invoices and headers',
+            'plan': 'Subscription tier — determines feature access',
+            'paid_until': 'Next payment due date (blank for trial accounts)',
+            'contact_email': 'Primary contact — used for billing and notices',
         }
 
     def __init__(self, *args, **kwargs):
@@ -77,7 +85,7 @@ class TenantForm(forms.ModelForm):
         return instance
 
 
-class TenantSignupForm(forms.Form):
+class TenantSignupForm(FormControlMixin, forms.Form):
     """Public signup form for new tenants."""
 
     organization_name = forms.CharField(

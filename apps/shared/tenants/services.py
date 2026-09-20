@@ -62,7 +62,7 @@ def provision_tenant(name, schema_name, domain_name, plan='STARTER',
             email=admin_email,
             password=admin_password,
             is_staff=True,
-            is_superuser=True,
+            is_superuser=False,
             is_platform_admin=False,
         )
 

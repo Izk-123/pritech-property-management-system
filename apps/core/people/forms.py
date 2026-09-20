@@ -1,8 +1,10 @@
 from django import forms
+
+from apps.shared.forms import FormControlMixin
 from .models import Person
 
 
-class PersonForm(forms.ModelForm):
+class PersonForm(FormControlMixin, forms.ModelForm):
     class Meta:
         model = Person
         fields = [
@@ -15,6 +17,14 @@ class PersonForm(forms.ModelForm):
             'date_of_birth': forms.DateInput(attrs={'type': 'date'}),
             'address': forms.Textarea(attrs={'rows': 3}),
             'blacklist_reason': forms.Textarea(attrs={'rows': 2}),
+        }
+        help_texts = {
+            'full_name': 'As it appears on the ID document',
+            'id_number': 'National ID, passport, or driver\u2019s licence number',
+            'phone_primary': 'Primary contact number — used for SMS notifications',
+            'phone_secondary': 'Optional alternate number',
+            'preferred_language': 'Used for messages and printed documents',
+            'blacklist_reason': 'Required if the person is flagged as blacklisted',
         }
 
     def clean(self):

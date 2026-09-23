@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load i18n %}
 
-{% block title %}{% trans "Post Charge" %} — Malawi Property SaaS{% endblock %}
+{% block title %}{% trans "Post Charge" %} — Pritech PMS{% endblock %}
 
 {% block content %}
 <div class="mx-auto max-w-lg px-4 py-6 pb-32 sm:px-6 sm:pb-6">
@@ -37,7 +37,7 @@
     </p>
   </div>
 
-  {# ── Current folio state ──────────────────────────────── #}
+  {# Current folio state #}
   <div data-animate="zoom-in" data-animate-now data-animate-delay="180"
        class="card mb-5">
     <div class="flex items-center justify-between">
@@ -52,8 +52,13 @@
     </div>
   </div>
 
-  {# ── Form ──────────────────────────────────────────────── #}
+  {# Form #}
   <form method="post" novalidate
+        action="{% url 'folios:charge' folio.pk %}"
+        data-offline-form
+        data-offline-endpoint="/api/v1/sync/folios/{{ folio.pk }}/charge/"
+        data-offline-success="{% trans 'Charge saved offline. Will sync when online.' %}"
+        data-offline-redirect="/reservations/{{ folio.reservation_id }}/"
         data-animate="fade-up" data-animate-now data-animate-delay="240"
         data-form-dirty-warn
         class="card space-y-5 p-6">
@@ -93,7 +98,8 @@
             bg-white/95 px-4 py-3 backdrop-blur-xl
             dark:border-white/10 dark:bg-slate-900/95 sm:hidden">
   <div class="mx-auto flex max-w-lg gap-2">
-    <button type="submit" onclick="document.querySelector('form[data-form-dirty-warn]').requestSubmit()"
+    <button type="submit"
+            onclick="document.querySelector('form[data-offline-form]').requestSubmit()"
             data-press class="btn btn-primary flex-1 py-3">
       {% trans "Post Charge" %}
     </button>

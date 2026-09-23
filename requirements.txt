@@ -22,3 +22,7 @@ celery
 redis
 django-celery-beat
 django-celery-results
+requests
+paychangu
+pyxrate
+django-pwa

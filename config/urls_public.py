@@ -12,6 +12,13 @@ urlpatterns = [
     # Marketing home
     path('', TemplateView.as_view(template_name='pages/public_home.html'),
          name='public_home'),
+    
+    # PWA manifest and service worker
+    path('', include('pwa.urls')),
+    
+    # config/urls.py and config/urls_public.py
+    path('offline/', TemplateView.as_view(template_name='pages/offline.html'),
+        name='offline'),
 
     # Signup
     path('signup/', include('apps.shared.tenants.urls_signup')),

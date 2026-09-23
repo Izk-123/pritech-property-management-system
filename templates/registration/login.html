@@ -29,6 +29,15 @@
       </p>
     </div>
 
+    {# Offline warning #}
+    <div id="login-offline-warning"
+         class="mb-4 hidden rounded-xl border border-amber-200 bg-amber-50
+                p-3 text-xs text-amber-800
+                dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+      <p class="mb-1 font-semibold">{% trans "You are offline" %}</p>
+      <p>{% trans "Sign-in requires an internet connection the first time. If you have signed in before, your session may still be valid." %}</p>
+    </div>
+
     {# Form #}
     <form method="post" novalidate
           data-animate="fade-up" data-animate-now data-animate-delay="280"
@@ -127,4 +136,13 @@
     </p>
   </div>
 </div>
+
+<script>
+  (function() {
+    if (!navigator.onLine) {
+      var w = document.getElementById('login-offline-warning');
+      if (w) w.classList.remove('hidden');
+    }
+  })();
+</script>
 {% endblock %}

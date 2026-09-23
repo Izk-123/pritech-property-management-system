@@ -1,11 +1,20 @@
-{% load static i18n %}<!DOCTYPE html>
+{% load static i18n pwa %}<!DOCTYPE html>
 <html lang="{{ LANGUAGE_CODE|default:'en' }}" class="h-full scroll-smooth">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="color-scheme" content="light dark" />
   <meta name="description" content="{% trans 'Property management for Malawi hotels, lodges, and rentals.' %}" />
   <title>{% block title %}Pritech PMS{% endblock %}</title>
+
+  {# PWA manifest + theme-color #}
+  {% pwa_meta_tags %}
+
+  {# iOS PWA support #}
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Pritech PMS">
+  <link rel="apple-touch-icon" href="{% static 'icons/apple-touch-icon.png' %}">
 
   {# Theme bootstrap — runs before paint to prevent dark-mode flash #}
   <script>
@@ -186,7 +195,8 @@
 </head>
 
 <body class="flex h-full min-h-screen flex-col bg-slate-50 font-sans text-slate-900
-             antialiased selection:bg-primary-500/25 dark:bg-slate-900 dark:text-slate-100">
+             antialiased selection:bg-primary-500/25 dark:bg-slate-900 dark:text-slate-100"
+      {% if request.tenant %}data-tenant-schema="{{ request.tenant.schema_name }}"{% endif %}>
 
   {# Ambient animated background #}
   <div aria-hidden="true" class="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
@@ -236,6 +246,12 @@
     </div>
   </footer>
   {% endblock %}
+
+  {# Offline indicator toast #}
+  {% include "partials/_offline_indicator.html" %}
+
+  {# PWA install prompt #}
+  {% include "partials/_pwa_install_prompt.html" %}
 
   {# MOTION ENGINE + NAV CONTROLLER #}
   <script src="https://cdn.jsdelivr.net/npm/motion@10.18.0/dist/motion.min.js"></script>
@@ -615,6 +631,50 @@
 
   {# HTMX (optional) #}
   <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
+
+  {# Dexie (IndexedDB wrapper) #}
+  <script src="https://cdn.jsdelivr.net/npm/dexie@4.0.8/dist/dexie.min.js"></script>
+
+  {# Offline-first layer #}
+  <script src="{% static 'js/offline-store.js' %}"></script>
+  <script src="{% static 'js/offline-forms.js' %}"></script>
+  <script src="{% static 'js/cache-warmup.js' %}"></script>
+
+  {# Service worker registration + update prompt #}
+  <script>
+  (function() {
+    if (!('serviceWorker' in navigator)) return;
+
+    window.addEventListener('load', async function() {
+      try {
+        var registration = await navigator.serviceWorker.register(
+          '/serviceworker.js', { scope: '/' }
+        );
+
+        registration.addEventListener('updatefound', function() {
+          var newWorker = registration.installing;
+          if (!newWorker) return;
+          newWorker.addEventListener('statechange', function() {
+            if (newWorker.state === 'installed' &&
+                navigator.serviceWorker.controller) {
+              var banner = document.createElement('div');
+              banner.className = 'fixed bottom-4 left-4 right-4 sm:left-auto ' +
+                                 'sm:right-4 sm:w-80 z-50 rounded-xl ' +
+                                 'bg-slate-900 text-white px-4 py-3 text-sm shadow-2xl';
+              banner.innerHTML = '<p class="mb-2 font-medium">A new version of Pritech PMS is available.</p>' +
+                                 '<button onclick="location.reload()" ' +
+                                 'class="rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-semibold">' +
+                                 'Refresh now</button>';
+              document.body.appendChild(banner);
+            }
+          });
+        });
+      } catch (err) {
+        console.warn('[Pritech] Service worker registration failed:', err);
+      }
+    });
+  })();
+  </script>
 
   {% block extra_js %}{% endblock %}
 </body>

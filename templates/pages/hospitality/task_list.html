@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 {% load i18n %}
 
-{% block title %}{% trans "My Tasks" %} — Malawi Property SaaS{% endblock %}
+{% block title %}{% trans "My Tasks" %} — Pritech PMS{% endblock %}
 
 {% block content %}
 <div class="mx-auto max-w-2xl px-4 py-4 sm:px-6">
 
-  {# ── Header ────────────────────────────────────────────── #}
+  {# Header #}
   <div class="mb-4 flex items-center justify-between gap-3">
     <h1 data-animate="fade-up" data-animate-now
         class="text-xl font-bold tracking-tight">
@@ -18,7 +18,7 @@
     </span>
   </div>
 
-  {# ── Task cards ────────────────────────────────────────── #}
+  {# Task cards #}
   {% if tasks %}
   <div data-stagger="0.06" class="space-y-3">
     {% for task in tasks %}
@@ -49,7 +49,13 @@
 
       <div class="flex gap-2">
         {% if task.status == 'PEND' %}
-        <form method="post" action="{% url 'housekeeping:task_status' task.pk %}" class="flex-1">
+        <form method="post"
+              action="{% url 'housekeeping:task_status' task.pk %}"
+              data-offline-form
+              data-offline-endpoint="/api/v1/sync/housekeeping/{{ task.pk }}/status/"
+              data-offline-success="{% trans 'Task start saved offline. Will sync when online.' %}"
+              data-offline-redirect="/housekeeping/tasks/"
+              class="flex-1">
           {% csrf_token %}
           <input type="hidden" name="status" value="PROG">
           <button type="submit" data-press data-hover="grow"
@@ -61,7 +67,13 @@
           </button>
         </form>
         {% elif task.status == 'PROG' %}
-        <form method="post" action="{% url 'housekeeping:task_status' task.pk %}" class="flex-1">
+        <form method="post"
+              action="{% url 'housekeeping:task_status' task.pk %}"
+              data-offline-form
+              data-offline-endpoint="/api/v1/sync/housekeeping/{{ task.pk }}/status/"
+              data-offline-success="{% trans 'Mark-clean saved offline. Will sync when online.' %}"
+              data-offline-redirect="/housekeeping/tasks/"
+              class="flex-1">
           {% csrf_token %}
           <input type="hidden" name="status" value="COMP">
           <button type="submit" data-press data-hover="grow"
@@ -75,7 +87,13 @@
           </button>
         </form>
         {% elif task.status == 'COMP' %}
-        <form method="post" action="{% url 'housekeeping:task_status' task.pk %}" class="flex-1">
+        <form method="post"
+              action="{% url 'housekeeping:task_status' task.pk %}"
+              data-offline-form
+              data-offline-endpoint="/api/v1/sync/housekeeping/{{ task.pk }}/status/"
+              data-offline-success="{% trans 'Inspection saved offline. Will sync when online.' %}"
+              data-offline-redirect="/housekeeping/tasks/"
+              class="flex-1">
           {% csrf_token %}
           <input type="hidden" name="status" value="INSP">
           <button type="submit" data-press data-hover="grow"

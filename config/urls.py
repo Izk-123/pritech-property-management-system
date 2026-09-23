@@ -9,6 +9,13 @@ from apps.shared.users.views import SchemaAwareLoginView
 
 urlpatterns = [
     path('', TemplateView.as_view(template_name='pages/home.html'), name='home'),
+    
+    # PWA manifest and service worker
+    path('', include('pwa.urls')),
+    
+    # config/urls.py and config/urls_public.py
+    path('offline/', TemplateView.as_view(template_name='pages/offline.html'),
+        name='offline'),
 
     # Core
     path('properties/', include('apps.core.properties.urls')),
@@ -29,6 +36,8 @@ urlpatterns = [
 
     # Compliance
     path('compliance/', include('apps.compliance.urls')),
+    
+    path('api/v1/sync/', include('apps.core.sync.urls')),
 
     # Admin
     path('admin/', admin.site.urls),

@@ -2,13 +2,13 @@
 {% load i18n %}
 
 {% block title %}
-{% if form.instance.pk %}{% trans "Edit Reservation" %}{% else %}{% trans "New Reservation" %}{% endif %} — Malawi Property SaaS
+{% if form.instance.pk %}{% trans "Edit Reservation" %}{% else %}{% trans "New Reservation" %}{% endif %} — Pritech PMS
 {% endblock %}
 
 {% block content %}
 <div class="mx-auto max-w-2xl px-4 py-6 pb-32 sm:px-6 sm:pb-6">
 
-  {# ── Breadcrumb ────────────────────────────────────────── #}
+  {# Breadcrumb #}
   <nav data-animate="fade-right" data-animate-now class="mb-4 text-sm">
     <a href="{% url 'reservations:list' %}"
        class="inline-flex items-center gap-1 text-primary-600 transition-colors
@@ -21,7 +21,7 @@
     </a>
   </nav>
 
-  {# ── Heading ───────────────────────────────────────────── #}
+  {# Heading #}
   <div class="mb-6">
     <div data-animate="zoom-in" data-animate-now
          class="mb-3 inline-flex items-center gap-2 rounded-full border
@@ -49,8 +49,19 @@
     </p>
   </div>
 
-  {# ── Form ──────────────────────────────────────────────── #}
+  {# Form #}
   <form method="post" novalidate
+        {% if form.instance.pk %}
+        action="{% url 'reservations:edit' form.instance.pk %}"
+        data-offline-endpoint="/api/v1/sync/reservations/{{ form.instance.pk }}/status/"
+        data-offline-redirect="/reservations/{{ form.instance.pk }}/"
+        {% else %}
+        action="{% url 'reservations:create' %}"
+        data-offline-endpoint="/api/v1/sync/reservations/create/"
+        data-offline-redirect="/reservations/"
+        {% endif %}
+        data-offline-form
+        data-offline-success="{% trans 'Reservation saved offline. Will sync when online.' %}"
         data-animate="fade-up" data-animate-now data-animate-delay="200"
         data-form-dirty-warn
         class="space-y-5">
@@ -58,48 +69,39 @@
 
     {% include "partials/_form_errors.html" %}
 
-    {# ── Section: Guest & Property ────────────────────────── #}
+    {# Section: Guest & Property #}
     <fieldset data-animate="fade-up" class="card space-y-5 p-6">
       <legend class="sr-only">{% trans "Guest & Property" %}</legend>
-      <div>
-        <h2 class="text-xs font-bold uppercase tracking-wider
-                   text-slate-500 dark:text-slate-400">
-          {% trans "Guest & Property" %}
-        </h2>
-      </div>
-
+      <h2 class="text-xs font-bold uppercase tracking-wider
+                 text-slate-500 dark:text-slate-400">
+        {% trans "Guest & Property" %}
+      </h2>
       <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
         {% include "partials/_form_field.html" with field=form.primary_guest %}
         {% include "partials/_form_field.html" with field=form.property %}
       </div>
     </fieldset>
 
-    {# ── Section: Stay Dates ──────────────────────────────── #}
+    {# Section: Stay Dates #}
     <fieldset data-animate="fade-up" class="card space-y-5 p-6">
       <legend class="sr-only">{% trans "Stay Dates" %}</legend>
-      <div>
-        <h2 class="text-xs font-bold uppercase tracking-wider
-                   text-slate-500 dark:text-slate-400">
-          {% trans "Stay Dates" %}
-        </h2>
-      </div>
-
+      <h2 class="text-xs font-bold uppercase tracking-wider
+                 text-slate-500 dark:text-slate-400">
+        {% trans "Stay Dates" %}
+      </h2>
       <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
         {% include "partials/_form_field.html" with field=form.check_in %}
         {% include "partials/_form_field.html" with field=form.check_out %}
       </div>
     </fieldset>
 
-    {# ── Section: Guests & Source ─────────────────────────── #}
+    {# Section: Guests & Source #}
     <fieldset data-animate="fade-up" class="card space-y-5 p-6">
       <legend class="sr-only">{% trans "Guests & Source" %}</legend>
-      <div>
-        <h2 class="text-xs font-bold uppercase tracking-wider
-                   text-slate-500 dark:text-slate-400">
-          {% trans "Guests & Source" %}
-        </h2>
-      </div>
-
+      <h2 class="text-xs font-bold uppercase tracking-wider
+                 text-slate-500 dark:text-slate-400">
+        {% trans "Guests & Source" %}
+      </h2>
       <div class="grid grid-cols-1 gap-5 sm:grid-cols-3">
         {% include "partials/_form_field.html" with field=form.adults %}
         {% include "partials/_form_field.html" with field=form.children %}
@@ -107,21 +109,18 @@
       </div>
     </fieldset>
 
-    {# ── Section: Rate & Notes ────────────────────────────── #}
+    {# Section: Rate & Notes #}
     <fieldset data-animate="fade-up" class="card space-y-5 p-6">
       <legend class="sr-only">{% trans "Rate & Notes" %}</legend>
-      <div>
-        <h2 class="text-xs font-bold uppercase tracking-wider
-                   text-slate-500 dark:text-slate-400">
-          {% trans "Rate & Notes" %}
-        </h2>
-      </div>
-
+      <h2 class="text-xs font-bold uppercase tracking-wider
+                 text-slate-500 dark:text-slate-400">
+        {% trans "Rate & Notes" %}
+      </h2>
       {% include "partials/_form_field.html" with field=form.rate_plan %}
       {% include "partials/_form_field.html" with field=form.special_requests %}
     </fieldset>
 
-    {# ── Actions (desktop inline, mobile sticky) ──────────── #}
+    {# Desktop actions #}
     <div class="hidden sm:flex sm:flex-wrap sm:gap-2">
       <button type="submit" data-press data-hover="grow"
               class="btn btn-primary px-6 py-2.5">
@@ -138,23 +137,24 @@
         {% trans "Cancel" %}
       </a>
     </div>
-
-    {# Mobile sticky action bar #}
-    <div class="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200
-                bg-white/95 px-4 py-3 backdrop-blur-xl
-                dark:border-white/10 dark:bg-slate-900/95 sm:hidden">
-      <div class="mx-auto flex max-w-2xl gap-2">
-        <button type="submit" data-press
-                class="btn btn-primary flex-1 py-3">
-          {% trans "Save" %}
-        </button>
-        <a href="{% url 'reservations:list' %}" data-press
-           class="btn border border-slate-200 bg-slate-100 px-5 py-3 text-slate-700
-                  dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
-          {% trans "Cancel" %}
-        </a>
-      </div>
-    </div>
   </form>
+</div>
+
+{# Mobile sticky action bar #}
+<div class="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200
+            bg-white/95 px-4 py-3 backdrop-blur-xl
+            dark:border-white/10 dark:bg-slate-900/95 sm:hidden">
+  <div class="mx-auto flex max-w-2xl gap-2">
+    <button type="submit"
+            onclick="document.querySelector('form[data-offline-form]').requestSubmit()"
+            data-press class="btn btn-primary flex-1 py-3">
+      {% trans "Save" %}
+    </button>
+    <a href="{% url 'reservations:list' %}" data-press
+       class="btn border border-slate-200 bg-slate-100 px-5 py-3 text-slate-700
+              dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
+      {% trans "Cancel" %}
+    </a>
+  </div>
 </div>
 {% endblock %}

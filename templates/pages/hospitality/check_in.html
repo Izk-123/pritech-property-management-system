@@ -6,7 +6,7 @@
 {% block content %}
 <div class="mx-auto max-w-lg px-4 py-6 pb-32 sm:px-6 sm:pb-6">
 
-  {# ── Breadcrumb ────────────────────────────────────────── #}
+  {# Breadcrumb #}
   <nav data-animate="fade-right" data-animate-now class="mb-4 text-sm">
     <a href="{% url 'reservations:detail' reservation.pk %}"
        class="inline-flex items-center gap-1 text-primary-600 transition-colors
@@ -19,7 +19,7 @@
     </a>
   </nav>
 
-  {# ── Heading ───────────────────────────────────────────── #}
+  {# Heading #}
   <div class="mb-6">
     <div data-animate="zoom-in" data-animate-now
          class="mb-4 inline-flex items-center gap-2 rounded-full border border-emerald-200
@@ -41,7 +41,7 @@
     </p>
   </div>
 
-  {# ── Reservation summary ──────────────────────────────── #}
+  {# Reservation summary #}
   <div data-animate="fade-up" data-animate-now data-animate-delay="200"
        class="card mb-5 space-y-2.5 text-sm">
     <div class="flex justify-between">
@@ -61,19 +61,25 @@
     </div>
   </div>
 
-  {# ── Form ──────────────────────────────────────────────── #}
+  {# Form #}
   <form method="post" novalidate
+        action="{% url 'reservations:check_in' reservation.pk %}"
+        data-offline-form
+        data-offline-endpoint="/api/v1/sync/reservations/{{ reservation.pk }}/status/"
+        data-offline-success="{% trans 'Check-in saved offline. Will sync when online.' %}"
+        data-offline-redirect="/reservations/{{ reservation.pk }}/"
         data-animate="fade-up" data-animate-now data-animate-delay="260"
         data-form-dirty-warn
         class="card space-y-5 p-6">
     {% csrf_token %}
+    <input type="hidden" name="status" value="CHIN">
 
     {% include "partials/_form_errors.html" %}
 
     {% include "partials/_form_field.html" with field=form.unit %}
     {% include "partials/_form_field.html" with field=form.rate %}
 
-    {# ── Actions (desktop) ────────────────────────────────── #}
+    {# Desktop actions #}
     <div class="hidden flex-wrap gap-2 pt-2 sm:flex">
       <button type="submit" data-press data-hover="grow"
               class="btn flex-1 bg-emerald-600 py-2.5 text-white
@@ -96,12 +102,13 @@
   </form>
 </div>
 
-{# ── Mobile sticky action ──────────────────────────────── #}
+{# Mobile sticky action #}
 <div class="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200
             bg-white/95 px-4 py-3 backdrop-blur-xl
             dark:border-white/10 dark:bg-slate-900/95 sm:hidden">
   <div class="mx-auto flex max-w-lg gap-2">
-    <button type="submit" form="" onclick="document.querySelector('form[data-form-dirty-warn]').requestSubmit()"
+    <button type="submit"
+            onclick="document.querySelector('form[data-offline-form]').requestSubmit()"
             data-press
             class="btn flex-1 bg-emerald-600 py-3 text-white">
       {% trans "Confirm Check In" %}

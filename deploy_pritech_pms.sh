@@ -1,25 +1,27 @@
 #!/usr/bin/env bash
 # ============================================================================
-# Pritech PMS — Production deployment script (Phase 5, multi-tenant)
+# Pritech PMS — Production deployment script (Phase 6: multi-tenant + PWA)
 #
-# Features:
-#   - Idempotent: safe to re-run for updates
-#   - Handles both fresh install and re-deploy
-#   - Uses django-tenants migrate_schemas (NOT migrate)
-#   - Creates public tenant if missing
-#   - Celery workers + beat with unique node names
-#   - Nginx wildcard server_name (*.pms.pritechmw.com)
-#   - Reads optional .env overrides from /home/project/pritech-pms/.env
+# Idempotent and self-healing. Safe to re-run for updates.
 #
 # Usage:
-#   ./deploy_pritech_pms.sh              # deploy / update
-#   ./deploy_pritech_pms.sh --fresh      # wipe DB and start clean (DESTRUCTIVE)
-#   ./deploy_pritech_pms.sh --skip-ssl   # skip certbot (already have cert)
+#   sudo bash deploy_pritech_pms.sh              # deploy / update
+#   sudo bash deploy_pritech_pms.sh --fresh      # wipe DB and start clean
+#   sudo bash deploy_pritech_pms.sh --skip-ssl   # skip certbot renewal
+#   sudo bash deploy_pritech_pms.sh --env-only   # update .env, don't deploy
+#   sudo bash deploy_pritech_pms.sh --help
 # ============================================================================
+
+# ─── Self-bootstrap: fix CRLF line endings if present ───────────────────────
+if [[ -f "$0" ]] && grep -q $'\r' "$0" 2>/dev/null; then
+    echo "⚠ Detected CRLF line endings — converting to LF and restarting…"
+    sed -i 's/\r$//' "$0" 2>/dev/null || true
+    exec bash "$0" "$@"
+fi
 
 set -euo pipefail
 
-# ─── Configuration ──────────────────────────────────────────────────
+# ─── Configuration ──────────────────────────────────────────────────────────
 PROJECT_NAME="pritech-pms"
 PROJECT_DIR="/home/project/pritech-pms"
 VENV_DIR="${PROJECT_DIR}/venv"
@@ -33,13 +35,18 @@ SERVER_IP="204.168.251.91"
 DB_NAME="pritech_pms_db"
 DB_USER="pritech_pms_user"
 
-# ─── Parse flags ────────────────────────────────────────────────────
+ENV_FILE="${PROJECT_DIR}/.env"
+CERT_PATH="/etc/letsencrypt/live/${DOMAIN}/cert.pem"
+
+# ─── Parse flags ────────────────────────────────────────────────────────────
 FRESH=false
 SKIP_SSL=false
+ENV_ONLY=false
 for arg in "$@"; do
     case $arg in
         --fresh)     FRESH=true ;;
         --skip-ssl)  SKIP_SSL=true ;;
+        --env-only)  ENV_ONLY=true ;;
         --help|-h)
             grep '^#' "$0" | sed 's/^# \{0,1\}//'
             exit 0
@@ -47,10 +54,11 @@ for arg in "$@"; do
     esac
 done
 
-# ─── Logging helpers ────────────────────────────────────────────────
+# ─── Logging helpers ────────────────────────────────────────────────────────
 log()  { printf '\n\033[1;36m▸ %s\033[0m\n' "$*"; }
 ok()   { printf '\033[1;32m  ✔ %s\033[0m\n' "$*"; }
 warn() { printf '\033[1;33m  ⚠ %s\033[0m\n' "$*"; }
+info() { printf '\033[0;37m    %s\033[0m\n' "$*"; }
 die()  { printf '\033[1;31m  ✘ %s\033[0m\n' "$*" >&2; exit 1; }
 
 banner() {
@@ -59,10 +67,10 @@ banner() {
     printf '\033[1;35m══════════════════════════════════════════════════════════\033[0m\n'
 }
 
-# ─── Sanity checks ──────────────────────────────────────────────────
+# ─── Sanity checks ──────────────────────────────────────────────────────────
 [[ $EUID -eq 0 ]] || die "Run as root (or via sudo)."
-command -v git >/dev/null || die "git not installed."
-command -v psql >/dev/null || die "psql not installed — install postgresql-client."
+command -v git >/dev/null  || die "git not installed."
+command -v psql >/dev/null || die "psql not installed — apt install postgresql-client."
 command -v nginx >/dev/null || die "nginx not installed."
 
 banner "Pritech PMS deploy — $(date '+%Y-%m-%d %H:%M:%S')"
@@ -73,129 +81,309 @@ echo "  Project dir : ${PROJECT_DIR}"
 echo "  Database    : ${DB_NAME} / ${DB_USER}"
 echo "  Fresh DB    : ${FRESH}"
 echo "  Skip SSL    : ${SKIP_SSL}"
+echo "  Env only    : ${ENV_ONLY}"
 echo ""
 
-# ─── Pre-flight: wildcard DNS ───────────────────────────────────────
-log "Pre-flight: checking wildcard DNS"
-DNS_IP=$(dig +short "test.${DOMAIN}" A | head -1 || true)
-if [[ "${DNS_IP}" != "${SERVER_IP}" ]]; then
-    warn "test.${DOMAIN} resolves to '${DNS_IP:-<nothing>}' — expected ${SERVER_IP}"
-    warn "Wildcard DNS may not be configured. Tenants will 404 until fixed."
-    warn "Continuing anyway — site may not serve tenant subdomains."
-else
-    ok "Wildcard DNS resolves to ${SERVER_IP}"
-fi
+# ============================================================================
+# .env helpers — read/write without ever `source`-ing the file
+# ============================================================================
+env_get() {
+    local key="$1"
+    [[ -f "${ENV_FILE}" ]] || { echo ""; return; }
+    local raw
+    raw="$(grep -E "^${key}=" "${ENV_FILE}" | head -1 | cut -d= -f2- | tr -d '\r' || true)"
+    raw="${raw%"${raw##*[![:space:]]}"}"
+    raw="${raw%\"}"; raw="${raw#\"}"
+    raw="${raw%\'}"; raw="${raw#\'}"
+    printf '%s' "${raw}"
+}
 
-# ─── Pre-flight: wildcard SSL ───────────────────────────────────────
-log "Pre-flight: checking SSL cert"
-CERT_PATH="/etc/letsencrypt/live/${DOMAIN}/cert.pem"
-if [[ -f "${CERT_PATH}" ]]; then
-    if openssl x509 -in "${CERT_PATH}" -noout -text 2>/dev/null \
-        | grep -q "DNS:\*\.${DOMAIN#*.}"; then
-        ok "Wildcard SSL cert present at ${CERT_PATH}"
+env_has() {
+    local key="$1"
+    [[ -f "${ENV_FILE}" ]] || return 1
+    grep -qE "^${key}=" "${ENV_FILE}"
+}
+
+env_set() {
+    local key="$1"
+    local value="$2"
+    local escaped
+    escaped=$(printf '%s' "${value}" | sed -e 's/[&|]/\\&/g')
+    if env_has "${key}"; then
+        sed -i "s|^${key}=.*|${key}=${escaped}|" "${ENV_FILE}"
     else
-        warn "SSL cert exists but does NOT cover ${WILDCARD}"
-        warn "Get a wildcard cert with:"
-        warn "  certbot certonly --manual --preferred-challenges dns \\"
-        warn "    -d ${DOMAIN} -d '${WILDCARD}' --cert-name ${DOMAIN}"
+        printf '\n%s=%s\n' "${key}" "${value}" >> "${ENV_FILE}"
     fi
-else
-    warn "No cert found at ${CERT_PATH}"
+}
+
+env_set_if_missing() {
+    local key="$1"
+    local value="$2"
+    env_has "${key}" || env_set "${key}" "${value}"
+}
+
+# ============================================================================
+# Pre-flight (skipped for --env-only)
+# ============================================================================
+if [[ "${ENV_ONLY}" != "true" ]]; then
+    log "Pre-flight: checking wildcard DNS"
+    DNS_IP=$(dig +short "test.${DOMAIN}" A | head -1 || true)
+    if [[ "${DNS_IP}" != "${SERVER_IP}" ]]; then
+        warn "test.${DOMAIN} → '${DNS_IP:-<none>}' (expected ${SERVER_IP})"
+        warn "Wildcard DNS not configured. Tenant subdomains will 404 until fixed."
+    else
+        ok "Wildcard DNS resolves to ${SERVER_IP}"
+    fi
+
+    log "Pre-flight: checking SSL cert"
+    if [[ -f "${CERT_PATH}" ]]; then
+        if openssl x509 -in "${CERT_PATH}" -noout -text 2>/dev/null \
+            | grep -q "DNS:\*\.${DOMAIN#*.}"; then
+            ok "Wildcard SSL cert present"
+        else
+            warn "SSL cert exists but does NOT cover ${WILDCARD}"
+        fi
+    else
+        warn "No SSL cert found at ${CERT_PATH}"
+    fi
 fi
 
-# ─── Step 1: Fetch code ─────────────────────────────────────────────
-log "Step 1: Fetch repository"
+# ============================================================================
+# Step 1 — Fetch code
+# ============================================================================
+if [[ "${ENV_ONLY}" != "true" ]]; then
+    log "Step 1: Fetch repository"
 
-if [[ ! -d "${PROJECT_DIR}/.git" ]]; then
-    git clone --branch "${BRANCH}" "${REPO_URL}" "${PROJECT_DIR}"
-    ok "Cloned repo to ${PROJECT_DIR}"
-else
+    if [[ ! -d "${PROJECT_DIR}/.git" ]]; then
+        git clone --branch "${BRANCH}" "${REPO_URL}" "${PROJECT_DIR}"
+        ok "Cloned repo to ${PROJECT_DIR}"
+    else
+        cd "${PROJECT_DIR}"
+        git fetch origin
+        git reset --hard "origin/${BRANCH}"
+        ok "Reset to origin/${BRANCH} ($(git rev-parse --short HEAD))"
+    fi
+
     cd "${PROJECT_DIR}"
-    git fetch origin
-    git reset --hard "origin/${BRANCH}"
-    ok "Reset to origin/${BRANCH} ($(git rev-parse --short HEAD))"
+    chmod +x "${PROJECT_DIR}/deploy_pritech_pms.sh" 2>/dev/null || true
+
+    echo "  HEAD: $(git log -1 --oneline)"
+else
+    [[ -d "${PROJECT_DIR}" ]] || die "Project dir missing: ${PROJECT_DIR}"
+    cd "${PROJECT_DIR}"
 fi
 
-cd "${PROJECT_DIR}"
-echo "  HEAD: $(git log -1 --oneline)"
+# ============================================================================
+# Step 2 — Virtualenv + dependencies
+# ============================================================================
+if [[ "${ENV_ONLY}" != "true" ]]; then
+    log "Step 2: Python venv and dependencies"
 
-# ─── Step 2: Virtualenv + deps ──────────────────────────────────────
-log "Step 2: Python venv and dependencies"
+    if [[ ! -d "${VENV_DIR}" ]]; then
+        python3 -m venv "${VENV_DIR}"
+        ok "Created venv"
+    fi
 
-if [[ ! -d "${VENV_DIR}" ]]; then
-    python3 -m venv "${VENV_DIR}"
-    ok "Created venv"
+    # shellcheck disable=SC1091
+    source "${VENV_DIR}/bin/activate"
+    pip install --upgrade pip wheel >/dev/null
+
+    [[ -s requirements.txt ]] || die "requirements.txt is empty or missing."
+
+    pip install -r requirements.txt
+    ok "Dependencies installed"
+
+    # ─── Phase 5 + Phase 6 required packages ───
+    # These must be importable or the deploy fails.
+    for pkg in django_tenants requests celery redis pwa; do
+        if ! python -c "import ${pkg}" 2>/dev/null; then
+            if [[ "${pkg}" == "pwa" ]]; then
+                die "django-pwa not installed — add 'django-pwa' to requirements.txt."
+            else
+                die "Python package '${pkg}' not installed. Check requirements.txt."
+            fi
+        fi
+    done
+    ok "Required packages importable"
+
+    # Phase 6 app import check — apps.core.sync must be discoverable
+    if ! python -c "import apps.core.sync" 2>/dev/null; then
+        die "apps.core.sync not importable — check SHARED_APPS and the app directory."
+    fi
+    ok "apps.core.sync importable"
+
+    # Phase 4 compliance packages — soft check
+    for pkg in paychangu pyxrate; do
+        python -c "import ${pkg}" 2>/dev/null \
+            || warn "Python package '${pkg}' not installed — Phase 4 features disabled."
+    done
 fi
 
-# shellcheck disable=SC1091
-source "${VENV_DIR}/bin/activate"
-pip install --upgrade pip wheel >/dev/null
-pip install -r requirements.txt
-ok "Dependencies installed"
-
-# django-tenants must be present — fail loudly if not
-python -c 'import django_tenants' 2>/dev/null \
-    || die "django-tenants not installed. Check requirements.txt."
-
-# ─── Step 3: .env ───────────────────────────────────────────────────
+# ============================================================================
+# Step 3 — .env: create if missing, otherwise update in place
+# ============================================================================
 log "Step 3: Environment file"
 
-if [[ ! -f "${PROJECT_DIR}/.env" ]]; then
-    DB_PASS="$(openssl rand -base64 24 | tr -d '/+=' | cut -c1-24)"
-    DJANGO_SECRET="$(openssl rand -base64 48 | tr -d '/+=' | cut -c1-50)"
+EXISTING_SECRET_KEY=""
+EXISTING_DB_PASSWORD=""
+EXISTING_EMAIL_HOST_PASSWORD=""
+if [[ -f "${ENV_FILE}" ]]; then
+    EXISTING_SECRET_KEY="$(env_get SECRET_KEY)"
+    EXISTING_DB_PASSWORD="$(env_get DB_PASSWORD)"
+    EXISTING_EMAIL_HOST_PASSWORD="$(env_get EMAIL_HOST_PASSWORD)"
+fi
 
-    cat > "${PROJECT_DIR}/.env" <<EOF
-SECRET_KEY=${DJANGO_SECRET}
+if [[ ! -f "${ENV_FILE}" ]]; then
+    EXISTING_SECRET_KEY="${EXISTING_SECRET_KEY:-$(openssl rand -base64 48 | tr -d '/+=' | cut -c1-50)}"
+    EXISTING_DB_PASSWORD="${EXISTING_DB_PASSWORD:-$(openssl rand -base64 24 | tr -d '/+=' | cut -c1-24)}"
+
+    cat > "${ENV_FILE}" <<EOF
+# ══════════════════════════════════════════════════════════════════════
+# Pritech PMS — Production .env
+# Managed by deploy_pritech_pms.sh — secrets preserved on re-deploy.
+# ══════════════════════════════════════════════════════════════════════
+
+# ─── Core ────────────────────────────────────────────────────────────
+SECRET_KEY=${EXISTING_SECRET_KEY}
 DEBUG=False
 DJANGO_SETTINGS_MODULE=config.settings
 
+# ─── Hosts & URLs ────────────────────────────────────────────────────
 ALLOWED_HOSTS=${DOMAIN},.${DOMAIN},${SERVER_IP},localhost,127.0.0.1
 CSRF_TRUSTED_ORIGINS=https://${DOMAIN},https://*.${DOMAIN}
 SITE_URL=https://${DOMAIN}
 TENANT_BASE_DOMAIN=${DOMAIN}
 
+# ─── Database ────────────────────────────────────────────────────────
 DB_NAME=${DB_NAME}
 DB_USER=${DB_USER}
-DB_PASSWORD=${DB_PASS}
+DB_PASSWORD=${EXISTING_DB_PASSWORD}
 DB_HOST=127.0.0.1
 DB_PORT=5432
 
+# ─── Redis / Celery ──────────────────────────────────────────────────
 REDIS_URL=redis://127.0.0.1:6379/1
 CELERY_BROKER_URL=redis://127.0.0.1:6379/0
 
-# Leave blank — host-only cookies preserve tenant isolation
+# ─── Sessions / tenancy ──────────────────────────────────────────────
 SESSION_COOKIE_DOMAIN=
 CSRF_COOKIE_DOMAIN=
 SHOW_PUBLIC_IF_NO_TENANT_FOUND=False
 
+# ─── Email ───────────────────────────────────────────────────────────
 EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
-EMAIL_HOST=
-EMAIL_PORT=587
-EMAIL_HOST_USER=
-EMAIL_HOST_PASSWORD=
-EMAIL_USE_TLS=True
-DEFAULT_FROM_EMAIL=noreply@${DOMAIN}
+EMAIL_HOST=mail.${DOMAIN}
+EMAIL_PORT=465
+EMAIL_HOST_USER=noreply@${DOMAIN}
+EMAIL_HOST_PASSWORD=${EXISTING_EMAIL_HOST_PASSWORD}
+EMAIL_USE_TLS=False
+EMAIL_USE_SSL=True
+DEFAULT_FROM_EMAIL="Pritech PMS <noreply@${DOMAIN}>"
+SERVER_EMAIL=noreply@${DOMAIN}
 
+# ─── Monitoring ──────────────────────────────────────────────────────
 SENTRY_DSN=
 SENTRY_ENV=production
 
+# ─── Compliance (Phase 4) ────────────────────────────────────────────
 PAYCHANGU_ENABLED=False
+PAYCHANGU_BASE_URL=https://api.paychangu.com
+PAYCHANGU_SECRET_KEY=
+PAYCHANGU_WEBHOOK_SECRET=
+
 EIS_ENABLED=False
+EIS_API_BASE_URL=https://dev-eis-api.mra.mw/api/v1
 EIS_SANDBOX_MODE=True
+EIS_API_KEY=
+EIS_TIN=
 EOF
 
-    chmod 600 "${PROJECT_DIR}/.env"
+    chmod 600 "${ENV_FILE}"
     ok "Created .env with generated secrets"
-    warn "Edit ${PROJECT_DIR}/.env to add EMAIL_* credentials before going live"
 else
-    ok ".env exists — leaving unchanged"
+    ok ".env exists — updating deployment-critical values"
+
+    EXISTING_SECRET_KEY="${EXISTING_SECRET_KEY:-$(openssl rand -base64 48 | tr -d '/+=' | cut -c1-50)}"
+    EXISTING_DB_PASSWORD="${EXISTING_DB_PASSWORD:-$(openssl rand -base64 24 | tr -d '/+=' | cut -c1-24)}"
+
+    env_set DEBUG                          "False"
+    env_set DJANGO_SETTINGS_MODULE         "config.settings"
+    env_set ALLOWED_HOSTS                  "${DOMAIN},.${DOMAIN},${SERVER_IP},localhost,127.0.0.1"
+    env_set CSRF_TRUSTED_ORIGINS           "https://${DOMAIN},https://*.${DOMAIN}"
+    env_set SITE_URL                       "https://${DOMAIN}"
+    env_set TENANT_BASE_DOMAIN             "${DOMAIN}"
+    env_set DB_NAME                        "${DB_NAME}"
+    env_set DB_USER                        "${DB_USER}"
+    env_set DB_HOST                        "127.0.0.1"
+    env_set DB_PORT                        "5432"
+    env_set REDIS_URL                      "redis://127.0.0.1:6379/1"
+    env_set CELERY_BROKER_URL              "redis://127.0.0.1:6379/0"
+    env_set SHOW_PUBLIC_IF_NO_TENANT_FOUND "False"
+
+    env_set SECRET_KEY     "${EXISTING_SECRET_KEY}"
+    env_set DB_PASSWORD    "${EXISTING_DB_PASSWORD}"
+
+    env_set_if_missing SESSION_COOKIE_DOMAIN ""
+    env_set_if_missing CSRF_COOKIE_DOMAIN    ""
+
+    env_set_if_missing EMAIL_BACKEND       "django.core.mail.backends.smtp.EmailBackend"
+    env_set_if_missing EMAIL_HOST          "mail.${DOMAIN}"
+    env_set_if_missing EMAIL_PORT          "465"
+    env_set_if_missing EMAIL_HOST_USER     "noreply@${DOMAIN}"
+    env_set_if_missing EMAIL_HOST_PASSWORD ""
+    env_set_if_missing EMAIL_USE_TLS       "False"
+    env_set_if_missing EMAIL_USE_SSL       "True"
+    env_set_if_missing SERVER_EMAIL        "noreply@${DOMAIN}"
+
+    env_set_if_missing SENTRY_DSN ""
+    env_set_if_missing SENTRY_ENV "production"
+
+    env_set_if_missing PAYCHANGU_ENABLED       "False"
+    env_set_if_missing PAYCHANGU_BASE_URL      "https://api.paychangu.com"
+    env_set_if_missing PAYCHANGU_SECRET_KEY    ""
+    env_set_if_missing PAYCHANGU_WEBHOOK_SECRET ""
+
+    env_set_if_missing EIS_ENABLED       "False"
+    env_set_if_missing EIS_API_BASE_URL  "https://dev-eis-api.mra.mw/api/v1"
+    env_set_if_missing EIS_SANDBOX_MODE  "True"
+    env_set_if_missing EIS_API_KEY       ""
+    env_set_if_missing EIS_TIN           ""
+
+    if grep -qE '^DEFAULT_FROM_EMAIL=.*<.*>' "${ENV_FILE}" \
+       && ! grep -qE '^DEFAULT_FROM_EMAIL="' "${ENV_FILE}"; then
+        CURRENT_FROM="$(env_get DEFAULT_FROM_EMAIL)"
+        env_set DEFAULT_FROM_EMAIL "\"${CURRENT_FROM}\""
+        ok "Fixed quoting on DEFAULT_FROM_EMAIL"
+    fi
+
+    if ! grep -qE '^DEFAULT_FROM_EMAIL=.' "${ENV_FILE}"; then
+        env_set DEFAULT_FROM_EMAIL "\"Pritech PMS <noreply@${DOMAIN}>\""
+    fi
+
+    chmod 600 "${ENV_FILE}"
+    ok ".env updated"
 fi
 
-# shellcheck disable=SC1091
-set -a; source "${PROJECT_DIR}/.env"; set +a
-DB_PASS="${DB_PASSWORD}"
+if grep -q $'\r' "${ENV_FILE}"; then
+    sed -i 's/\r$//' "${ENV_FILE}"
+    ok "Stripped CRLF from .env"
+fi
 
-# ─── Step 4: PostgreSQL ─────────────────────────────────────────────
+DB_PASS="$(env_get DB_PASSWORD)"
+[[ -n "${DB_PASS}" ]] || die "DB_PASSWORD missing from .env"
+
+if [[ "${ENV_ONLY}" == "true" ]]; then
+    banner ".env update complete"
+    echo "  File: ${ENV_FILE}"
+    echo "  Preview (secrets masked):"
+    grep -vE '^(SECRET_KEY|DB_PASSWORD|EMAIL_HOST_PASSWORD|PAYCHANGU_SECRET_KEY|PAYCHANGU_WEBHOOK_SECRET|EIS_API_KEY)=' "${ENV_FILE}" \
+        | sed 's/^/    /'
+    exit 0
+fi
+
+# ============================================================================
+# Step 4 — PostgreSQL
+# ============================================================================
 log "Step 4: PostgreSQL database and user"
 
 sudo -u postgres psql <<SQL >/dev/null
@@ -224,57 +412,153 @@ sudo -u postgres psql -d "${DB_NAME}" -c "ALTER SCHEMA public OWNER TO ${DB_USER
 
 ok "Database ready"
 
-# ─── Step 5: Django check ───────────────────────────────────────────
-log "Step 5: Django configuration check"
+# ============================================================================
+# Step 5 — Ensure tenants migration exists (regenerate if missing)
+# ============================================================================
+log "Step 5: Ensure tenants app migration exists"
+
+TENANTS_MIGRATION="${PROJECT_DIR}/apps/shared/tenants/migrations/0001_initial.py"
+if [[ ! -f "${TENANTS_MIGRATION}" ]]; then
+    warn "tenants/migrations/0001_initial.py missing — generating now"
+    python manage.py makemigrations tenants
+    if [[ -f "${TENANTS_MIGRATION}" ]]; then
+        ok "Generated apps/shared/tenants/migrations/0001_initial.py"
+        warn "⚠ This file MUST be committed to git or it will regenerate every deploy."
+    else
+        die "Failed to generate tenants migration."
+    fi
+else
+    ok "tenants migration present"
+fi
+
+# ============================================================================
+# Step 6 — Django check
+# ============================================================================
+log "Step 6: Django configuration check"
 python manage.py check
 ok "Django check passed"
 
-# ─── Step 6: Migrate shared schema ──────────────────────────────────
-log "Step 6: Migrate shared schema (public)"
-
+# ============================================================================
+# Step 7 — Migrate shared schema
+# ============================================================================
+log "Step 7: Migrate shared schema (public)"
 python manage.py migrate_schemas --shared --noinput
 ok "Shared schema migrated"
 
-# ─── Step 7: Create public tenant if missing ────────────────────────
-log "Step 7: Ensure public tenant exists"
+# ============================================================================
+# Step 8 — Public tenant
+# ============================================================================
+log "Step 8: Ensure public tenant exists"
 
 python manage.py shell <<'PY'
 from apps.shared.tenants.models import Tenant, Domain
 from django.conf import settings
 
-domain = settings.ALLOWED_HOSTS[0] if settings.ALLOWED_HOSTS else 'localhost'
+base_domain = 'localhost'
+for h in settings.ALLOWED_HOSTS:
+    if not h or h.startswith('.') or h in ('localhost', '127.0.0.1'):
+        continue
+    if h.replace('.', '').isdigit():
+        continue
+    base_domain = h
+    break
 
 public, created = Tenant.objects.get_or_create(
     schema_name='public',
-    defaults={
-        'name': 'Pritech PMS',
-        'plan': 'ENT',
-        'on_trial': False,
-    },
+    defaults={'name': 'Pritech PMS', 'plan': 'ENT', 'on_trial': False},
 )
-
 Domain.objects.get_or_create(
-    domain=domain,
+    domain=base_domain,
     defaults={'tenant': public, 'is_primary': True},
 )
-
 print(f'Public tenant: {"created" if created else "exists"}')
-print(f'Public domain: {domain}')
+print(f'Public domain: {base_domain}')
 PY
 ok "Public tenant ready"
 
-# ─── Step 8: Migrate tenant schemas ─────────────────────────────────
-log "Step 8: Migrate all tenant schemas"
+# ============================================================================
+# Step 9 — Migrate tenant schemas
+# ============================================================================
+log "Step 9: Migrate all tenant schemas"
 python manage.py migrate_schemas --noinput
 ok "Tenant schemas migrated"
 
-# ─── Step 9: Static files ───────────────────────────────────────────
-log "Step 9: Collect static files"
-python manage.py collectstatic --noinput --clear
+# ============================================================================
+# Step 10 — Collect static files
+# ============================================================================
+log "Step 10: Collect static files"
+python manage.py collectstatic --noinput --clear 2>&1 | tail -5
 ok "Static files collected"
 
-# ─── Step 10: Superuser (only if none exists) ───────────────────────
-log "Step 10: Ensure superuser exists"
+# ─── Verify Phase 6 PWA assets landed ───
+PWA_ASSETS=(
+    "staticfiles/js/serviceworker.js"
+    "staticfiles/js/offline-store.js"
+    "staticfiles/js/offline-forms.js"
+    "staticfiles/js/cache-warmup.js"
+    "staticfiles/icons/icon-192.png"
+    "staticfiles/icons/icon-512.png"
+    "staticfiles/icons/apple-touch-icon.png"
+)
+MISSING=0
+for asset in "${PWA_ASSETS[@]}"; do
+    if [[ -f "${PROJECT_DIR}/${asset}" ]]; then
+        :
+    else
+        warn "Missing PWA asset: ${asset}"
+        MISSING=$((MISSING + 1))
+    fi
+done
+if [[ "${MISSING}" -eq 0 ]]; then
+    ok "All 7 PWA static assets present"
+else
+    warn "${MISSING} PWA asset(s) missing — PWA may not install"
+    warn "Check that files exist in the repo under static/js/ and static/icons/"
+fi
+
+# ─── Verify templates that Phase 6 relies on ───
+TEMPLATES_TO_CHECK=(
+    "templates/pages/offline.html"
+    "templates/partials/_offline_indicator.html"
+    "templates/partials/_pwa_install_prompt.html"
+)
+MISSING_T=0
+for tpl in "${TEMPLATES_TO_CHECK[@]}"; do
+    if [[ -f "${PROJECT_DIR}/${tpl}" ]]; then
+        :
+    else
+        warn "Missing template: ${tpl}"
+        MISSING_T=$((MISSING_T + 1))
+    fi
+done
+if [[ "${MISSING_T}" -eq 0 ]]; then
+    ok "All 3 Phase 6 templates present"
+else
+    warn "${MISSING_T} Phase 6 template(s) missing"
+fi
+
+# ─── Verify URL patterns (offline + sync) resolve ───
+log "Step 10b: Verify Phase 6 URL patterns"
+python manage.py shell <<'PY'
+from django.urls import reverse, NoReverseMatch
+
+checks = [
+    ('tenant',  'offline'),
+    ('tenant',  'sync:sync'),
+]
+for scope, name in checks:
+    try:
+        url = reverse(name)
+        print(f'  ✔ {scope}:{name} → {url}')
+    except NoReverseMatch:
+        print(f'  ⚠ {scope}:{name} not reverse-resolvable (may need to check config/urls.py)')
+PY
+ok "URL verification done"
+
+# ============================================================================
+# Step 11 — Superuser
+# ============================================================================
+log "Step 11: Ensure superuser exists"
 
 python manage.py shell <<'PY'
 from django.contrib.auth import get_user_model
@@ -290,9 +574,12 @@ if not U.objects.filter(is_superuser=True).exists():
 else:
     print('Superuser already exists')
 PY
+ok "Superuser ready"
 
-# ─── Step 11: Systemd — Gunicorn ────────────────────────────────────
-log "Step 11: Systemd services"
+# ============================================================================
+# Step 12 — Systemd: Gunicorn
+# ============================================================================
+log "Step 12: Systemd — Gunicorn"
 
 cat > /etc/systemd/system/gunicorn-${PROJECT_NAME}.service <<EOF
 [Unit]
@@ -311,6 +598,7 @@ ExecStart=${VENV_DIR}/bin/gunicorn \\
     --bind unix:${PROJECT_DIR}/gunicorn.sock \\
     --access-logfile - \\
     --error-logfile - \\
+    --log-level info \\
     config.wsgi:application
 Restart=on-failure
 RestartSec=5
@@ -319,7 +607,9 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
 
-# ─── Step 12: Systemd — Celery worker ───────────────────────────────
+# ============================================================================
+# Step 13 — Systemd: Celery worker
+# ============================================================================
 cat > /etc/systemd/system/celery-worker-${PROJECT_NAME}.service <<EOF
 [Unit]
 Description=Celery Worker for Pritech PMS
@@ -340,7 +630,9 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
 
-# ─── Step 13: Systemd — Celery beat ─────────────────────────────────
+# ============================================================================
+# Step 14 — Systemd: Celery beat
+# ============================================================================
 cat > /etc/systemd/system/celery-beat-${PROJECT_NAME}.service <<EOF
 [Unit]
 Description=Celery Beat for Pritech PMS
@@ -364,16 +656,20 @@ WantedBy=multi-user.target
 EOF
 
 systemctl daemon-reload
-systemctl enable gunicorn-${PROJECT_NAME} >/dev/null
+systemctl enable gunicorn-${PROJECT_NAME}     >/dev/null
 systemctl enable celery-worker-${PROJECT_NAME} >/dev/null
-systemctl enable celery-beat-${PROJECT_NAME} >/dev/null
+systemctl enable celery-beat-${PROJECT_NAME}   >/dev/null
 ok "Systemd services created and enabled"
 
-# ─── Step 14: Nginx ─────────────────────────────────────────────────
-log "Step 14: Nginx configuration"
+# ============================================================================
+# Step 15 — Nginx (no duplicate headers; Phase 6 service worker scope)
+# ============================================================================
+log "Step 15: Nginx configuration"
 
 cat > /etc/nginx/sites-available/${PROJECT_NAME} <<EOF
-# Pritech PMS — HTTP entry (redirects to HTTPS once cert exists)
+# ─────────────────────────────────────────────────────────────────────
+# Pritech PMS — HTTP entry (redirects everything to HTTPS)
+# ─────────────────────────────────────────────────────────────────────
 server {
     listen 80;
     listen [::]:80;
@@ -381,7 +677,6 @@ server {
 
     client_max_body_size 25M;
 
-    # Let certbot do its HTTP-01 challenge
     location /.well-known/acme-challenge/ {
         root /var/www/html;
     }
@@ -391,7 +686,14 @@ server {
     }
 }
 
-# Pritech PMS — HTTPS (both public and tenant subdomains)
+# ─────────────────────────────────────────────────────────────────────
+# Pritech PMS — HTTPS (public site + tenant subdomains)
+#
+# NOTE: We deliberately do NOT include proxy_params here. That file sets
+# Host, X-Real-IP, X-Forwarded-For, X-Forwarded-Proto — which we also set
+# explicitly below. Duplicate headers cause gunicorn 22+ to reject
+# requests with "Invalid HTTP Header: 'HOST'".
+# ─────────────────────────────────────────────────────────────────────
 server {
     listen 443 ssl http2;
     listen [::]:443 ssl http2;
@@ -406,7 +708,7 @@ server {
     ssl_session_cache shared:SSL:10m;
     ssl_session_timeout 10m;
 
-    # Static files (Whitenoise also serves as fallback)
+    # Static files (Whitenoise is the fallback)
     location /static/ {
         alias ${PROJECT_DIR}/staticfiles/;
         expires 30d;
@@ -414,22 +716,34 @@ server {
         try_files \$uri \$uri/ =404;
     }
 
-    # Media (tenant-scoped subdirectories)
+    # Media (tenant-scoped subdirectories handled by TenantFileStorage)
     location /media/ {
         alias ${PROJECT_DIR}/media/;
         expires 7d;
         try_files \$uri \$uri/ =404;
     }
 
-    # Gunicorn
+    # Service worker — must be served from root scope.
+    # Some browsers refuse to register a SW served with restrictive headers.
+    location = /serviceworker.js {
+        alias ${PROJECT_DIR}/staticfiles/js/serviceworker.js;
+        add_header Service-Worker-Allowed "/";
+        add_header Cache-Control "no-cache, no-store, must-revalidate";
+        types { application/javascript js; }
+        default_type application/javascript;
+    }
+
+    # Application
     location / {
-        include proxy_params;
+        proxy_http_version 1.1;
         proxy_pass http://unix:${PROJECT_DIR}/gunicorn.sock;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header Host              \$host;
+        proxy_set_header X-Real-IP         \$remote_addr;
+        proxy_set_header X-Forwarded-For   \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-Host  \$host;
         proxy_read_timeout 90;
+        proxy_connect_timeout 10;
     }
 }
 EOF
@@ -441,68 +755,134 @@ nginx -t || die "Nginx config test failed"
 systemctl reload nginx
 ok "Nginx reloaded"
 
-# ─── Step 15: SSL (only if not skipped) ─────────────────────────────
+# ============================================================================
+# Step 16 — SSL
+# ============================================================================
 if [[ "${SKIP_SSL}" == "true" ]]; then
     warn "--skip-ssl: not touching certbot"
 elif [[ -f "${CERT_PATH}" ]]; then
-    ok "SSL cert already present — skipping certbot"
-    # Try renewal in case cert is close to expiry
-    certbot renew --quiet || true
+    ok "SSL cert already present"
+    if ! pgrep -f "certbot renew" >/dev/null 2>&1; then
+        certbot renew --quiet --no-random-sleep-on-renew 2>&1 | tail -3 || true
+    else
+        warn "Another certbot process is running — skipping renewal"
+    fi
 else
     warn "No SSL cert — cannot auto-provision wildcard."
     warn "Run manually:"
-    warn "  certbot certonly --manual --preferred-challenges dns \\"
-    warn "    -d ${DOMAIN} -d '${WILDCARD}' --cert-name ${DOMAIN}"
-    warn "Then re-run this script with --skip-ssl."
+    warn "  ~/.acme.sh/acme.sh --issue --dns \\"
+    warn "    -d ${DOMAIN} -d '${WILDCARD}' \\"
+    warn "    --yes-I-know-dns-manual-mode-enough-go-ahead-please"
 fi
 
-# ─── Step 16: Start services ────────────────────────────────────────
-log "Step 16: Restart services"
+# ============================================================================
+# Step 17 — Restart services
+# ============================================================================
+log "Step 17: Restart services"
+
 systemctl restart gunicorn-${PROJECT_NAME}
 systemctl restart celery-worker-${PROJECT_NAME}
 systemctl restart celery-beat-${PROJECT_NAME}
 
 sleep 3
 
+FAILED=0
 for s in gunicorn-${PROJECT_NAME} celery-worker-${PROJECT_NAME} celery-beat-${PROJECT_NAME} nginx; do
     state="$(systemctl is-active "$s" || true)"
     if [[ "${state}" == "active" ]]; then
         ok "${s} is active"
     else
-        warn "${s} is ${state} — check: journalctl -u ${s} -n 50"
+        warn "${s} is ${state}"
+        warn "  → journalctl -u ${s} -n 40 --no-pager"
+        FAILED=$((FAILED + 1))
     fi
 done
 
-# ─── Step 17: Smoke test ────────────────────────────────────────────
-log "Step 17: Smoke test"
+# ============================================================================
+# Step 18 — Smoke test (Phase 5 + Phase 6)
+# ============================================================================
+log "Step 18: Smoke test"
 
 check() {
     local label="$1"
     local url="$2"
+    local extra="${3:-}"
     local code
-    code=$(curl -sS -o /dev/null -w "%{http_code}" -k "$url" || echo "000")
-    printf "  %-20s %s\n" "$label" "$code"
+    if [[ -n "${extra}" ]]; then
+        code=$(curl -sS -o /dev/null -w "%{http_code}" -k --max-time 10 ${extra} "$url" 2>/dev/null || echo "000")
+    else
+        code=$(curl -sS -o /dev/null -w "%{http_code}" -k --max-time 10 "$url" 2>/dev/null || echo "000")
+    fi
+    if [[ "${code}" =~ ^(200|301|302|400|405)$ ]]; then
+        printf "  \033[1;32m%-24s %s\033[0m\n" "$label" "$code"
+    else
+        printf "  \033[1;31m%-24s %s\033[0m\n" "$label" "$code"
+    fi
+    echo "${code}"
 }
 
-check "public"        "https://${DOMAIN}/"
-check "public-admin"  "https://${DOMAIN}/admin/"
-check "public-login"  "https://${DOMAIN}/login/"
-check "public-signup" "https://${DOMAIN}/signup/"
+log "  -- Phase 5 --"
+C1=$(check "public"          "https://${DOMAIN}/")
+C2=$(check "public-admin"    "https://${DOMAIN}/admin/")
+C3=$(check "public-login"    "https://${DOMAIN}/login/")
+C4=$(check "public-signup"   "https://${DOMAIN}/signup/")
+C5=$(check "tenant-pritech"  "https://pritech.${DOMAIN}/")
 
-# Tenant subdomain (may 404 if wildcard DNS not yet propagated)
-check "tenant" "https://pritech.${DOMAIN}/"
+log "  -- Phase 6 --"
+C6=$(check "manifest"        "https://${DOMAIN}/manifest.json")
+C7=$(check "serviceworker"   "https://${DOMAIN}/serviceworker.js")
+C8=$(check "offline-page"    "https://${DOMAIN}/offline/")
+C9=$(check "icon-192"        "https://${DOMAIN}/static/icons/icon-192.png")
+C10=$(check "sync-api"       "https://${DOMAIN}/api/v1/sync/" "-X POST -H 'Content-Type: application/json' -d '{\"operations\":[]}'")
 
-# ─── Done ───────────────────────────────────────────────────────────
-banner "Deploy complete"
+# ============================================================================
+# Done
+# ============================================================================
+chmod +x "${PROJECT_DIR}/deploy_pritech_pms.sh" 2>/dev/null || true
+
+banner "Deploy complete — $(date '+%H:%M:%S')"
 echo "  HEAD           : $(git -C ${PROJECT_DIR} rev-parse --short HEAD)"
 echo "  Public site    : https://${DOMAIN}/"
 echo "  Admin          : https://${DOMAIN}/admin/"
 echo "  First tenant   : https://pritech.${DOMAIN}/"
+echo "  PWA manifest   : https://${DOMAIN}/manifest.json"
 echo ""
-echo "  If status codes above are not 200/302, check:"
-echo "    journalctl -u gunicorn-${PROJECT_NAME} -n 50 --no-pager"
+
+if [[ "${FAILED}" -gt 0 ]]; then
+    warn "${FAILED} service(s) not active — see warnings above."
+fi
+
+if [[ "${C1}" == "400" ]]; then
+    warn "Public site returns 400 — nginx duplicate-header issue."
+    warn "  Check: sudo nginx -T | grep -A20 'location / {'"
+    warn "  Should NOT contain: include proxy_params;"
+fi
+
+if [[ "${C5}" == "000" ]]; then
+    warn "Tenant subdomain unreachable — wildcard DNS issue."
+    warn "  Verify: dig +short test.${DOMAIN}"
+fi
+
+if [[ "${C6}" != "200" ]]; then
+    warn "manifest.json not served — django-pwa misconfigured."
+    warn "  Check: 'pwa' in SHARED_APPS, path('', include('pwa.urls')) in urls_public.py"
+fi
+
+if [[ "${C7}" != "200" ]]; then
+    warn "serviceworker.js not served — check nginx location block and file at staticfiles/js/serviceworker.js"
+fi
+
+if [[ "${C8}" != "200" ]]; then
+    warn "Offline page not served — check path('offline/', ...) in urls_public.py"
+fi
+
+if [[ "${C10}" != "200" && "${C10}" != "405" ]]; then
+    warn "Sync API not reachable — check path('api/v1/sync/', ...) in config/urls.py"
+fi
+
+echo "  Logs:"
+echo "    journalctl -u gunicorn-${PROJECT_NAME} -n 40 --no-pager"
 echo "    journalctl -u celery-worker-${PROJECT_NAME} -n 30 --no-pager"
-echo "    nginx -t && systemctl status nginx"
 echo ""
 echo "  Superuser (if newly created): admin@pritechmw.com / ChangeMe123!"
 echo "  ⚠ CHANGE THE SUPERUSER PASSWORD IMMEDIATELY"

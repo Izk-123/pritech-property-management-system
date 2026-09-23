@@ -1,0 +1,92 @@
+{% load i18n %}
+
+<div id="pritech-offline-indicator"
+     class="pointer-events-none fixed bottom-4 right-4 z-40 hidden">
+  <div id="pritech-indicator-content"
+       class="pointer-events-auto flex items-center gap-2 rounded-full border
+              border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium
+              text-emerald-700 shadow-lg backdrop-blur
+              transition-colors duration-300
+              dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300">
+    <span id="pritech-indicator-dot" class="h-2 w-2 rounded-full bg-emerald-500"></span>
+    <span id="pritech-indicator-text">{% trans "Online" %}</span>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+  var indicator = document.getElementById('pritech-offline-indicator');
+  var dot = document.getElementById('pritech-indicator-dot');
+  var text = document.getElementById('pritech-indicator-text');
+  var content = document.getElementById('pritech-indicator-content');
+  if (!indicator) return;
+
+  var STATES = {
+    online: {
+      dot: 'bg-emerald-500',
+      wrapper: 'border-emerald-200 bg-emerald-50 text-emerald-700 ' +
+               'dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300',
+      label: '{% trans "Online" %}',
+    },
+    offline: {
+      dot: 'bg-amber-500',
+      wrapper: 'border-amber-200 bg-amber-50 text-amber-700 ' +
+               'dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
+      label: '{% trans "Offline — changes saved locally" %}',
+    },
+    syncing: {
+      dot: 'bg-sky-500 animate-pulse',
+      wrapper: 'border-sky-200 bg-sky-50 text-sky-700 ' +
+               'dark:border-sky-800 dark:bg-sky-900/30 dark:text-sky-300',
+      label: '{% trans "Syncing…" %}',
+    },
+  };
+
+  var hideTimer = null;
+
+  function setState(state, message) {
+    var config = STATES[state] || STATES.online;
+    dot.className = 'h-2 w-2 rounded-full ' + config.dot;
+    content.className = 'pointer-events-auto flex items-center gap-2 rounded-full border ' +
+                       'px-3 py-1.5 text-xs font-medium shadow-lg backdrop-blur ' +
+                       'transition-colors duration-300 ' + config.wrapper;
+    text.textContent = message || config.label;
+
+    indicator.classList.remove('hidden');
+
+    if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
+
+    if (state === 'online') {
+      hideTimer = setTimeout(function() {
+        indicator.classList.add('hidden');
+      }, 3000);
+    }
+  }
+
+  window.addEventListener('online', function() {
+    setState('online', '{% trans "Back online" %}');
+    if (window.pritechDB && window.pritechDB.syncPendingOperations) {
+      window.pritechDB.syncPendingOperations();
+    }
+  });
+
+  window.addEventListener('offline', function() {
+    setState('offline');
+  });
+
+  window.addEventListener('pritech:sync-status', function(e) {
+    var pending = (e.detail && e.detail.pending) || 0;
+    if (pending > 0) {
+      setState('syncing', '{% trans "Syncing" %} ' + pending +
+                          ' {% trans "change(s)" %}');
+    } else if (navigator.onLine) {
+      setState('online', '{% trans "All changes synced" %}');
+    }
+  });
+
+  if (!navigator.onLine) {
+    setState('offline');
+  }
+})();
+</script>

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load i18n %}
 
-{% block title %}{% trans "Record Payment" %} — Malawi Property SaaS{% endblock %}
+{% block title %}{% trans "Record Payment" %} — Pritech PMS{% endblock %}
 
 {% block content %}
 <div class="mx-auto max-w-lg px-4 py-6 pb-32 sm:px-6 sm:pb-6">
@@ -37,7 +37,7 @@
     </p>
   </div>
 
-  {# ── Outstanding balance ──────────────────────────────── #}
+  {# Outstanding balance #}
   <div data-animate="zoom-in" data-animate-now data-animate-delay="180"
        class="relative overflow-hidden rounded-2xl border border-red-200/60
               bg-gradient-to-br from-red-50 to-white p-5 shadow-soft
@@ -55,8 +55,13 @@
                 bg-red-400/10 blur-2xl"></div>
   </div>
 
-  {# ── Form ──────────────────────────────────────────────── #}
+  {# Form #}
   <form method="post" novalidate
+        action="{% url 'folios:payment' folio.pk %}"
+        data-offline-form
+        data-offline-endpoint="/api/v1/sync/folios/{{ folio.pk }}/payment/"
+        data-offline-success="{% trans 'Payment saved offline. Will sync when online.' %}"
+        data-offline-redirect="/reservations/{{ folio.reservation_id }}/"
         data-animate="fade-up" data-animate-now data-animate-delay="240"
         data-form-dirty-warn
         class="card mt-5 space-y-5 p-6">
@@ -99,7 +104,8 @@
             bg-white/95 px-4 py-3 backdrop-blur-xl
             dark:border-white/10 dark:bg-slate-900/95 sm:hidden">
   <div class="mx-auto flex max-w-lg gap-2">
-    <button type="submit" onclick="document.querySelector('form[data-form-dirty-warn]').requestSubmit()"
+    <button type="submit"
+            onclick="document.querySelector('form[data-offline-form]').requestSubmit()"
             data-press class="btn flex-1 bg-emerald-600 py-3 text-white">
       {% trans "Record Payment" %}
     </button>

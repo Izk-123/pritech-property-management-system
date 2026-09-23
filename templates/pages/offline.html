@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Offline" %} — Pritech PMS{% endblock %}
+
+{% block content %}
+<div class="flex min-h-[70vh] items-center justify-center px-4 py-10">
+  <div class="w-full max-w-md text-center">
+
+    <div data-animate="zoom-in" data-animate-now
+         class="mx-auto mb-6 grid h-20 w-20 place-items-center rounded-3xl
+                bg-amber-500/10 text-amber-600
+                dark:bg-amber-500/15 dark:text-amber-400">
+      <svg viewBox="0 0 24 24" fill="none" class="h-10 w-10"
+           stroke="currentColor" stroke-width="1.5"
+           stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 9v4M12 17h.01"/>
+        <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+      </svg>
+    </div>
+
+    <h1 data-animate="fade-up" data-animate-now data-animate-delay="120"
+        class="mb-2 text-2xl font-bold tracking-tight">
+      {% trans "You're offline" %}
+    </h1>
+    <p data-animate="fade-up" data-animate-now data-animate-delay="200"
+       class="mb-8 text-slate-500 dark:text-slate-400">
+      {% trans "Pritech PMS is running in offline mode. Your changes are saved locally and will sync automatically when the connection returns." %}
+    </p>
+
+    <div data-animate="fade-up" data-animate-now data-animate-delay="280"
+         class="mb-6 rounded-xl border border-slate-200 bg-white/70 p-4
+                dark:border-white/10 dark:bg-white/5">
+      <p class="mb-1 text-xs uppercase tracking-wider text-slate-400">
+        {% trans "Pending changes" %}
+      </p>
+      <p id="pending-number"
+         class="text-2xl font-bold text-primary-600 dark:text-primary-400">—</p>
+    </div>
+
+    <div id="pending-list-wrapper"
+         class="mb-6 hidden rounded-xl border border-slate-200 bg-white/70 p-4
+                text-left dark:border-white/10 dark:bg-white/5">
+      <p class="mb-2 text-xs uppercase tracking-wider text-slate-400">
+        {% trans "What's waiting to sync" %}
+      </p>
+      <ul id="pending-list"
+          class="space-y-1 text-xs text-slate-600 dark:text-slate-400">
+      </ul>
+    </div>
+
+    <button onclick="window.location.reload()"
+            class="btn btn-primary w-full px-6 py-3">
+      {% trans "Try again" %}
+    </button>
+
+    <p class="mt-6 text-xs text-slate-500 dark:text-slate-400">
+      {% trans "Your data is safe. Reconnect to sync." %}
+    </p>
+  </div>
+</div>
+
+<script>
+(async function() {
+  if (!window.pritechDB || !window.pritechDB.db) return;
+
+  var db = window.pritechDB.db;
+  var pending = await db.syncQueue.where('status').equals('pending').toArray();
+
+  document.getElementById('pending-number').textContent = pending.length;
+
+  if (pending.length > 0) {
+    document.getElementById('pending-list-wrapper').classList.remove('hidden');
+    var list = document.getElementById('pending-list');
+    pending.slice(0, 8).forEach(function(op) {
+      var li = document.createElement('li');
+      var time = new Date(op.created_at).toLocaleTimeString([], {
+        hour: '2-digit', minute: '2-digit'
+      });
+      li.innerHTML = '<span class="font-mono">' +
+                     op.operation + '</span> ' +
+                     op.endpoint.replace('/api/v1/', '') +
+                     ' <span class="text-slate-400">' + time + '</span>';
+      list.appendChild(li);
+    });
+    if (pending.length > 8) {
+      var more = document.createElement('li');
+      more.className = 'text-slate-400 italic';
+      more.textContent = '+' + (pending.length - 8) + ' more';
+      list.appendChild(more);
+    }
+  }
+})();
+</script>
+{% endblock %}

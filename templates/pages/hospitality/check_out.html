@@ -35,7 +35,7 @@
     </p>
   </div>
 
-  {# ── Folio summary ────────────────────────────────────── #}
+  {# Folio summary #}
   {% if reservation.folio %}
   <div data-animate="fade-up" data-animate-now data-animate-delay="200"
        class="card mb-5 overflow-hidden p-0">
@@ -104,11 +104,17 @@
   {% endif %}
   {% endif %}
 
-  {# ── Confirm form ─────────────────────────────────────── #}
+  {# Confirm form #}
   <form method="post"
+        action="{% url 'reservations:check_out' reservation.pk %}"
+        data-offline-form
+        data-offline-endpoint="/api/v1/sync/reservations/{{ reservation.pk }}/status/"
+        data-offline-success="{% trans 'Check-out saved offline. Will sync when online.' %}"
+        data-offline-redirect="/reservations/{{ reservation.pk }}/"
         data-animate="fade-up" data-animate-delay="260"
         class="card p-6">
     {% csrf_token %}
+    <input type="hidden" name="status" value="CHOUT">
     <p class="mb-4 text-sm text-slate-600 dark:text-slate-400">
       {% trans "Checking out will mark the room for housekeeping and close the folio." %}
     </p>

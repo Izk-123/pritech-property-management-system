@@ -5,13 +5,8 @@ Django settings for the Pritech Property Management System
 Single-file settings. Environment-driven via python-decouple.
 
 Phase 5: multi-tenant via django-tenants (PostgreSQL schema isolation).
+Phase 6: PWA + offline-first (django-pwa, Workbox, IndexedDB sync queue).
 PostgreSQL is required in BOTH dev and prod — SQLite cannot host tenants.
-
-    Local dev  : .env with DEBUG=True  → Postgres (pritech_pms_dev), console email
-    Production : .env with DEBUG=False → Postgres (pritech_pms), SMTP, SSL
-
-Entry points (wsgi.py / asgi.py / celery.py) should read
-DJANGO_SETTINGS_MODULE from the environment and default to 'config.settings'.
 """
 
 from pathlib import Path
@@ -22,7 +17,7 @@ from celery.schedules import crontab
 # ─────────────────────────────────────────────────────────────────────
 # Paths
 # ─────────────────────────────────────────────────────────────────────
-BASE_DIR = Path(__file__).resolve().parent.parent   # project root
+BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -46,16 +41,13 @@ CSRF_TRUSTED_ORIGINS = config(
     cast=Csv(),
 )
 
-# Public URL — used to build absolute links in emails, invoices, etc.
 SITE_URL = config('SITE_URL', default='http://pms.lvh.me:8000')
 
-# Base domain for tenant subdomains.
-# Dev: 'pms.lvh.me:8004' → signup for 'test1' creates test1.pms.lvh.me
-# Prod: 'pms.pritechmw.com' → signup for 'acme' creates acme.pms.pritechmw.com
 TENANT_BASE_DOMAIN = config(
     'TENANT_BASE_DOMAIN',
     default='pms.lvh.me:8004' if DEBUG else 'pms.pritechmw.com',
 )
+
 
 # ─────────────────────────────────────────────────────────────────────
 # Multi-tenancy (django-tenants)
@@ -79,7 +71,7 @@ CSRF_COOKIE_DOMAIN = config('CSRF_COOKIE_DOMAIN', default=None)
 
 # ─────────────────────────────────────────────────────────────────────
 # Applications
-# SHARED_APPS  → public schema (tenant registry, users, admin, celery)
+# SHARED_APPS  → public schema (tenant registry, users, admin, celery, sync, pwa)
 # TENANT_APPS  → per-tenant schema (business data)
 # ─────────────────────────────────────────────────────────────────────
 SHARED_APPS = [
@@ -102,8 +94,10 @@ SHARED_APPS = [
     'django_celery_results',
 
     'apps.shared.users',
+    'apps.core.sync',               # Phase 6 — offline sync API
     'tailwind',
     'theme',
+    'pwa',                          # Phase 6 — PWA manifest + service worker
 ]
 
 TENANT_APPS = [
@@ -204,7 +198,6 @@ DATABASES = {
     }
 }
 
-# 30-second query cap only in prod (dev may want long queries while testing).
 if not DEBUG:
     DATABASES['default']['OPTIONS']['options'] = '-c statement_timeout=30000'
 
@@ -232,11 +225,11 @@ else:
     SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
     SESSION_CACHE_ALIAS = 'default'
 
-SESSION_COOKIE_AGE = 60 * 60 * 12            # 12 hours — long staff shifts
+SESSION_COOKIE_AGE = 60 * 60 * 12
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Lax'
-SESSION_COOKIE_SECURE = not DEBUG            # HTTPS-only cookie in prod
+SESSION_COOKIE_SECURE = not DEBUG
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -253,7 +246,7 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 LOGIN_URL = 'login'
-LOGIN_REDIRECT_URL = '/'      # was 'home' — resolves on BOTH schemas
+LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = 'login'
 
 
@@ -287,7 +280,6 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# Tenant-aware file storage — see apps/core/storage.py
 STORAGES = {
     'default': {
         'BACKEND': 'apps.core.storage.TenantFileStorage',
@@ -346,7 +338,7 @@ if not DEBUG:
     SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin'
 
     CSRF_COOKIE_SECURE = True
-    CSRF_COOKIE_HTTPONLY = False             # JS needs to read the token
+    CSRF_COOKIE_HTTPONLY = False
     CSRF_COOKIE_SAMESITE = 'Lax'
 
     X_FRAME_OPTIONS = 'DENY'
@@ -367,17 +359,17 @@ CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
 CELERY_ENABLE_UTC = True
 CELERY_TASK_TRACK_STARTED = True
-CELERY_TASK_TIME_LIMIT = 30 * 60             # 30 min hard cap
-CELERY_TASK_SOFT_TIME_LIMIT = 25 * 60        # 25 min soft cap
-CELERY_WORKER_MAX_TASKS_PER_CHILD = 200      # recycle to cap memory leaks
+CELERY_TASK_TIME_LIMIT = 30 * 60
+CELERY_TASK_SOFT_TIME_LIMIT = 25 * 60
+CELERY_WORKER_MAX_TASKS_PER_CHILD = 200
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
 
 CELERY_BEAT_SCHEDULE = {
-    # ─── Phase 5 — Multi-tenant night audit (runs across all tenants) ───
+    # ─── Phase 5 — Multi-tenant night audit ────────────────────────────
     'run-night-audit-all-tenants': {
         'task': 'apps.hospitality.reservations.tasks.run_night_audit_for_all_tenants',
-        'schedule': crontab(hour=2, minute=0),        # 02:00 daily
+        'schedule': crontab(hour=2, minute=0),
     },
 
     # ─── Phase 3 — Property module ─────────────────────────────────────
@@ -428,14 +420,6 @@ INTERNAL_IPS = ['127.0.0.1']
 
 # ─────────────────────────────────────────────────────────────────────
 # Django Unfold (admin theme)
-#
-# Sidebar order:
-#   Platform → Dashboard → Hospitality → Property → Compliance
-#   → Core → Administration
-#
-# Platform section appears first because on the public schema, platform
-# admins only care about Tenants/Domains/Users. On tenant schemas, the
-# Platform links still show for superusers but are harmless.
 # ─────────────────────────────────────────────────────────────────────
 UNFOLD = {
     'SITE_TITLE': 'Pritech PMS',
@@ -566,7 +550,7 @@ UNFOLD = {
 
 
 # ─────────────────────────────────────────────────────────────────────
-# Logging — console always; rotating files only when DEBUG=False
+# Logging
 # ─────────────────────────────────────────────────────────────────────
 LOG_DIR = BASE_DIR / 'logs'
 
@@ -662,7 +646,7 @@ if not DEBUG:
 
 
 # ─────────────────────────────────────────────────────────────────────
-# Sentry (optional — set SENTRY_DSN in .env to enable)
+# Sentry (optional)
 # ─────────────────────────────────────────────────────────────────────
 SENTRY_DSN = config('SENTRY_DSN', default='')
 if SENTRY_DSN and not DEBUG:
@@ -684,14 +668,12 @@ if SENTRY_DSN and not DEBUG:
 # Phase 4 — Compliance
 # ─────────────────────────────────────────────────────────────────────
 
-# ─── PayChangu (mobile money, cards) ────────────────────────────────
 PAYCHANGU_ENABLED = config('PAYCHANGU_ENABLED', default=False, cast=bool)
 PAYCHANGU_BASE_URL = config('PAYCHANGU_BASE_URL', default='https://api.paychangu.com')
 PAYCHANGU_SECRET_KEY = config('PAYCHANGU_SECRET_KEY', default='')
 PAYCHANGU_WEBHOOK_SECRET = config('PAYCHANGU_WEBHOOK_SECRET', default='')
 PAYCHANGU_TIMEOUT = config('PAYCHANGU_TIMEOUT', default=15, cast=int)
 
-# ─── MRA Electronic Invoicing System (EIS) ──────────────────────────
 EIS_ENABLED = config('EIS_ENABLED', default=False, cast=bool)
 EIS_API_BASE_URL = config(
     'EIS_API_BASE_URL',
@@ -700,3 +682,59 @@ EIS_API_BASE_URL = config(
 EIS_SANDBOX_MODE = config('EIS_SANDBOX_MODE', default=True, cast=bool)
 EIS_API_KEY = config('EIS_API_KEY', default='')
 EIS_TIN = config('EIS_TIN', default='')
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Phase 6 — PWA (Progressive Web App)
+# ─────────────────────────────────────────────────────────────────────
+PWA_APP_NAME = 'Pritech PMS'
+PWA_APP_DESCRIPTION = 'Property management for Malawi hotels, lodges, and rentals.'
+PWA_APP_THEME_COLOR = '#9333ea'
+PWA_APP_BACKGROUND_COLOR = '#f8fafc'
+PWA_APP_DISPLAY = 'standalone'
+PWA_APP_SCOPE = '/'
+PWA_APP_ORIENTATION = 'any'
+PWA_APP_START_URL = '/'
+PWA_APP_STATUS_BAR_COLOR = 'default'
+PWA_APP_DIR = 'ltr'
+PWA_APP_LANG = 'en'
+
+PWA_APP_ICONS = [
+    {
+        'src': '/static/icons/icon-192.png',
+        'sizes': '192x192',
+        'type': 'image/png',
+        'purpose': 'any maskable',
+    },
+    {
+        'src': '/static/icons/icon-512.png',
+        'sizes': '512x512',
+        'type': 'image/png',
+        'purpose': 'any maskable',
+    },
+]
+
+PWA_APP_ICONS_APPLE = [
+    {
+        'src': '/static/icons/apple-touch-icon.png',
+        'sizes': '180x180',
+        'type': 'image/png',
+    },
+]
+
+PWA_SERVICE_WORKER_PATH = BASE_DIR / 'static' / 'js' / 'serviceworker.js'
+
+PWA_APP_SHORTCUTS = [
+    {
+        'name': 'Front Desk',
+        'url': '/reservations/front-desk/',
+        'description': "Today's arrivals and departures",
+    },
+    {
+        'name': 'Housekeeping',
+        'url': '/housekeeping/tasks/',
+        'description': 'Room cleaning tasks',
+    },
+]
+
+PWA_APP_DEBUG_MODE = DEBUG

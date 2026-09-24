@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
 # ============================================================================
-# Pritech PMS — Production deployment script (Phase 6: multi-tenant + PWA)
+# Pritech PMS — Production deployment script
+#   Phase 5: multi-tenant via django-tenants
+#   Phase 6: PWA + offline-first
+#   Phase 7: Channels + Redis WebSockets + WhatsApp/email + animated admin
 #
-# Idempotent and self-healing. Safe to re-run for updates.
+# Idempotent and self-healing. Runs makemigrations (with checks), then
+# migrate_schemas --shared (public), then migrate_schemas (all tenants).
 #
 # Usage:
 #   sudo bash deploy_pritech_pms.sh              # deploy / update
@@ -37,6 +41,10 @@ DB_USER="pritech_pms_user"
 
 ENV_FILE="${PROJECT_DIR}/.env"
 CERT_PATH="/etc/letsencrypt/live/${DOMAIN}/cert.pem"
+
+# Daphne listens on this port for WebSocket upgrade requests.
+# 8001 is owned by daphne-jn, 8003 by another project, 8004 is dev.
+DAPHNE_PORT="8010"
 
 # ─── Parse flags ────────────────────────────────────────────────────────────
 FRESH=false
@@ -79,6 +87,7 @@ echo "  Wildcard    : ${WILDCARD}"
 echo "  Server IP   : ${SERVER_IP}"
 echo "  Project dir : ${PROJECT_DIR}"
 echo "  Database    : ${DB_NAME} / ${DB_USER}"
+echo "  Daphne port : ${DAPHNE_PORT}"
 echo "  Fresh DB    : ${FRESH}"
 echo "  Skip SSL    : ${SKIP_SSL}"
 echo "  Env only    : ${ENV_ONLY}"
@@ -130,7 +139,6 @@ if [[ "${ENV_ONLY}" != "true" ]]; then
     DNS_IP=$(dig +short "test.${DOMAIN}" A | head -1 || true)
     if [[ "${DNS_IP}" != "${SERVER_IP}" ]]; then
         warn "test.${DOMAIN} → '${DNS_IP:-<none>}' (expected ${SERVER_IP})"
-        warn "Wildcard DNS not configured. Tenant subdomains will 404 until fixed."
     else
         ok "Wildcard DNS resolves to ${SERVER_IP}"
     fi
@@ -145,6 +153,13 @@ if [[ "${ENV_ONLY}" != "true" ]]; then
         fi
     else
         warn "No SSL cert found at ${CERT_PATH}"
+    fi
+
+    log "Pre-flight: checking Redis on DB 2 (Channels)"
+    if redis-cli -n 2 ping >/dev/null 2>&1; then
+        ok "Redis DB 2 responding"
+    else
+        warn "Redis DB 2 not responding — Channels will fail to broadcast"
     fi
 fi
 
@@ -166,7 +181,6 @@ if [[ "${ENV_ONLY}" != "true" ]]; then
 
     cd "${PROJECT_DIR}"
     chmod +x "${PROJECT_DIR}/deploy_pritech_pms.sh" 2>/dev/null || true
-
     echo "  HEAD: $(git log -1 --oneline)"
 else
     [[ -d "${PROJECT_DIR}" ]] || die "Project dir missing: ${PROJECT_DIR}"
@@ -193,29 +207,33 @@ if [[ "${ENV_ONLY}" != "true" ]]; then
     pip install -r requirements.txt
     ok "Dependencies installed"
 
-    # ─── Phase 5 + Phase 6 required packages ───
-    # These must be importable or the deploy fails.
-    for pkg in django_tenants requests celery redis pwa; do
+    for pkg in \
+        django_tenants \
+        requests \
+        celery \
+        redis \
+        pwa \
+        channels \
+        channels_redis \
+        daphne \
+        anymail
+    do
         if ! python -c "import ${pkg}" 2>/dev/null; then
-            if [[ "${pkg}" == "pwa" ]]; then
-                die "django-pwa not installed — add 'django-pwa' to requirements.txt."
-            else
-                die "Python package '${pkg}' not installed. Check requirements.txt."
-            fi
+            die "Python package '${pkg}' not installed. Check requirements.txt."
         fi
     done
-    ok "Required packages importable"
+    ok "All required packages importable"
 
-    # Phase 6 app import check — apps.core.sync must be discoverable
-    if ! python -c "import apps.core.sync" 2>/dev/null; then
-        die "apps.core.sync not importable — check SHARED_APPS and the app directory."
-    fi
-    ok "apps.core.sync importable"
-
-    # Phase 4 compliance packages — soft check
     for pkg in paychangu pyxrate; do
         python -c "import ${pkg}" 2>/dev/null \
             || warn "Python package '${pkg}' not installed — Phase 4 features disabled."
+    done
+
+    for app in apps.core.sync apps.realtime apps.communications; do
+        if ! python -c "import ${app}" 2>/dev/null; then
+            die "App not importable: ${app} — check SHARED_APPS/TENANT_APPS and the app directory."
+        fi
+        ok "App importable: ${app}"
     done
 fi
 
@@ -243,34 +261,29 @@ if [[ ! -f "${ENV_FILE}" ]]; then
 # Managed by deploy_pritech_pms.sh — secrets preserved on re-deploy.
 # ══════════════════════════════════════════════════════════════════════
 
-# ─── Core ────────────────────────────────────────────────────────────
 SECRET_KEY=${EXISTING_SECRET_KEY}
 DEBUG=False
 DJANGO_SETTINGS_MODULE=config.settings
 
-# ─── Hosts & URLs ────────────────────────────────────────────────────
 ALLOWED_HOSTS=${DOMAIN},.${DOMAIN},${SERVER_IP},localhost,127.0.0.1
 CSRF_TRUSTED_ORIGINS=https://${DOMAIN},https://*.${DOMAIN}
 SITE_URL=https://${DOMAIN}
 TENANT_BASE_DOMAIN=${DOMAIN}
 
-# ─── Database ────────────────────────────────────────────────────────
 DB_NAME=${DB_NAME}
 DB_USER=${DB_USER}
 DB_PASSWORD=${EXISTING_DB_PASSWORD}
 DB_HOST=127.0.0.1
 DB_PORT=5432
 
-# ─── Redis / Celery ──────────────────────────────────────────────────
 REDIS_URL=redis://127.0.0.1:6379/1
 CELERY_BROKER_URL=redis://127.0.0.1:6379/0
+CHANNEL_LAYER_REDIS_URL=redis://127.0.0.1:6379/2
 
-# ─── Sessions / tenancy ──────────────────────────────────────────────
 SESSION_COOKIE_DOMAIN=
 CSRF_COOKIE_DOMAIN=
 SHOW_PUBLIC_IF_NO_TENANT_FOUND=False
 
-# ─── Email ───────────────────────────────────────────────────────────
 EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
 EMAIL_HOST=mail.${DOMAIN}
 EMAIL_PORT=465
@@ -281,11 +294,12 @@ EMAIL_USE_SSL=True
 DEFAULT_FROM_EMAIL="Pritech PMS <noreply@${DOMAIN}>"
 SERVER_EMAIL=noreply@${DOMAIN}
 
-# ─── Monitoring ──────────────────────────────────────────────────────
+MAILGUN_API_KEY=
+MAILGUN_SENDER_DOMAIN=
+
 SENTRY_DSN=
 SENTRY_ENV=production
 
-# ─── Compliance (Phase 4) ────────────────────────────────────────────
 PAYCHANGU_ENABLED=False
 PAYCHANGU_BASE_URL=https://api.paychangu.com
 PAYCHANGU_SECRET_KEY=
@@ -296,6 +310,13 @@ EIS_API_BASE_URL=https://dev-eis-api.mra.mw/api/v1
 EIS_SANDBOX_MODE=True
 EIS_API_KEY=
 EIS_TIN=
+
+WHATSAPP_ENABLED=False
+WHATSAPP_PHONE_NUMBER_ID=
+WHATSAPP_ACCESS_TOKEN=
+WHATSAPP_APP_SECRET=
+WHATSAPP_WEBHOOK_VERIFY_TOKEN=
+WHATSAPP_API_VERSION=v21.0
 EOF
 
     chmod 600 "${ENV_FILE}"
@@ -318,6 +339,7 @@ else
     env_set DB_PORT                        "5432"
     env_set REDIS_URL                      "redis://127.0.0.1:6379/1"
     env_set CELERY_BROKER_URL              "redis://127.0.0.1:6379/0"
+    env_set CHANNEL_LAYER_REDIS_URL        "redis://127.0.0.1:6379/2"
     env_set SHOW_PUBLIC_IF_NO_TENANT_FOUND "False"
 
     env_set SECRET_KEY     "${EXISTING_SECRET_KEY}"
@@ -335,6 +357,9 @@ else
     env_set_if_missing EMAIL_USE_SSL       "True"
     env_set_if_missing SERVER_EMAIL        "noreply@${DOMAIN}"
 
+    env_set_if_missing MAILGUN_API_KEY       ""
+    env_set_if_missing MAILGUN_SENDER_DOMAIN ""
+
     env_set_if_missing SENTRY_DSN ""
     env_set_if_missing SENTRY_ENV "production"
 
@@ -348,6 +373,13 @@ else
     env_set_if_missing EIS_SANDBOX_MODE  "True"
     env_set_if_missing EIS_API_KEY       ""
     env_set_if_missing EIS_TIN           ""
+
+    env_set_if_missing WHATSAPP_ENABLED              "False"
+    env_set_if_missing WHATSAPP_PHONE_NUMBER_ID      ""
+    env_set_if_missing WHATSAPP_ACCESS_TOKEN         ""
+    env_set_if_missing WHATSAPP_APP_SECRET           ""
+    env_set_if_missing WHATSAPP_WEBHOOK_VERIFY_TOKEN ""
+    env_set_if_missing WHATSAPP_API_VERSION          "v21.0"
 
     if grep -qE '^DEFAULT_FROM_EMAIL=.*<.*>' "${ENV_FILE}" \
        && ! grep -qE '^DEFAULT_FROM_EMAIL="' "${ENV_FILE}"; then
@@ -376,7 +408,7 @@ if [[ "${ENV_ONLY}" == "true" ]]; then
     banner ".env update complete"
     echo "  File: ${ENV_FILE}"
     echo "  Preview (secrets masked):"
-    grep -vE '^(SECRET_KEY|DB_PASSWORD|EMAIL_HOST_PASSWORD|PAYCHANGU_SECRET_KEY|PAYCHANGU_WEBHOOK_SECRET|EIS_API_KEY)=' "${ENV_FILE}" \
+    grep -vE '^(SECRET_KEY|DB_PASSWORD|EMAIL_HOST_PASSWORD|PAYCHANGU_SECRET_KEY|PAYCHANGU_WEBHOOK_SECRET|EIS_API_KEY|WHATSAPP_ACCESS_TOKEN|WHATSAPP_APP_SECRET|MAILGUN_API_KEY)=' "${ENV_FILE}" \
         | sed 's/^/    /'
     exit 0
 fi
@@ -413,23 +445,62 @@ sudo -u postgres psql -d "${DB_NAME}" -c "ALTER SCHEMA public OWNER TO ${DB_USER
 ok "Database ready"
 
 # ============================================================================
-# Step 5 — Ensure tenants migration exists (regenerate if missing)
+# Step 5 — Migrations: verify + generate + sanity-check
+#
+# This step makes sure every app that owns models has an initial migration
+# committed. If a migration file is missing, it generates one and warns
+# loudly that the file must be committed to git or it will regenerate on
+# every deploy.
 # ============================================================================
-log "Step 5: Ensure tenants app migration exists"
+log "Step 5: Ensure all migrations exist and are current"
 
+# ─── 5a. tenants app (SHARED) ───
 TENANTS_MIGRATION="${PROJECT_DIR}/apps/shared/tenants/migrations/0001_initial.py"
 if [[ ! -f "${TENANTS_MIGRATION}" ]]; then
     warn "tenants/migrations/0001_initial.py missing — generating now"
     python manage.py makemigrations tenants
     if [[ -f "${TENANTS_MIGRATION}" ]]; then
         ok "Generated apps/shared/tenants/migrations/0001_initial.py"
-        warn "⚠ This file MUST be committed to git or it will regenerate every deploy."
+        warn "⚠ Commit this file to git or it regenerates every deploy."
     else
         die "Failed to generate tenants migration."
     fi
 else
     ok "tenants migration present"
 fi
+
+# ─── 5b. communications app (TENANT) ───
+COMM_MIGRATION="${PROJECT_DIR}/apps/communications/migrations/0001_initial.py"
+if [[ ! -f "${COMM_MIGRATION}" ]]; then
+    warn "communications/migrations/0001_initial.py missing — generating now"
+    python manage.py makemigrations communications
+    if [[ -f "${COMM_MIGRATION}" ]]; then
+        ok "Generated apps/communications/migrations/0001_initial.py"
+        warn "⚠ Commit this file to git or it regenerates every deploy."
+    else
+        warn "No migration generated for communications — check that the app has models."
+    fi
+else
+    ok "communications migration present"
+fi
+
+# ─── 5c. General check — do ANY apps have unmigrated model changes? ───
+log "Step 5b: Running makemigrations --check --dry-run"
+if ! python manage.py makemigrations --check --dry-run 2>&1 | tee /tmp/migrations-check.log | grep -q "No changes detected"; then
+    warn "Model changes without migrations detected:"
+    cat /tmp/migrations-check.log | sed 's/^/    /'
+    warn "Generating them now (they MUST be committed to git afterwards):"
+    python manage.py makemigrations
+    warn "⚠ Run 'git add */migrations/ && git commit' from your dev machine."
+else
+    ok "All models have up-to-date migrations"
+fi
+
+# ─── 5d. Confirm migration files exist on disk ───
+log "Step 5c: Migration files in the repo"
+find "${PROJECT_DIR}/apps" -path "*/migrations/*.py" \
+    ! -name "__init__.py" -printf "    %P\n" | sort
+ok "Migration inventory printed"
 
 # ============================================================================
 # Step 6 — Django check
@@ -439,9 +510,9 @@ python manage.py check
 ok "Django check passed"
 
 # ============================================================================
-# Step 7 — Migrate shared schema
+# Step 7 — Migrate shared schema (public)
 # ============================================================================
-log "Step 7: Migrate shared schema (public)"
+log "Step 7: Apply migrations to shared schema (public)"
 python manage.py migrate_schemas --shared --noinput
 ok "Shared schema migrated"
 
@@ -477,20 +548,32 @@ PY
 ok "Public tenant ready"
 
 # ============================================================================
-# Step 9 — Migrate tenant schemas
+# Step 9 — Apply migrations to every tenant schema
 # ============================================================================
-log "Step 9: Migrate all tenant schemas"
+log "Step 9: Apply migrations to all tenant schemas"
 python manage.py migrate_schemas --noinput
-ok "Tenant schemas migrated"
+ok "All tenant schemas migrated"
 
 # ============================================================================
-# Step 10 — Collect static files
+# Step 9b — Post-migration verification
+# ============================================================================
+log "Step 9b: Verifying all schemas are up to date"
+
+if python manage.py migrate_schemas --check 2>&1 | grep -q "No migrations to apply"; then
+    ok "Every schema reports 'No migrations to apply' — all in sync"
+else
+    warn "Some schemas still have pending migrations — rerunning"
+    python manage.py migrate_schemas --noinput
+    ok "Second pass complete"
+fi
+
+# ============================================================================
+# Step 10 — Collect static files + verify assets
 # ============================================================================
 log "Step 10: Collect static files"
 python manage.py collectstatic --noinput --clear 2>&1 | tail -5
 ok "Static files collected"
 
-# ─── Verify Phase 6 PWA assets landed ───
 PWA_ASSETS=(
     "staticfiles/js/serviceworker.js"
     "staticfiles/js/offline-store.js"
@@ -502,56 +585,62 @@ PWA_ASSETS=(
 )
 MISSING=0
 for asset in "${PWA_ASSETS[@]}"; do
-    if [[ -f "${PROJECT_DIR}/${asset}" ]]; then
-        :
-    else
-        warn "Missing PWA asset: ${asset}"
-        MISSING=$((MISSING + 1))
-    fi
+    [[ -f "${PROJECT_DIR}/${asset}" ]] || { warn "Missing PWA asset: ${asset}"; MISSING=$((MISSING + 1)); }
 done
-if [[ "${MISSING}" -eq 0 ]]; then
-    ok "All 7 PWA static assets present"
-else
-    warn "${MISSING} PWA asset(s) missing — PWA may not install"
-    warn "Check that files exist in the repo under static/js/ and static/icons/"
-fi
+[[ "${MISSING}" -eq 0 ]] && ok "All 7 PWA static assets present"
 
-# ─── Verify templates that Phase 6 relies on ───
+PHASE7_ASSETS=(
+    "staticfiles/css/admin_motion.css"
+    "staticfiles/js/admin_motion.js"
+    "staticfiles/js/realtime.js"
+)
+MISSING7=0
+for asset in "${PHASE7_ASSETS[@]}"; do
+    [[ -f "${PROJECT_DIR}/${asset}" ]] || { warn "Missing Phase 7 asset: ${asset}"; MISSING7=$((MISSING7 + 1)); }
+done
+[[ "${MISSING7}" -eq 0 ]] && ok "All 3 Phase 7 static assets present"
+
 TEMPLATES_TO_CHECK=(
     "templates/pages/offline.html"
     "templates/partials/_offline_indicator.html"
     "templates/partials/_pwa_install_prompt.html"
+    "templates/pages/communications/log_list.html"
+    "templates/pages/communications/inbound_list.html"
+    "templates/pages/communications/template_list.html"
+    "templates/pages/communications/log_detail.html"
+    "templates/pages/communications/inbound_reply.html"
+    "templates/pages/communications/template_form.html"
 )
 MISSING_T=0
 for tpl in "${TEMPLATES_TO_CHECK[@]}"; do
-    if [[ -f "${PROJECT_DIR}/${tpl}" ]]; then
-        :
-    else
-        warn "Missing template: ${tpl}"
-        MISSING_T=$((MISSING_T + 1))
-    fi
+    [[ -f "${PROJECT_DIR}/${tpl}" ]] || { warn "Missing template: ${tpl}"; MISSING_T=$((MISSING_T + 1)); }
 done
-if [[ "${MISSING_T}" -eq 0 ]]; then
-    ok "All 3 Phase 6 templates present"
-else
-    warn "${MISSING_T} Phase 6 template(s) missing"
-fi
+[[ "${MISSING_T}" -eq 0 ]] && ok "All Phase 6 + 7 templates present"
 
-# ─── Verify URL patterns (offline + sync) resolve ───
-log "Step 10b: Verify Phase 6 URL patterns"
+# ─── Verify URL patterns reverse-resolve ───
+log "Step 10b: Verify URL patterns"
 python manage.py shell <<'PY'
 from django.urls import reverse, NoReverseMatch
 
 checks = [
-    ('tenant',  'offline'),
-    ('tenant',  'sync:sync'),
+    ('tenant', 'offline'),
+    ('tenant', 'sync:sync'),
+    ('tenant', 'communications:log_list'),
+    ('tenant', 'communications:inbound_list'),
+    ('tenant', 'communications:template_list'),
 ]
 for scope, name in checks:
     try:
         url = reverse(name)
         print(f'  ✔ {scope}:{name} → {url}')
     except NoReverseMatch:
-        print(f'  ⚠ {scope}:{name} not reverse-resolvable (may need to check config/urls.py)')
+        print(f'  ⚠ {scope}:{name} not reverse-resolvable')
+
+try:
+    from apps.realtime.routing import websocket_urlpatterns
+    print(f'  ✔ apps.realtime.routing has {len(websocket_urlpatterns)} WebSocket routes')
+except Exception as e:
+    print(f'  ✘ apps.realtime.routing failed to import: {e}')
 PY
 ok "URL verification done"
 
@@ -577,13 +666,13 @@ PY
 ok "Superuser ready"
 
 # ============================================================================
-# Step 12 — Systemd: Gunicorn
+# Step 12 — Systemd services
 # ============================================================================
-log "Step 12: Systemd — Gunicorn"
+log "Step 12: Systemd services"
 
 cat > /etc/systemd/system/gunicorn-${PROJECT_NAME}.service <<EOF
 [Unit]
-Description=Gunicorn for Pritech PMS
+Description=Gunicorn for Pritech PMS (HTTP)
 After=network.target postgresql.service
 
 [Service]
@@ -607,9 +696,31 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
 
-# ============================================================================
-# Step 13 — Systemd: Celery worker
-# ============================================================================
+cat > /etc/systemd/system/daphne-${PROJECT_NAME}.service <<EOF
+[Unit]
+Description=Daphne ASGI for Pritech PMS (WebSockets)
+After=network.target redis-server.service postgresql.service
+
+[Service]
+User=root
+Group=root
+WorkingDirectory=${PROJECT_DIR}
+Environment="PATH=${VENV_DIR}/bin"
+Environment="DJANGO_SETTINGS_MODULE=config.settings"
+EnvironmentFile=${PROJECT_DIR}/.env
+ExecStart=${VENV_DIR}/bin/daphne \\
+    -b 127.0.0.1 \\
+    -p ${DAPHNE_PORT} \\
+    --access-log - \\
+    --proxy-headers \\
+    config.asgi:application
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
 cat > /etc/systemd/system/celery-worker-${PROJECT_NAME}.service <<EOF
 [Unit]
 Description=Celery Worker for Pritech PMS
@@ -630,9 +741,6 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
 
-# ============================================================================
-# Step 14 — Systemd: Celery beat
-# ============================================================================
 cat > /etc/systemd/system/celery-beat-${PROJECT_NAME}.service <<EOF
 [Unit]
 Description=Celery Beat for Pritech PMS
@@ -656,44 +764,27 @@ WantedBy=multi-user.target
 EOF
 
 systemctl daemon-reload
-systemctl enable gunicorn-${PROJECT_NAME}     >/dev/null
+systemctl enable gunicorn-${PROJECT_NAME}      >/dev/null
+systemctl enable daphne-${PROJECT_NAME}        >/dev/null
 systemctl enable celery-worker-${PROJECT_NAME} >/dev/null
 systemctl enable celery-beat-${PROJECT_NAME}   >/dev/null
 ok "Systemd services created and enabled"
 
 # ============================================================================
-# Step 15 — Nginx (no duplicate headers; Phase 6 service worker scope)
+# Step 15 — Nginx
 # ============================================================================
 log "Step 15: Nginx configuration"
 
 cat > /etc/nginx/sites-available/${PROJECT_NAME} <<EOF
-# ─────────────────────────────────────────────────────────────────────
-# Pritech PMS — HTTP entry (redirects everything to HTTPS)
-# ─────────────────────────────────────────────────────────────────────
 server {
     listen 80;
     listen [::]:80;
     server_name ${DOMAIN} ${WILDCARD};
-
     client_max_body_size 25M;
-
-    location /.well-known/acme-challenge/ {
-        root /var/www/html;
-    }
-
-    location / {
-        return 301 https://\$host\$request_uri;
-    }
+    location /.well-known/acme-challenge/ { root /var/www/html; }
+    location / { return 301 https://\$host\$request_uri; }
 }
 
-# ─────────────────────────────────────────────────────────────────────
-# Pritech PMS — HTTPS (public site + tenant subdomains)
-#
-# NOTE: We deliberately do NOT include proxy_params here. That file sets
-# Host, X-Real-IP, X-Forwarded-For, X-Forwarded-Proto — which we also set
-# explicitly below. Duplicate headers cause gunicorn 22+ to reject
-# requests with "Invalid HTTP Header: 'HOST'".
-# ─────────────────────────────────────────────────────────────────────
 server {
     listen 443 ssl http2;
     listen [::]:443 ssl http2;
@@ -708,7 +799,6 @@ server {
     ssl_session_cache shared:SSL:10m;
     ssl_session_timeout 10m;
 
-    # Static files (Whitenoise is the fallback)
     location /static/ {
         alias ${PROJECT_DIR}/staticfiles/;
         expires 30d;
@@ -716,15 +806,12 @@ server {
         try_files \$uri \$uri/ =404;
     }
 
-    # Media (tenant-scoped subdirectories handled by TenantFileStorage)
     location /media/ {
         alias ${PROJECT_DIR}/media/;
         expires 7d;
         try_files \$uri \$uri/ =404;
     }
 
-    # Service worker — must be served from root scope.
-    # Some browsers refuse to register a SW served with restrictive headers.
     location = /serviceworker.js {
         alias ${PROJECT_DIR}/staticfiles/js/serviceworker.js;
         add_header Service-Worker-Allowed "/";
@@ -733,7 +820,20 @@ server {
         default_type application/javascript;
     }
 
-    # Application
+    location /ws/ {
+        proxy_pass http://127.0.0.1:${DAPHNE_PORT};
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade           \$http_upgrade;
+        proxy_set_header Connection        "upgrade";
+        proxy_set_header Host              \$host;
+        proxy_set_header X-Real-IP         \$remote_addr;
+        proxy_set_header X-Forwarded-For   \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_read_timeout 86400;
+        proxy_send_timeout 86400;
+        proxy_buffering off;
+    }
+
     location / {
         proxy_http_version 1.1;
         proxy_pass http://unix:${PROJECT_DIR}/gunicorn.sock;
@@ -781,13 +881,20 @@ fi
 log "Step 17: Restart services"
 
 systemctl restart gunicorn-${PROJECT_NAME}
+systemctl restart daphne-${PROJECT_NAME}
 systemctl restart celery-worker-${PROJECT_NAME}
 systemctl restart celery-beat-${PROJECT_NAME}
 
 sleep 3
 
 FAILED=0
-for s in gunicorn-${PROJECT_NAME} celery-worker-${PROJECT_NAME} celery-beat-${PROJECT_NAME} nginx; do
+for s in \
+    gunicorn-${PROJECT_NAME} \
+    daphne-${PROJECT_NAME} \
+    celery-worker-${PROJECT_NAME} \
+    celery-beat-${PROJECT_NAME} \
+    nginx
+do
     state="$(systemctl is-active "$s" || true)"
     if [[ "${state}" == "active" ]]; then
         ok "${s} is active"
@@ -799,7 +906,7 @@ for s in gunicorn-${PROJECT_NAME} celery-worker-${PROJECT_NAME} celery-beat-${PR
 done
 
 # ============================================================================
-# Step 18 — Smoke test (Phase 5 + Phase 6)
+# Step 18 — Smoke test
 # ============================================================================
 log "Step 18: Smoke test"
 
@@ -813,27 +920,34 @@ check() {
     else
         code=$(curl -sS -o /dev/null -w "%{http_code}" -k --max-time 10 "$url" 2>/dev/null || echo "000")
     fi
-    if [[ "${code}" =~ ^(200|301|302|400|405)$ ]]; then
-        printf "  \033[1;32m%-24s %s\033[0m\n" "$label" "$code"
+    if [[ "${code}" =~ ^(200|301|302|400|405|426)$ ]]; then
+        printf "  \033[1;32m%-26s %s\033[0m\n" "$label" "$code"
     else
-        printf "  \033[1;31m%-24s %s\033[0m\n" "$label" "$code"
+        printf "  \033[1;31m%-26s %s\033[0m\n" "$label" "$code"
     fi
     echo "${code}"
 }
 
-log "  -- Phase 5 --"
-C1=$(check "public"          "https://${DOMAIN}/")
-C2=$(check "public-admin"    "https://${DOMAIN}/admin/")
-C3=$(check "public-login"    "https://${DOMAIN}/login/")
-C4=$(check "public-signup"   "https://${DOMAIN}/signup/")
-C5=$(check "tenant-pritech"  "https://pritech.${DOMAIN}/")
+log "  -- Phase 5: multi-tenant --"
+C1=$(check "public"           "https://${DOMAIN}/")
+C2=$(check "public-admin"     "https://${DOMAIN}/admin/")
+C3=$(check "public-login"     "https://${DOMAIN}/login/")
+C4=$(check "public-signup"    "https://${DOMAIN}/signup/")
+C5=$(check "tenant-pritech"   "https://pritech.${DOMAIN}/")
 
-log "  -- Phase 6 --"
-C6=$(check "manifest"        "https://${DOMAIN}/manifest.json")
-C7=$(check "serviceworker"   "https://${DOMAIN}/serviceworker.js")
-C8=$(check "offline-page"    "https://${DOMAIN}/offline/")
-C9=$(check "icon-192"        "https://${DOMAIN}/static/icons/icon-192.png")
-C10=$(check "sync-api"       "https://${DOMAIN}/api/v1/sync/" "-X POST -H 'Content-Type: application/json' -d '{\"operations\":[]}'")
+log "  -- Phase 6: PWA --"
+C6=$(check "manifest"         "https://${DOMAIN}/manifest.json")
+C7=$(check "serviceworker"    "https://${DOMAIN}/serviceworker.js")
+C8=$(check "offline-page"     "https://${DOMAIN}/offline/")
+C9=$(check "icon-192"         "https://${DOMAIN}/static/icons/icon-192.png")
+C10=$(check "sync-api"        "https://${DOMAIN}/api/v1/sync/" "-X POST -H 'Content-Type: application/json' -d '{\"operations\":[]}'")
+
+log "  -- Phase 7: admin motion + realtime + WebSocket --"
+C11=$(check "admin-motion-css" "https://${DOMAIN}/static/css/admin_motion.css")
+C12=$(check "admin-motion-js"  "https://${DOMAIN}/static/js/admin_motion.js")
+C13=$(check "realtime-js"      "https://${DOMAIN}/static/js/realtime.js")
+C14=$(check "ws-endpoint"      "https://${DOMAIN}/ws/notifications/")
+C15=$(check "comm-log"         "https://${DOMAIN}/communications/logs/")
 
 # ============================================================================
 # Done
@@ -846,6 +960,7 @@ echo "  Public site    : https://${DOMAIN}/"
 echo "  Admin          : https://${DOMAIN}/admin/"
 echo "  First tenant   : https://pritech.${DOMAIN}/"
 echo "  PWA manifest   : https://${DOMAIN}/manifest.json"
+echo "  WebSocket      : wss://${DOMAIN}/ws/notifications/"
 echo ""
 
 if [[ "${FAILED}" -gt 0 ]]; then
@@ -854,34 +969,40 @@ fi
 
 if [[ "${C1}" == "400" ]]; then
     warn "Public site returns 400 — nginx duplicate-header issue."
-    warn "  Check: sudo nginx -T | grep -A20 'location / {'"
-    warn "  Should NOT contain: include proxy_params;"
 fi
 
 if [[ "${C5}" == "000" ]]; then
     warn "Tenant subdomain unreachable — wildcard DNS issue."
-    warn "  Verify: dig +short test.${DOMAIN}"
 fi
 
 if [[ "${C6}" != "200" ]]; then
     warn "manifest.json not served — django-pwa misconfigured."
-    warn "  Check: 'pwa' in SHARED_APPS, path('', include('pwa.urls')) in urls_public.py"
 fi
 
-if [[ "${C7}" != "200" ]]; then
-    warn "serviceworker.js not served — check nginx location block and file at staticfiles/js/serviceworker.js"
+if [[ "${C11}" != "200" ]]; then
+    warn "admin_motion.css missing — Phase 7 admin theme will not animate."
 fi
 
-if [[ "${C8}" != "200" ]]; then
-    warn "Offline page not served — check path('offline/', ...) in urls_public.py"
+if [[ "${C12}" != "200" ]]; then
+    warn "admin_motion.js missing — Phase 7 admin animations disabled."
 fi
 
-if [[ "${C10}" != "200" && "${C10}" != "405" ]]; then
-    warn "Sync API not reachable — check path('api/v1/sync/', ...) in config/urls.py"
+if [[ "${C13}" != "200" ]]; then
+    warn "realtime.js missing — WebSocket client not loaded."
+fi
+
+if [[ "${C14}" == "404" ]]; then
+    warn "WebSocket endpoint 404 — check config/asgi.py and apps.realtime.routing."
+fi
+
+if [[ "${C14}" == "502" || "${C14}" == "504" ]]; then
+    warn "WebSocket endpoint returned ${C14} — Daphne not responding on port ${DAPHNE_PORT}."
+    warn "  Check: sudo systemctl status daphne-${PROJECT_NAME}"
 fi
 
 echo "  Logs:"
-echo "    journalctl -u gunicorn-${PROJECT_NAME} -n 40 --no-pager"
+echo "    journalctl -u gunicorn-${PROJECT_NAME}      -n 40 --no-pager"
+echo "    journalctl -u daphne-${PROJECT_NAME}        -n 40 --no-pager"
 echo "    journalctl -u celery-worker-${PROJECT_NAME} -n 30 --no-pager"
 echo ""
 echo "  Superuser (if newly created): admin@pritechmw.com / ChangeMe123!"

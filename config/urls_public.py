@@ -32,6 +32,14 @@ urlpatterns = [
 
     # Health check
     path('health/', views_signup.HealthCheckView.as_view(), name='health'),
+    
+    # Meta webhooks (public — Meta posts from an external IP)
+    path('communications/whatsapp/webhook/',
+         comm_views.whatsapp_webhook,
+         name='whatsapp_webhook'),
+    path('communications/whatsapp/verify/',
+         comm_views.whatsapp_verify,
+         name='whatsapp_verify'),
 
     # Admin
     path('admin/', admin.site.urls),

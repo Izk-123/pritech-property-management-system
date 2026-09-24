@@ -38,6 +38,9 @@ urlpatterns = [
     path('compliance/', include('apps.compliance.urls')),
     
     path('api/v1/sync/', include('apps.core.sync.urls')),
+    
+    # Communications (staff-facing)
+    path('communications/', include('apps.communications.urls')),
 
     # Admin
     path('admin/', admin.site.urls),

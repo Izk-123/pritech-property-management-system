@@ -89,9 +89,6 @@ def handle_folio_charge(op, request):
     return {'folio_id': folio_id, 'charge_id': charge.pk}
 
 
-register_sync_handler('/api/v1/sync/folios/', handle_folio_charge)
-
-
 # ─── Folio payment ────────────────────────────────────────────────
 def handle_folio_payment(op, request):
     """
@@ -109,7 +106,7 @@ def handle_folio_payment(op, request):
     except Folio.DoesNotExist:
         return {'deleted': True, 'folio_id': folio_id}
 
-    # Idempotency: check for an identical payment within the last 5 minutes
+    # Idempotency: check for an identical payment by reference
     reference = op['payload'].get('reference', '')
     if reference:
         existing = FolioPayment.objects.filter(
@@ -135,8 +132,8 @@ def handle_folio_payment(op, request):
     return {'folio_id': folio_id, 'payment_id': payment.pk}
 
 
-# Note: registered under the same prefix, distinguished by the last path segment.
-# We register a combined handler that routes to charge or payment.
+# Route folio operations by the last path segment — charge or payment.
+# We register a single handler under /api/v1/sync/folios/ and dispatch inside.
 def _route_folio_operation(op, request):
     endpoint = op['endpoint']
     if '/charge/' in endpoint:
@@ -146,8 +143,6 @@ def _route_folio_operation(op, request):
     raise ConflictError(f'Unknown folio operation: {endpoint}')
 
 
-# Replace the earlier registration with a combined router
-SYNC_HANDLERS.pop('/api/v1/sync/folios/', None)
 register_sync_handler('/api/v1/sync/folios/', _route_folio_operation)
 
 
@@ -198,19 +193,6 @@ def handle_reservation_status(op, request):
 
         try:
             check_out_reservation(reservation, user=request.user)
-        except CheckInError as e:
-            raise ConflictError(str(e), server_state={'status': reservation.status})
-
-    elif new_status == 'CANC':
-        if reservation.status == Reservation.Status.CANCELLED:
-            return {'reservation_id': reservation_id, 'already_cancelled': True}
-        from apps.hospitality.reservations.services import cancel_reservation
-        try:
-            cancel_reservation(
-                reservation,
-                reason=op['payload'].get('reason', 'Offline cancellation'),
-                user=request.user,
-            )
         except CheckInError as e:
             raise ConflictError(str(e), server_state={'status': reservation.status})
 

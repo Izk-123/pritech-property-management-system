@@ -6,6 +6,8 @@ Single-file settings. Environment-driven via python-decouple.
 
 Phase 5: multi-tenant via django-tenants (PostgreSQL schema isolation).
 Phase 6: PWA + offline-first (django-pwa, Workbox, IndexedDB sync queue).
+Phase 7: real-time (Channels + Redis) + WhatsApp/email communications
+         + modernised animated admin theme (Unfold).
 PostgreSQL is required in BOTH dev and prod — SQLite cannot host tenants.
 """
 
@@ -71,7 +73,8 @@ CSRF_COOKIE_DOMAIN = config('CSRF_COOKIE_DOMAIN', default=None)
 
 # ─────────────────────────────────────────────────────────────────────
 # Applications
-# SHARED_APPS  → public schema (tenant registry, users, admin, celery, sync, pwa)
+# SHARED_APPS  → public schema (tenant registry, users, admin, celery,
+#                sync, realtime, pwa, channels, anymail)
 # TENANT_APPS  → per-tenant schema (business data)
 # ─────────────────────────────────────────────────────────────────────
 SHARED_APPS = [
@@ -95,6 +98,11 @@ SHARED_APPS = [
 
     'apps.shared.users',
     'apps.core.sync',               # Phase 6 — offline sync API
+    'apps.realtime',                # Phase 7 — WebSocket infrastructure
+
+    'channels',                     # Phase 7 — ASGI channel layer
+    'anymail',                      # Phase 7 — email via Mailgun/SES
+
     'tailwind',
     'theme',
     'pwa',                          # Phase 6 — PWA manifest + service worker
@@ -105,6 +113,9 @@ TENANT_APPS = [
     'apps.core.properties',
     'apps.core.people',
     'apps.core.documents',
+
+    # Phase 7 — per-tenant notification templates + delivery logs
+    'apps.communications',
 
     # Hospitality
     'apps.hospitality.rates',
@@ -407,6 +418,40 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'apps.compliance.fcy.tasks.generate_monthly_rbm_returns',
         'schedule': crontab(day_of_month=1, hour=7, minute=0),
     },
+
+    # ─── Phase 7 — Communications ──────────────────────────────────────
+    'scan-checkin-reminders': {
+        'task': 'apps.communications.tasks.scan_checkin_reminders',
+        'schedule': crontab(hour=9, minute=0),        # 09:00 daily
+    },
+    'scan-rent-due-reminders': {
+        'task': 'apps.communications.tasks.scan_rent_due_reminders',
+        'schedule': crontab(hour=8, minute=0),        # 08:00 daily
+    },
+}
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Channels — Phase 7 WebSockets
+#
+# Redis channel layer on database 2 (broker uses 0, cache uses 1).
+# `capacity` raised from default 100 to 1500 so bursts of broadcasts
+# during heavy use (night audit fan-out) don't drop messages.
+# ─────────────────────────────────────────────────────────────────────
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            'hosts': [
+                config(
+                    'CHANNEL_LAYER_REDIS_URL',
+                    default='redis://127.0.0.1:6379/2',
+                ),
+            ],
+            'expiry': 60,        # seconds
+            'capacity': 1500,    # per-channel queue depth
+        },
+    },
 }
 
 
@@ -419,19 +464,53 @@ INTERNAL_IPS = ['127.0.0.1']
 
 
 # ─────────────────────────────────────────────────────────────────────
-# Django Unfold (admin theme)
+# Django Unfold (admin theme) — modern + animated
+#
+# Rounded corners, environment badge, sidebar separators, live badges,
+# inline tabs on change forms, and motion CSS/JS injected on every
+# admin page. The motion layer honours prefers-reduced-motion.
 # ─────────────────────────────────────────────────────────────────────
 UNFOLD = {
     'SITE_TITLE': 'Pritech PMS',
-    'SITE_HEADER': 'Admin',
-    'SITE_SUBHEADER': 'Hotel, Lodge & Property Management',
+    'SITE_HEADER': 'Pritech PMS',
+    'SITE_SUBHEADER': 'Property Management Admin',
     'SITE_URL': '/',
     'SITE_SYMBOL': 'apartment',
     'SHOW_HISTORY': True,
-    'SHOW_VIEW_ON_SITE': False,
+    'SHOW_VIEW_ON_SITE': True,
+    'SHOW_LANGUAGES': True,
+    'BORDER_RADIUS': '12px',
+    'DASHBOARD_CALLBACK': 'apps.core.admin_dashboard.dashboard_callback',
+
+    # Environment badge — visible top-right of the admin header
+    'ENVIRONMENT': (
+        'production' if not DEBUG else 'development'
+    ),
+
+    # Site dropdown — quick links from the top-right avatar
+    'SITE_DROPDOWN': [
+        {
+            'icon': 'public',
+            'title': 'View public site',
+            'link': '/',
+        },
+        {
+            'icon': 'front_desk',
+            'title': 'Front Desk',
+            'link': '/reservations/front-desk/',
+        },
+        {
+            'icon': 'hub',
+            'title': 'WebSocket status',
+            'link': '/admin/realtime/',
+            'permission': lambda request: request.user.is_superuser,
+        },
+    ],
+
+    # Purple accent palette (matches the frontend)
     'COLORS': {
         'primary': {
-            '50': '250 245 255',
+            '50':  '250 245 255',
             '100': '243 232 255',
             '200': '233 213 255',
             '300': '216 180 254',
@@ -444,17 +523,53 @@ UNFOLD = {
             '950': '59 7 100',
         },
     },
+
+    # Custom CSS + JS injected into every admin page
+    'STYLES': [
+        'css/admin_motion.css',
+    ],
+    'SCRIPTS': [
+        'js/admin_motion.js',
+    ],
+
+    # Inline tabs in change forms — fieldset identifiers must match
+    # the names you give each fieldset in the model's admin class.
+    'TABS': [
+        {
+            'page': 'reservation_change',
+            'tabs': [
+                {'title': 'Stay',      'fieldset': 'StayDetails'},
+                {'title': 'Guest',     'fieldset': 'GuestInfo'},
+                {'title': 'Rooms',     'fieldset': 'AssignedRooms'},
+                {'title': 'Folio',     'fieldset': 'FolioSummary'},
+                {'title': 'Notes',     'fieldset': 'NotesAndExtras'},
+            ],
+        },
+        {
+            'page': 'property_change',
+            'tabs': [
+                {'title': 'Overview',  'fieldset': 'PropertyOverview'},
+                {'title': 'Contact',   'fieldset': 'PropertyContact'},
+                {'title': 'Units',     'fieldset': 'PropertyUnits'},
+                {'title': 'Documents', 'fieldset': 'PropertyDocuments'},
+            ],
+        },
+    ],
+
     'SIDEBAR': {
         'show_search': True,
         'show_all_applications': True,
+        'show_section_titles': True,
         'navigation': [
             {
                 'title': 'Platform',
+                'separator': True,
                 'items': [
                     {
                         'title': 'Tenants',
                         'icon': 'domain',
                         'link': '/platform/tenants/',
+                        'badge': 'Live',
                     },
                     {
                         'title': 'Domains',
@@ -470,14 +585,20 @@ UNFOLD = {
             },
             {
                 'title': 'Dashboard',
+                'separator': True,
                 'items': [
                     {'title': 'Home', 'icon': 'dashboard', 'link': '/admin/'},
-                    {'title': 'Front Desk', 'icon': 'front_desk',
-                     'link': '/reservations/front-desk/'},
+                    {
+                        'title': 'Front Desk',
+                        'icon': 'front_desk',
+                        'link': '/reservations/front-desk/',
+                        'badge': 'Live',
+                    },
                 ],
             },
             {
                 'title': 'Hospitality',
+                'separator': True,
                 'items': [
                     {'title': 'Reservations', 'icon': 'event',
                      'link': '/admin/reservations/reservation/'},
@@ -489,6 +610,7 @@ UNFOLD = {
             },
             {
                 'title': 'Property',
+                'separator': True,
                 'items': [
                     {'title': 'Dashboard', 'icon': 'analytics', 'link': '/property/'},
                     {'title': 'Leases', 'icon': 'contract', 'link': '/property/leases/'},
@@ -496,11 +618,13 @@ UNFOLD = {
                      'link': '/property/invoices/'},
                     {'title': 'Maintenance', 'icon': 'build',
                      'link': '/property/maintenance/'},
-                    {'title': 'Sale Listings', 'icon': 'sell', 'link': '/property/sales/'},
+                    {'title': 'Sale Listings', 'icon': 'sell',
+                     'link': '/property/sales/'},
                 ],
             },
             {
                 'title': 'Compliance',
+                'separator': True,
                 'items': [
                     {'title': 'Overview', 'icon': 'verified_user',
                      'link': '/compliance/'},
@@ -521,7 +645,20 @@ UNFOLD = {
                 ],
             },
             {
+                'title': 'Communications',
+                'separator': True,
+                'items': [
+                    {'title': 'Message Log', 'icon': 'forum',
+                     'link': '/communications/logs/'},
+                    {'title': 'Inbound', 'icon': 'inbox',
+                     'link': '/communications/inbound/'},
+                    {'title': 'Templates', 'icon': 'description',
+                     'link': '/communications/templates/'},
+                ],
+            },
+            {
                 'title': 'Core',
+                'separator': True,
                 'items': [
                     {'title': 'Properties', 'icon': 'apartment',
                      'link': '/admin/properties/property/'},
@@ -537,6 +674,7 @@ UNFOLD = {
             },
             {
                 'title': 'Administration',
+                'separator': True,
                 'items': [
                     {'title': 'Audit Log', 'icon': 'history',
                      'link': '/admin/auditlog/logentry/'},
@@ -599,6 +737,21 @@ LOGGING = {
             'handlers': ['console'],
             'propagate': False,
         },
+        'channels': {
+            'level': 'INFO',
+            'handlers': ['console'],
+            'propagate': False,
+        },
+        'apps.realtime': {
+            'level': 'INFO',
+            'handlers': ['console'],
+            'propagate': False,
+        },
+        'apps.communications': {
+            'level': 'INFO',
+            'handlers': ['console'],
+            'propagate': False,
+        },
         'celery': {
             'level': 'INFO',
             'handlers': ['console'],
@@ -636,11 +789,20 @@ if not DEBUG:
         'backupCount': 5,
         'formatter': 'verbose',
     }
+    LOGGING['handlers']['channels_file'] = {
+        'class': 'logging.handlers.RotatingFileHandler',
+        'filename': str(LOG_DIR / 'channels.log'),
+        'maxBytes': 10 * 1024 * 1024,
+        'backupCount': 5,
+        'formatter': 'verbose',
+    }
 
     LOGGING['root']['handlers']                        = ['console', 'file']
     LOGGING['loggers']['django']['handlers']           = ['console', 'file']
     LOGGING['loggers']['django.request']['handlers']   = ['console', 'file']
     LOGGING['loggers']['django.security']['handlers']  = ['console', 'security_file']
+    LOGGING['loggers']['channels']['handlers']         = ['console', 'channels_file']
+    LOGGING['loggers']['apps.realtime']['handlers']    = ['console', 'channels_file']
     LOGGING['loggers']['celery']['handlers']           = ['console', 'celery_file']
     LOGGING['loggers']['apps']['handlers']             = ['console', 'file']
 
@@ -738,3 +900,28 @@ PWA_APP_SHORTCUTS = [
 ]
 
 PWA_APP_DEBUG_MODE = DEBUG
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Phase 7 — WhatsApp Cloud API
+# ─────────────────────────────────────────────────────────────────────
+WHATSAPP_ENABLED = config('WHATSAPP_ENABLED', default=False, cast=bool)
+WHATSAPP_PHONE_NUMBER_ID = config('WHATSAPP_PHONE_NUMBER_ID', default='')
+WHATSAPP_ACCESS_TOKEN = config('WHATSAPP_ACCESS_TOKEN', default='')
+WHATSAPP_APP_SECRET = config('WHATSAPP_APP_SECRET', default='')
+WHATSAPP_WEBHOOK_VERIFY_TOKEN = config(
+    'WHATSAPP_WEBHOOK_VERIFY_TOKEN', default='',
+)
+WHATSAPP_API_VERSION = config('WHATSAPP_API_VERSION', default='v21.0')
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Phase 7 — Email via Anymail (Mailgun / SES / Postmark)
+# ─────────────────────────────────────────────────────────────────────
+ANYMAIL = {
+    'MAILGUN_API_KEY': config('MAILGUN_API_KEY', default=''),
+    'MAILGUN_SENDER_DOMAIN': config('MAILGUN_SENDER_DOMAIN', default=''),
+}
+
+if not DEBUG and ANYMAIL['MAILGUN_API_KEY']:
+    EMAIL_BACKEND = 'anymail.backends.mailgun.EmailBackend'

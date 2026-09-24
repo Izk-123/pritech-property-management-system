@@ -1,0 +1,277 @@
+/* ═════════════════════════════════════════════════════════════════════
+   Pritech PMS — Admin motion layer
+   Adds entry, stagger, hover, press, and focus animations to the
+   Unfold admin UI. All animations honour prefers-reduced-motion.
+   ═════════════════════════════════════════════════════════════════════ */
+
+/* ── Base ─────────────────────────────────────────────────────────── */
+
+:root {
+  --pritech-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --pritech-ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --pritech-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --pritech-fade-ms: 480ms;
+  --pritech-stagger-ms: 55ms;
+}
+
+/* ── Keyframes ────────────────────────────────────────────────────── */
+
+@keyframes pritech-module-enter {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes pritech-row-enter {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pritech-sidebar-enter {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pritech-button-press {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(0.965); }
+  100% { transform: scale(1); }
+}
+
+@keyframes pritech-ring {
+  0%   { box-shadow: 0 0 0 0 rgba(168, 85, 247, 0.45); }
+  100% { box-shadow: 0 0 0 8px rgba(168, 85, 247, 0); }
+}
+
+@keyframes pritech-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes pritech-slide-down {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── Dashboard modules — entry + hover ────────────────────────────── */
+
+#content .module,
+#content [data-admin-module] {
+  animation: pritech-module-enter var(--pritech-fade-ms)
+             var(--pritech-ease-out) both;
+  transition: transform 260ms var(--pritech-ease-out),
+              box-shadow 260ms var(--pritech-ease-out);
+  will-change: transform;
+}
+
+#content .module:hover,
+#content [data-admin-module]:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 1px 2px rgb(15 23 42 / 0.04),
+    0 14px 40px -14px rgb(168 85 247 / 0.22);
+}
+
+/* Stagger via inline CSS variable set by JS */
+#content .module { animation-delay: var(--pritech-delay, 0ms); }
+
+/* ── Table rows — stagger + hover ─────────────────────────────────── */
+
+#result_list tbody tr,
+table tbody tr {
+  animation: pritech-row-enter 320ms var(--pritech-ease-out) both;
+  animation-delay: var(--pritech-delay, 0ms);
+  transition: background-color 160ms var(--pritech-ease-out),
+              transform 180ms var(--pritech-ease-out);
+}
+
+#result_list tbody tr:hover,
+table tbody tr:hover {
+  transform: translateX(2px);
+}
+
+/* Selected rows get a subtle left accent */
+#result_list tbody tr.selected,
+table tbody tr.selected {
+  box-shadow: inset 3px 0 0 0 rgb(168 85 247);
+}
+
+/* ── Sidebar nav — slide in + ripple on click ─────────────────────── */
+
+#nav-sidebar li,
+nav.sidebar li {
+  animation: pritech-sidebar-enter 320ms var(--pritech-ease-out) both;
+  animation-delay: var(--pritech-delay, 0ms);
+}
+
+#nav-sidebar a,
+nav.sidebar a {
+  position: relative;
+  overflow: hidden;
+  transition: background-color 180ms var(--pritech-ease-out),
+              color 180ms var(--pritech-ease-out),
+              transform 200ms var(--pritech-spring);
+}
+
+#nav-sidebar a:hover,
+nav.sidebar a:hover {
+  transform: translateX(2px);
+}
+
+#nav-sidebar a:active,
+nav.sidebar a:active {
+  transform: translateX(2px) scale(0.985);
+}
+
+/* Ripple injected by JS */
+.pritech-ripple {
+  position: absolute;
+  border-radius: 9999px;
+  background: rgba(168, 85, 247, 0.28);
+  pointer-events: none;
+  transform: scale(0);
+  animation: pritech-ripple 620ms var(--pritech-ease-out) forwards;
+}
+
+@keyframes pritech-ripple {
+  to {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
+/* ── Buttons — press + focus ring ─────────────────────────────────── */
+
+button[type="submit"],
+.submit-row input[type="submit"],
+.submit-row button,
+.button,
+input[type="submit"] {
+  transition: transform 180ms var(--pritech-spring),
+              box-shadow 220ms var(--pritech-ease-out),
+              background-color 180ms var(--pritech-ease-out);
+  will-change: transform;
+}
+
+button[type="submit"]:hover,
+.submit-row input[type="submit"]:hover,
+.submit-row button:hover,
+.button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 22px -10px rgba(168, 85, 247, 0.5);
+}
+
+button[type="submit"]:active,
+.submit-row input[type="submit"]:active,
+.submit-row button:active,
+.button:active {
+  transform: scale(0.97);
+}
+
+button[type="submit"]:focus-visible,
+.submit-row button:focus-visible,
+.button:focus-visible {
+  animation: pritech-ring 900ms var(--pritech-ease-out);
+  outline: none;
+}
+
+/* ── Form fields — focus animation ────────────────────────────────── */
+
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+input[type="search"],
+input[type="tel"],
+input[type="url"],
+input[type="date"],
+select,
+textarea {
+  transition: border-color 200ms var(--pritech-ease-out),
+              box-shadow 220ms var(--pritech-ease-out),
+              background-color 200ms var(--pritech-ease-out);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  box-shadow:
+    0 0 0 3px rgba(168, 85, 247, 0.18),
+    0 1px 2px rgb(15 23 42 / 0.04);
+  transform: translateY(-1px);
+}
+
+/* ── Form fieldsets — entry ───────────────────────────────────────── */
+
+fieldset.module,
+.form-row {
+  animation: pritech-fade-in 380ms var(--pritech-ease-out) both;
+  animation-delay: var(--pritech-delay, 0ms);
+}
+
+/* ── Messages / banners ───────────────────────────────────────────── */
+
+.messagelist li,
+.messages li,
+[role="alert"] {
+  animation: pritech-slide-down 360ms var(--pritech-ease-out) both;
+}
+
+/* ── Modal / dialog entry (Unfold uses native dialogs) ────────────── */
+
+dialog[open] {
+  animation: pritech-module-enter 320ms var(--pritech-ease-out) both;
+}
+
+/* ── Environment badge — soft pulse when dev ──────────────────────── */
+
+[data-environment="development"] {
+  animation: pritech-fade-in 400ms var(--pritech-ease-out) both;
+}
+
+[data-environment="development"]::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: #f59e0b;
+  margin-right: 6px;
+  animation: pritech-fade-in 1.8s ease-in-out infinite alternate;
+}
+
+/* ── Reduced motion — respect user preference ─────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

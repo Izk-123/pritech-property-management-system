@@ -26,3 +26,7 @@ requests
 paychangu
 pyxrate
 django-pwa
+channels
+channels-redis
+daphne
+django-anymail[mailgun]

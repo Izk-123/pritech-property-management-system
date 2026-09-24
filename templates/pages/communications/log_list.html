@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Message Log" %} — Pritech PMS{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-5xl px-4 py-6 sm:px-6">
+
+  {# Header #}
+  <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <div>
+      <div data-animate="zoom-in" data-animate-now
+           class="mb-3 inline-flex items-center gap-2 rounded-full border
+                  border-primary-200 bg-primary-50 px-3 py-1 text-xs font-semibold
+                  text-primary-700 dark:border-primary-800 dark:bg-primary-900/30
+                  dark:text-primary-300">
+        {% trans "Communications" %}
+      </div>
+      <h1 data-animate="blur-in" data-animate-now data-animate-duration="0.8"
+          class="text-2xl font-bold tracking-tight">
+        {% trans "Message Log" %}
+      </h1>
+      <p data-animate="fade-up" data-animate-now data-animate-delay="140"
+         class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+        {% trans "Every WhatsApp, email, and SMS the system has sent." %}
+      </p>
+    </div>
+    <div data-stagger="0.08" data-animate-immediate class="flex flex-wrap gap-2">
+      <a href="{% url 'communications:template_list' %}"
+         data-animate="fade-left" data-press data-hover="lift"
+         class="btn border border-slate-200 bg-slate-100 text-slate-700
+                hover:bg-slate-200 dark:border-white/10 dark:bg-white/5
+                dark:text-slate-200 dark:hover:bg-white/10">
+        {% trans "Templates" %}
+      </a>
+      <a href="{% url 'communications:inbound_list' %}"
+         data-animate="fade-left" data-press data-hover="grow"
+         class="btn btn-primary">
+        {% trans "Inbox" %}
+      </a>
+    </div>
+  </div>
+
+  {# Stats #}
+  <div data-stagger="0.07" class="mb-6 grid grid-cols-2 gap-3">
+    <div data-animate="fade-up" class="card">
+      <p class="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
+        {% trans "Failed" %}
+      </p>
+      <p class="mt-1 text-2xl font-bold text-red-600 dark:text-red-400">
+        {{ failed_count }}
+      </p>
+    </div>
+    <div data-animate="fade-up" class="card">
+      <p class="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
+        {% trans "Pending" %}
+      </p>
+      <p class="mt-1 text-2xl font-bold text-amber-600 dark:text-amber-400">
+        {{ pending_count }}
+      </p>
+    </div>
+  </div>
+
+  {# Filters #}
+  <form method="get"
+        data-animate="fade-up" data-animate-now data-animate-delay="120"
+        class="card mb-4 p-3">
+    <div class="flex flex-col gap-2 sm:flex-row">
+      <select name="channel" class="field flex-1">
+        <option value="">{% trans "All channels" %}</option>
+        {% for value, label in channels %}
+        <option value="{{ value }}" {% if current_channel == value %}selected{% endif %}>
+          {{ label }}
+        </option>
+        {% endfor %}
+      </select>
+      <select name="status" class="field flex-1">
+        <option value="">{% trans "All statuses" %}</option>
+        {% for value, label in statuses %}
+        <option value="{{ value }}" {% if current_status == value %}selected{% endif %}>
+          {{ label }}
+        </option>
+        {% endfor %}
+      </select>
+      <button type="submit" data-press data-hover="lift"
+              class="btn btn-primary">
+        {% trans "Filter" %}
+      </button>
+    </div>
+  </form>
+
+  {# List #}
+  {% if logs %}
+  <div data-stagger="0.03"
+       class="card divide-y divide-slate-100 overflow-hidden p-0
+              dark:divide-slate-700/60">
+    {% for log in logs %}
+    <a href="{% url 'communications:log_detail' log.pk %}"
+       data-animate="fade-up" data-hover="nudge"
+       class="flex items-center justify-between gap-3 p-4
+              transition-colors hover:bg-slate-50 dark:hover:bg-white/5">
+      <div class="min-w-0 flex-1">
+        <p class="truncate text-sm font-medium">
+          {{ log.person.full_name }} · {{ log.recipient }}
+        </p>
+        <p class="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">
+          {{ log.get_channel_display }} · {{ log.event }} ·
+          {{ log.created_at|date:"d M Y H:i" }}
+        </p>
+      </div>
+      <span class="chip shrink-0
+        {% if log.status == 'DELIV' or log.status == 'READ' %}chip-green
+        {% elif log.status == 'SENT' %}bg-sky-100 text-sky-800 dark:bg-sky-900/60 dark:text-sky-200
+        {% elif log.status == 'FAIL' %}bg-red-100 text-red-800 dark:bg-red-900/60 dark:text-red-200
+        {% else %}bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200{% endif %}">
+        {{ log.get_status_display }}
+      </span>
+    </a>
+    {% endfor %}
+  </div>
+
+  {% if is_paginated %}
+  <nav data-animate="fade-up" class="mt-6 flex items-center justify-center gap-2">
+    {% if page_obj.has_previous %}
+    <a href="?{% querystring page=page_obj.previous_page_number %}"
+       data-press data-hover="lift"
+       class="rounded-lg border border-slate-200 bg-white/80 px-3 py-2 text-sm
+              hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10">
+      ← {% trans "Previous" %}
+    </a>
+    {% endif %}
+    <span class="px-3 text-sm text-slate-500 dark:text-slate-400">
+      {% trans "Page" %} {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}
+    </span>
+    {% if page_obj.has_next %}
+    <a href="?{% querystring page=page_obj.next_page_number %}"
+       data-press data-hover="lift"
+       class="rounded-lg border border-slate-200 bg-white/80 px-3 py-2 text-sm
+              hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10">
+      {% trans "Next" %} →
+    </a>
+    {% endif %}
+  </nav>
+  {% endif %}
+
+  {% else %}
+  <div data-animate="zoom-in" class="card py-16 text-center">
+    <svg class="mx-auto mb-4 h-14 w-14 text-slate-300 dark:text-slate-600"
+         fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+            d="M3 8l7.89 5.26a2 2 0 0 0 2.22 0L21 8M5 19h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2z" />
+    </svg>
+    <p class="text-sm text-slate-500 dark:text-slate-400">
+      {% trans "No messages have been sent yet." %}
+    </p>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

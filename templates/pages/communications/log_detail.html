@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Message" %} — Pritech PMS{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-3xl px-4 py-6 sm:px-6">
+
+  <nav data-animate="fade-right" data-animate-now class="mb-4 text-sm">
+    <a href="{% url 'communications:log_list' %}"
+       class="inline-flex items-center gap-1 text-primary-600 transition-colors
+              hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300">
+      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M19 12H5M12 19l-7-7 7-7" />
+      </svg>
+      {% trans "All messages" %}
+    </a>
+  </nav>
+
+  <header class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <div>
+      <h1 data-animate="blur-in" data-animate-now data-animate-duration="0.8"
+          class="text-2xl font-bold tracking-tight">
+        {{ log.get_channel_display }} → {{ log.person.full_name }}
+      </h1>
+      <p data-animate="fade-up" data-animate-now data-animate-delay="140"
+         class="mt-0.5 text-slate-500 dark:text-slate-400">
+        {{ log.recipient }} · {{ log.event }}
+      </p>
+    </div>
+    <span data-animate="fade-left" data-animate-now
+          class="chip
+      {% if log.status == 'DELIV' or log.status == 'READ' %}chip-green
+      {% elif log.status == 'SENT' %}bg-sky-100 text-sky-800 dark:bg-sky-900/60 dark:text-sky-200
+      {% elif log.status == 'FAIL' %}bg-red-100 text-red-800 dark:bg-red-900/60 dark:text-red-200
+      {% else %}bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200{% endif %}">
+      {{ log.get_status_display }}
+    </span>
+  </header>
+
+  <section data-animate="fade-up" class="card mb-6">
+    <h2 class="mb-3 text-xs font-bold uppercase tracking-wider
+               text-slate-500 dark:text-slate-400">
+      {% trans "Delivery" %}
+    </h2>
+    <dl class="space-y-2 text-sm">
+      <div class="flex justify-between">
+        <dt class="text-slate-500 dark:text-slate-400">{% trans "Created" %}</dt>
+        <dd class="font-medium">{{ log.created_at|date:"d M Y H:i:s" }}</dd>
+      </div>
+      {% if log.sent_at %}
+      <div class="flex justify-between">
+        <dt class="text-slate-500 dark:text-slate-400">{% trans "Sent" %}</dt>
+        <dd class="font-medium">{{ log.sent_at|date:"d M Y H:i:s" }}</dd>
+      </div>
+      {% endif %}
+      {% if log.delivered_at %}
+      <div class="flex justify-between">
+        <dt class="text-slate-500 dark:text-slate-400">{% trans "Delivered" %}</dt>
+        <dd class="font-medium">{{ log.delivered_at|date:"d M Y H:i:s" }}</dd>
+      </div>
+      {% endif %}
+      {% if log.provider_message_id %}
+      <div class="flex justify-between gap-3">
+        <dt class="text-slate-500 dark:text-slate-400">{% trans "Provider ID" %}</dt>
+        <dd class="truncate font-mono text-xs">{{ log.provider_message_id }}</dd>
+      </div>
+      {% endif %}
+    </dl>
+  </section>
+
+  {% if log.body_preview %}
+  <section data-animate="fade-up" data-animate-delay="80" class="card mb-6">
+    <h2 class="mb-3 text-xs font-bold uppercase tracking-wider
+               text-slate-500 dark:text-slate-400">
+      {% trans "Message" %}
+    </h2>
+    <pre class="whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-300">{{ log.body_preview }}</pre>
+  </section>
+  {% endif %}
+
+  {% if log.error_message %}
+  <section data-animate="zoom-in"
+           class="flex items-start gap-3 rounded-xl border border-red-200
+                  bg-red-50 p-4 dark:border-red-800 dark:bg-red-900/30">
+    <svg class="h-5 w-5 shrink-0 text-red-600 dark:text-red-400" fill="none"
+         stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+    </svg>
+    <div class="min-w-0 flex-1">
+      <h2 class="mb-2 text-xs font-bold uppercase tracking-wider
+                 text-red-800 dark:text-red-300">
+        {% trans "Error" %}
+      </h2>
+      <pre class="whitespace-pre-wrap text-xs text-red-700 dark:text-red-400">{{ log.error_message }}</pre>
+    </div>
+  </section>
+  {% endif %}
+
+</div>
+{% endblock %}

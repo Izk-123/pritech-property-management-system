@@ -12,4 +12,5 @@ staticfiles/
 *.log
 .pytest_cache/
 theme/static/css/dist/
-celerybeat-schedule
+celerybeat-schedule*.mo
+locale/*/LC_MESSAGES/*.mo

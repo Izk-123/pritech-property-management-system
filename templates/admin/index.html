@@ -1,0 +1,95 @@
+{# Save as: templates/admin/index.html                                  #}
+{# Requires TEMPLATES[0]['DIRS'] to include BASE_DIR / "templates"       #}
+{# (already true in your settings.py) and                                #}
+{# UNFOLD['DASHBOARD_CALLBACK'] = 'apps.core.admin_dashboard.dashboard_callback' #}
+{# (already set).                                                        #}
+
+{% extends 'admin/base.html' %}
+{% load i18n %}
+
+{% block title %}
+    {% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} | {{ site_title|default:_('Django site admin') }}
+{% endblock %}
+
+{% block branding %}
+    {% include "unfold/helpers/site_branding.html" %}
+{% endblock %}
+
+{% block content %}
+<div class="pritech-dashboard">
+
+  <header class="pritech-dash-header" data-admin-module>
+    <div class="pritech-dash-avatar" aria-hidden="true">{{ admin_name|slice:":1"|upper }}</div>
+    <div>
+      <h1 class="pritech-dash-greeting">{{ greeting }}, {{ admin_name }}</h1>
+      <p class="pritech-dash-sub">
+        {% if tenant %}{{ tenant }} &middot; {% endif %}{{ today|date:"l, j F Y" }}
+      </p>
+    </div>
+  </header>
+
+  <section class="pritech-kpi-grid" aria-label="{% trans 'Key metrics' %}">
+    {% for card in kpi_cards %}
+      <a href="{{ card.href }}"
+         class="pritech-kpi-card pritech-accent-{{ card.accent }}"
+         data-admin-module>
+        <span class="pritech-kpi-icon material-symbols-outlined" aria-hidden="true">{{ card.icon }}</span>
+        <span class="pritech-kpi-value"
+              {% if card.value != None %}data-countup="{{ card.value }}"{% endif %}>
+          {% if card.value != None %}{{ card.value }}{% else %}&mdash;{% endif %}
+        </span>
+        <span class="pritech-kpi-label">{{ card.label }}</span>
+      </a>
+    {% endfor %}
+  </section>
+
+  <div class="pritech-dash-columns">
+
+    <section class="pritech-panel" data-admin-module aria-label="{% trans 'Recent activity' %}">
+      <h2 class="pritech-panel-title">{% trans "Recent activity" %}</h2>
+      {% if recent_activity %}
+        <ul class="pritech-activity-list">
+          {% for entry in recent_activity %}
+            <li class="pritech-activity-item">
+              <span class="pritech-activity-dot"></span>
+              <div>
+                <p class="pritech-activity-text">
+                  <strong>{{ entry.actor|default:_("System") }}</strong>
+                  {{ entry.get_action_display|default:entry.action }}
+                  {{ entry.object_repr|truncatechars:40 }}
+                </p>
+                <time class="pritech-activity-time">{{ entry.timestamp|timesince }} {% trans "ago" %}</time>
+              </div>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="pritech-empty">{% trans "No recent activity yet." %}</p>
+      {% endif %}
+    </section>
+
+    <section class="pritech-panel" data-admin-module aria-label="{% trans 'Quick actions' %}">
+      <h2 class="pritech-panel-title">{% trans "Quick actions" %}</h2>
+      <div class="pritech-quick-actions">
+        <a class="pritech-quick-action" href="/reservations/front-desk/">
+          <span class="material-symbols-outlined" aria-hidden="true">front_desk</span>
+          {% trans "Front Desk" %}
+        </a>
+        <a class="pritech-quick-action" href="/housekeeping/tasks/">
+          <span class="material-symbols-outlined" aria-hidden="true">cleaning_services</span>
+          {% trans "Housekeeping" %}
+        </a>
+        <a class="pritech-quick-action" href="/admin/auditlog/logentry/">
+          <span class="material-symbols-outlined" aria-hidden="true">history</span>
+          {% trans "Audit Log" %}
+        </a>
+        <a class="pritech-quick-action" href="/admin/django_celery_beat/periodictask/">
+          <span class="material-symbols-outlined" aria-hidden="true">schedule</span>
+          {% trans "Periodic Tasks" %}
+        </a>
+      </div>
+    </section>
+
+  </div>
+</div>
+{% endblock %}

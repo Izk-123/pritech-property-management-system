@@ -13,3 +13,7 @@ staticfiles/
 .pytest_cache/
 theme/static/css/dist/
 celerybeat-schedule
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class

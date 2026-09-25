@@ -6,7 +6,8 @@
 #   Phase 7: Channels + Redis WebSockets + WhatsApp/email + animated admin
 #
 # Idempotent and self-healing. Auto-detects a free Daphne port, cleans stale
-# processes, flattens nested static icons, and verifies both URLconfs import.
+# processes, flattens nested static icons, verifies both URLconfs import,
+# and reconciles schema drift caused by regenerated migration files.
 #
 # Usage:
 #   sudo bash deploy_pritech_pms.sh              # deploy / update
@@ -551,14 +552,22 @@ ok "Database ready"
 
 # ============================================================================
 # Step 5 — Migrations: verify + generate + sanity-check
+#
+# Auto-generated migrations use TIMESTAMPED names (auto_YYYYMMDD_HHMMSS) so
+# a regenerated file can never collide with an already-applied migration
+# record in django_migrations. Without this, Django silently skips the new
+# file when it has the same name as the old one — which is exactly how the
+# `tenants_tenant.default_language` drift happened.
 # ============================================================================
 log "Step 5: Ensure all migrations exist and are current"
+
+MIGRATION_TS="$(date +%Y%m%d_%H%M%S)"
 
 # ─── 5a. tenants ───
 TENANTS_MIGRATION="${PROJECT_DIR}/apps/shared/tenants/migrations/0001_initial.py"
 if [[ ! -f "${TENANTS_MIGRATION}" ]]; then
     warn "tenants/migrations/0001_initial.py missing — generating now"
-    python manage.py makemigrations tenants
+    python manage.py makemigrations tenants --name "auto_${MIGRATION_TS}"
     if [[ -f "${TENANTS_MIGRATION}" ]]; then
         ok "Generated apps/shared/tenants/migrations/0001_initial.py"
         warn "⚠ Commit this file to git or it regenerates every deploy."
@@ -573,7 +582,7 @@ fi
 COMM_MIGRATION="${PROJECT_DIR}/apps/communications/migrations/0001_initial.py"
 if [[ ! -f "${COMM_MIGRATION}" ]]; then
     warn "communications/migrations/0001_initial.py missing — generating now"
-    python manage.py makemigrations communications
+    python manage.py makemigrations communications --name "auto_${MIGRATION_TS}"
     if [[ -f "${COMM_MIGRATION}" ]]; then
         ok "Generated apps/communications/migrations/0001_initial.py"
         warn "⚠ Commit this file to git or it regenerates every deploy."
@@ -590,7 +599,7 @@ if ! python manage.py makemigrations --check --dry-run 2>&1 | tee /tmp/migration
     warn "Model changes without migrations detected:"
     cat /tmp/migrations-check.log | sed 's/^/    /'
     warn "Generating them now (they MUST be committed to git afterwards):"
-    python manage.py makemigrations
+    python manage.py makemigrations --name "auto_${MIGRATION_TS}"
     warn "⚠ Run 'git add */migrations/ && git commit' from your dev machine."
 else
     ok "All models have up-to-date migrations"
@@ -628,6 +637,177 @@ ok "Django check passed"
 log "Step 7: Apply migrations to shared schema (public)"
 python manage.py migrate_schemas --shared --noinput
 ok "Shared schema migrated"
+
+# ============================================================================
+# Step 7b — Schema reconciliation
+#
+# Catches the case where a migration file was regenerated with the same
+# name after being recorded as applied in django_migrations. In that case
+# `migrate` sees it as already done and skips it, leaving the DB behind the
+# models.
+#
+# This step walks every concrete model, compares its fields to the actual
+# table columns, and auto-repairs safe drift:
+#   - Missing nullable columns          → ADD COLUMN ... NULL
+#   - Missing NOT NULL with default     → ADD COLUMN ... NOT NULL DEFAULT ...
+#   - Missing NOT NULL with auto_now*   → ADD COLUMN ... NOT NULL DEFAULT epoch
+#
+# Unsafe drift (missing tables, NOT NULL without a default) fails the deploy
+# with a clear report. All repairs are idempotent, so re-running the script
+# is harmless.
+# ============================================================================
+log "Step 7b: Verify public schema matches models"
+
+set +e
+python manage.py shell > /tmp/drift-check.log 2>&1 <<'PY'
+import json
+import sys
+from decimal import Decimal
+
+from django.apps import apps
+from django.db import connection
+
+
+def _default_sql(field):
+    """Return a literal SQL DEFAULT clause, or None if we can't guess one."""
+    if field.auto_now or field.auto_now_add:
+        return "'1970-01-01 00:00:00+00'"
+
+    if not field.has_default():
+        return None
+
+    try:
+        val = field.get_default()
+    except Exception:
+        return None
+
+    if val is None:
+        return "NULL"
+    if isinstance(val, bool):
+        return "TRUE" if val else "FALSE"
+    if isinstance(val, (int, float, Decimal)):
+        return str(val)
+    if isinstance(val, (list, dict)):
+        return "'" + json.dumps(val).replace("'", "''") + "'"
+    return "'" + str(val).replace("'", "''") + "'"
+
+
+drift_count = 0
+fixed = []
+unfixable = []
+
+with connection.cursor() as cur:
+    cur.execute("""
+        SELECT table_name FROM information_schema.tables
+        WHERE table_schema = current_schema()
+    """)
+    existing_tables = {row[0] for row in cur.fetchall()}
+
+    for model in apps.get_models():
+        table = model._meta.db_table
+        label = model._meta.label
+
+        if table not in existing_tables:
+            # Missing table — too risky to auto-create (would lose indexes/constraints)
+            drift_count += 1
+            unfixable.append((label, table, '<TABLE>'))
+            print(f"UNFIXABLE|TABLE_MISSING|{label}|{table}")
+            continue
+
+        cur.execute("""
+            SELECT column_name FROM information_schema.columns
+            WHERE table_schema = current_schema() AND table_name = %s
+        """, [table])
+        actual = {row[0] for row in cur.fetchall()}
+
+        for field in model._meta.local_fields:
+            if not field.column or field.column in actual:
+                continue
+
+            drift_count += 1
+
+            try:
+                col_type = field.db_type(connection)
+            except Exception:
+                unfixable.append((label, table, field.column))
+                print(f"UNFIXABLE|NO_DB_TYPE|{label}|{table}.{field.column}")
+                continue
+
+            if field.null:
+                sql = (
+                    f'ALTER TABLE "{table}" ADD COLUMN IF NOT EXISTS '
+                    f'"{field.column}" {col_type} NULL'
+                )
+                kind = 'NULLABLE_COLUMN'
+            else:
+                default_sql = _default_sql(field)
+                if default_sql is None:
+                    unfixable.append((label, table, field.column))
+                    print(f"UNFIXABLE|REQUIRED_COLUMN|{label}|{table}.{field.column}")
+                    continue
+                sql = (
+                    f'ALTER TABLE "{table}" ADD COLUMN IF NOT EXISTS '
+                    f'"{field.column}" {col_type} NOT NULL DEFAULT {default_sql}'
+                )
+                kind = 'REQUIRED_COLUMN_WITH_DEFAULT'
+
+            try:
+                cur.execute(sql)
+                fixed.append((label, table, field.column))
+                print(f"FIXED|{kind}|{label}|{table}.{field.column}")
+            except Exception as e:
+                unfixable.append((label, table, field.column))
+                print(f"FAILED|{label}|{table}.{field.column}|{e}")
+
+print(f"SUMMARY|drift={drift_count}|fixed={len(fixed)}|unfixable={len(unfixable)}")
+
+if unfixable:
+    print("UNFIXABLE_DETAIL:")
+    for label, table, col in unfixable:
+        print(f"  {label}: {table}.{col}")
+
+sys.exit(1 if unfixable else 0)
+PY
+DRIFT_EXIT=$?
+set -e
+
+# ── Report ─────────────────────────────────────────────────────────
+if [[ ${DRIFT_EXIT} -eq 0 ]]; then
+    FIXED_N=$(grep -c '^FIXED|' /tmp/drift-check.log 2>/dev/null || true)
+    FIXED_N=${FIXED_N:-0}
+
+    if [[ "${FIXED_N}" -gt 0 ]]; then
+        ok "Schema drift auto-repaired (${FIXED_N} column(s) added):"
+        while IFS='|' read -r _ kind label col; do
+            info "  + ${col}  (${kind})"
+        done < <(grep '^FIXED|' /tmp/drift-check.log)
+    else
+        ok "Schema matches models — no drift detected"
+    fi
+else
+    warn "Schema drift detected and NOT fully repairable:"
+    while IFS='|' read -r _ kind label col; do
+        warn "  ! ${col}  (${kind} in ${label})"
+    done < <(grep '^UNFIXABLE|' /tmp/drift-check.log)
+    warn ""
+    warn "Full report: /tmp/drift-check.log"
+    warn ""
+    warn "Manual recovery steps:"
+    warn "  1. Inspect django_migrations:"
+    warn "     sudo -u postgres psql -d ${DB_NAME} -c \\"
+    warn "       \"SELECT id, app, name, applied FROM django_migrations \\"
+    warn "        WHERE app='<app_label>' ORDER BY id DESC LIMIT 20;\""
+    warn ""
+    warn "  2. If the migration file exists AND the DB column exists but"
+    warn "     Django won't apply the migration, the file was regenerated"
+    warn "     after being recorded. Delete the record:"
+    warn "     sudo -u postgres psql -d ${DB_NAME} -c \\"
+    warn "       \"DELETE FROM django_migrations WHERE app='<app>' AND name='<name>';\""
+    warn ""
+    warn "  3. Re-run:  python manage.py migrate_schemas --shared"
+    warn "     (or)    sudo bash deploy_pritech_pms.sh"
+    die "Cannot continue with schema drift unresolved."
+fi
 
 # ============================================================================
 # Step 8 — Public tenant

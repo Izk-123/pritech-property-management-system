@@ -1,7 +1,7 @@
 from django.db import models
 from django.core.validators import MinValueValidator
 from django.utils.translation import gettext_lazy as _
-from apps.core.models import TimeStampedModel
+from apps.core.models import OptimizedImageMixin, TimeStampedModel
 
 
 class Amenity(models.Model):
@@ -183,6 +183,26 @@ class StaffPropertyAssignment(models.Model):
 
     def __str__(self):
         return f'{self.user.email} → {self.property.name}'
+    
+class PropertyImage(OptimizedImageMixin, models.Model):
+    """Image attached to a Property. Auto-optimised on save."""
+    property = models.ForeignKey(
+        Property,
+        on_delete=models.CASCADE,
+        related_name='images',
+    )
+    image = models.ImageField(upload_to='properties/%Y/%m/')
+
+    class Meta:
+        verbose_name = _('property image')
+        verbose_name_plural = _('property images')
+        ordering = ['-id']
+        indexes = [
+            models.Index(fields=['property']),
+        ]
+
+    def __str__(self):
+        return f'Image for {self.property.name}'
 
 from auditlog.registry import auditlog
 auditlog.register(Property)

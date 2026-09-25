@@ -1,5 +1,6 @@
 from django.db import models
 from django.core.validators import MinValueValidator
+from django.utils.translation import gettext_lazy as _
 from apps.core.models import TimeStampedModel
 
 
@@ -139,7 +140,50 @@ class Unit(TimeStampedModel):
 
     def __str__(self):
         return f'{self.identifier} — {self.property.name}'
-    
+
+
+class StaffPropertyAssignment(models.Model):
+    """
+    Assigns a User to one or more properties within the current tenant.
+
+    Lives in the TENANT schema (properties app is a TENANT_APP).
+    References public.shared_users.User — cross-schema FK from tenant
+    to public works because public is on the tenant's search_path.
+
+    Satisfies AZ-02 (property-level scoping).
+    """
+    user = models.ForeignKey(
+        'shared_users.User',
+        on_delete=models.CASCADE,
+        related_name='property_assignments',
+    )
+    property = models.ForeignKey(
+        Property,
+        on_delete=models.CASCADE,
+        related_name='staff_assignments',
+    )
+    is_active = models.BooleanField(default=True)
+    assigned_at = models.DateTimeField(auto_now_add=True)
+    assigned_by = models.ForeignKey(
+        'shared_users.User',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='property_assignments_made',
+    )
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        verbose_name = _('staff property assignment')
+        verbose_name_plural = _('staff property assignments')
+        unique_together = [('user', 'property')]
+        indexes = [
+            models.Index(fields=['user', 'is_active']),
+            models.Index(fields=['property', 'is_active']),
+        ]
+
+    def __str__(self):
+        return f'{self.user.email} → {self.property.name}'
+
 from auditlog.registry import auditlog
 auditlog.register(Property)
 auditlog.register(Unit)

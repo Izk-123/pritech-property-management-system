@@ -1,7 +1,7 @@
 from django.contrib import admin
 from unfold.admin import ModelAdmin
 from unfold.decorators import display
-from .models import Amenity, Property, Unit
+from .models import Amenity, Property, StaffPropertyAssignment, Unit
 
 
 @admin.register(Amenity)
@@ -45,3 +45,13 @@ class UnitAdmin(ModelAdmin):
     list_select_related = ('property',)
     filter_horizontal = ('amenities',)
     autocomplete_fields = ('property',)
+
+
+@admin.register(StaffPropertyAssignment)
+class StaffPropertyAssignmentAdmin(ModelAdmin):
+    list_display = ('user', 'property', 'is_active', 'assigned_at')
+    list_filter = ('is_active', 'property')
+    search_fields = ('user__email', 'property__name')
+    list_select_related = ('user', 'property', 'assigned_by')
+    autocomplete_fields = ('user', 'property', 'assigned_by')
+    readonly_fields = ('assigned_at',)

@@ -157,6 +157,7 @@ if not DEBUG:
 MIDDLEWARE += [
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.locale.LocaleMiddleware',
+    'apps.shared.tenants.middleware.TenantLanguageMiddleware',  
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',

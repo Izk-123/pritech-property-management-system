@@ -1922,4 +1922,5 @@ msgstr[0] ""
 "      "
 msgstr[1] ""
 "\n"
-"      %(count)s mayuniti ena\n
+"      %(count)s mayuniti ena\n"
+"      "

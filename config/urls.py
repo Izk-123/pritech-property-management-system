@@ -9,10 +9,13 @@ from apps.shared.users.views import SchemaAwareLoginView
 
 urlpatterns = [
     path('', TemplateView.as_view(template_name='pages/home.html'), name='home'),
-    
+
     # PWA manifest and service worker
     path('', include('pwa.urls')),
-    
+
+    # i18n — provides the `set_language` view used by Unfold's language switcher
+    path('i18n/', include('django.conf.urls.i18n')),
+
     # config/urls.py and config/urls_public.py
     path('offline/', TemplateView.as_view(template_name='pages/offline.html'),
         name='offline'),
@@ -36,9 +39,9 @@ urlpatterns = [
 
     # Compliance
     path('compliance/', include('apps.compliance.urls')),
-    
+
     path('api/v1/sync/', include('apps.core.sync.urls')),
-    
+
     # Communications (staff-facing)
     path('communications/', include('apps.communications.urls')),
 

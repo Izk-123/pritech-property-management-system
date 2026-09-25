@@ -5,8 +5,8 @@
 #   Phase 6: PWA + offline-first
 #   Phase 7: Channels + Redis WebSockets + WhatsApp/email + animated admin
 #
-# Idempotent and self-healing. Runs makemigrations (with checks), then
-# migrate_schemas --shared (public), then migrate_schemas (all tenants).
+# Idempotent and self-healing. Auto-detects a free Daphne port, cleans stale
+# processes, flattens nested static icons, and verifies both URLconfs import.
 #
 # Usage:
 #   sudo bash deploy_pritech_pms.sh              # deploy / update
@@ -16,7 +16,6 @@
 #   sudo bash deploy_pritech_pms.sh --help
 # ============================================================================
 
-# ─── Self-bootstrap: fix CRLF line endings if present ───────────────────────
 if [[ -f "$0" ]] && grep -q $'\r' "$0" 2>/dev/null; then
     echo "⚠ Detected CRLF line endings — converting to LF and restarting…"
     sed -i 's/\r$//' "$0" 2>/dev/null || true
@@ -42,9 +41,10 @@ DB_USER="pritech_pms_user"
 ENV_FILE="${PROJECT_DIR}/.env"
 CERT_PATH="/etc/letsencrypt/live/${DOMAIN}/cert.pem"
 
-# Daphne listens on this port for WebSocket upgrade requests.
-# 8001 is owned by daphne-jn, 8003 by another project, 8004 is dev.
-DAPHNE_PORT="8010"
+# Preferred Daphne port. Pre-flight will auto-pick a different one if this
+# is held by a foreign process.
+DAPHNE_PORT_PREFERRED="8011"
+DAPHNE_PORT="${DAPHNE_PORT_PREFERRED}"
 
 # ─── Parse flags ────────────────────────────────────────────────────────────
 FRESH=false
@@ -87,14 +87,14 @@ echo "  Wildcard    : ${WILDCARD}"
 echo "  Server IP   : ${SERVER_IP}"
 echo "  Project dir : ${PROJECT_DIR}"
 echo "  Database    : ${DB_NAME} / ${DB_USER}"
-echo "  Daphne port : ${DAPHNE_PORT}"
+echo "  Daphne pref : ${DAPHNE_PORT_PREFERRED}"
 echo "  Fresh DB    : ${FRESH}"
 echo "  Skip SSL    : ${SKIP_SSL}"
 echo "  Env only    : ${ENV_ONLY}"
 echo ""
 
 # ============================================================================
-# .env helpers — read/write without ever `source`-ing the file
+# .env helpers
 # ============================================================================
 env_get() {
     local key="$1"
@@ -132,7 +132,59 @@ env_set_if_missing() {
 }
 
 # ============================================================================
-# Pre-flight (skipped for --env-only)
+# Pre-flight: pick a free Daphne port
+#
+# If ${DAPHNE_PORT_PREFERRED} is already bound:
+#   - If the holder belongs to our systemd unit → fine, restart will handle
+#   - Otherwise → scan next 20 ports, use first free one
+# ============================================================================
+if [[ "${ENV_ONLY}" != "true" ]]; then
+    log "Pre-flight: choosing Daphne port"
+
+    port_is_bound() {
+        ss -tln 2>/dev/null | grep -q ":$1 "
+    }
+
+    port_owner() {
+        # Print the process name of whatever holds the port, or empty
+        ss -tlnp 2>/dev/null \
+            | grep ":$1 " \
+            | grep -oP 'users:\(\("\K[^"]+' \
+            | head -1 \
+            || true
+    }
+
+    if ! port_is_bound "${DAPHNE_PORT}"; then
+        ok "Port ${DAPHNE_PORT} is free"
+    else
+        owner="$(port_owner "${DAPHNE_PORT}")"
+        if [[ "${owner}" == "daphne" ]]; then
+            # Likely our own daphne from a crashed earlier start.
+            # Step 0 below will kill it. Keep the port.
+            warn "Port ${DAPHNE_PORT} held by daphne — will be cleaned up in Step 0"
+        else
+            warn "Port ${DAPHNE_PORT} held by '${owner:-unknown}' — scanning for a free port"
+            FOUND_PORT=""
+            for p in $(seq $((DAPHNE_PORT + 1)) $((DAPHNE_PORT + 20))); do
+                if ! port_is_bound "${p}"; then
+                    FOUND_PORT="${p}"
+                    break
+                fi
+            done
+            [[ -n "${FOUND_PORT}" ]] || die "No free Daphne port in range $((DAPHNE_PORT + 1))..$((DAPHNE_PORT + 20))"
+            DAPHNE_PORT="${FOUND_PORT}"
+            ok "Switched Daphne port to ${DAPHNE_PORT}"
+        fi
+    fi
+
+    # Persist the chosen port to .env so any code reading DAPHNE_PORT stays in sync
+    if [[ -f "${ENV_FILE}" ]]; then
+        env_set DAPHNE_PORT "${DAPHNE_PORT}"
+    fi
+fi
+
+# ============================================================================
+# Pre-flight: DNS, SSL, Redis
 # ============================================================================
 if [[ "${ENV_ONLY}" != "true" ]]; then
     log "Pre-flight: checking wildcard DNS"
@@ -160,6 +212,56 @@ if [[ "${ENV_ONLY}" != "true" ]]; then
         ok "Redis DB 2 responding"
     else
         warn "Redis DB 2 not responding — Channels will fail to broadcast"
+    fi
+fi
+
+# ============================================================================
+# Step 0 — Cleanup stale project processes
+#
+# Kills any orphaned daphne/gunicorn process that belongs to this project
+# but isn't managed by systemd (leftover from a crashed earlier start).
+# Runs BEFORE we write/rewrite systemd units.
+# ============================================================================
+if [[ "${ENV_ONLY}" != "true" ]]; then
+    log "Step 0: Cleanup stale project processes"
+
+    # Stop systemd units cleanly first — else they respawn while we kill
+    for svc in "daphne-${PROJECT_NAME}" "gunicorn-${PROJECT_NAME}"; do
+        systemctl stop "${svc}" 2>/dev/null || true
+    done
+    systemctl reset-failed "daphne-${PROJECT_NAME}" 2>/dev/null || true
+    systemctl reset-failed "gunicorn-${PROJECT_NAME}" 2>/dev/null || true
+    sleep 1
+
+    # Kill any process still bound to the Daphne port
+    if ss -tln 2>/dev/null | grep -q ":${DAPHNE_PORT} "; then
+        warn "Port ${DAPHNE_PORT} still bound — killing holder"
+        fuser -k "${DAPHNE_PORT}/tcp" 2>/dev/null || true
+        sleep 1
+    fi
+
+    # Kill any orphaned daphne/gunicorn matching this project
+    pkill -f "daphne.*${PROJECT_NAME}" 2>/dev/null || true
+    pkill -f "gunicorn.*${PROJECT_DIR}" 2>/dev/null || true
+    sleep 1
+
+    # Confirm port is now free
+    if ss -tln 2>/dev/null | grep -q ":${DAPHNE_PORT} "; then
+        # Still bound by something non-killable → fall back further
+        warn "Port ${DAPHNE_PORT} still held after cleanup — selecting another"
+        FOUND_PORT=""
+        for p in $(seq $((DAPHNE_PORT + 1)) $((DAPHNE_PORT + 20))); do
+            if ! ss -tln | grep -q ":${p} "; then
+                FOUND_PORT="${p}"
+                break
+            fi
+        done
+        [[ -n "${FOUND_PORT}" ]] || die "No free Daphne port found"
+        DAPHNE_PORT="${FOUND_PORT}"
+        [[ -f "${ENV_FILE}" ]] && env_set DAPHNE_PORT "${DAPHNE_PORT}"
+        ok "Switched Daphne port to ${DAPHNE_PORT}"
+    else
+        ok "Port ${DAPHNE_PORT} is free after cleanup"
     fi
 fi
 
@@ -280,6 +382,8 @@ REDIS_URL=redis://127.0.0.1:6379/1
 CELERY_BROKER_URL=redis://127.0.0.1:6379/0
 CHANNEL_LAYER_REDIS_URL=redis://127.0.0.1:6379/2
 
+DAPHNE_PORT=${DAPHNE_PORT}
+
 SESSION_COOKIE_DOMAIN=
 CSRF_COOKIE_DOMAIN=
 SHOW_PUBLIC_IF_NO_TENANT_FOUND=False
@@ -340,6 +444,7 @@ else
     env_set REDIS_URL                      "redis://127.0.0.1:6379/1"
     env_set CELERY_BROKER_URL              "redis://127.0.0.1:6379/0"
     env_set CHANNEL_LAYER_REDIS_URL        "redis://127.0.0.1:6379/2"
+    env_set DAPHNE_PORT                    "${DAPHNE_PORT}"
     env_set SHOW_PUBLIC_IF_NO_TENANT_FOUND "False"
 
     env_set SECRET_KEY     "${EXISTING_SECRET_KEY}"
@@ -446,15 +551,10 @@ ok "Database ready"
 
 # ============================================================================
 # Step 5 — Migrations: verify + generate + sanity-check
-#
-# This step makes sure every app that owns models has an initial migration
-# committed. If a migration file is missing, it generates one and warns
-# loudly that the file must be committed to git or it will regenerate on
-# every deploy.
 # ============================================================================
 log "Step 5: Ensure all migrations exist and are current"
 
-# ─── 5a. tenants app (SHARED) ───
+# ─── 5a. tenants ───
 TENANTS_MIGRATION="${PROJECT_DIR}/apps/shared/tenants/migrations/0001_initial.py"
 if [[ ! -f "${TENANTS_MIGRATION}" ]]; then
     warn "tenants/migrations/0001_initial.py missing — generating now"
@@ -469,7 +569,7 @@ else
     ok "tenants migration present"
 fi
 
-# ─── 5b. communications app (TENANT) ───
+# ─── 5b. communications ───
 COMM_MIGRATION="${PROJECT_DIR}/apps/communications/migrations/0001_initial.py"
 if [[ ! -f "${COMM_MIGRATION}" ]]; then
     warn "communications/migrations/0001_initial.py missing — generating now"
@@ -484,7 +584,7 @@ else
     ok "communications migration present"
 fi
 
-# ─── 5c. General check — do ANY apps have unmigrated model changes? ───
+# ─── 5c. General check ───
 log "Step 5b: Running makemigrations --check --dry-run"
 if ! python manage.py makemigrations --check --dry-run 2>&1 | tee /tmp/migrations-check.log | grep -q "No changes detected"; then
     warn "Model changes without migrations detected:"
@@ -496,8 +596,21 @@ else
     ok "All models have up-to-date migrations"
 fi
 
-# ─── 5d. Confirm migration files exist on disk ───
-log "Step 5c: Migration files in the repo"
+# ─── 5d. Flatten nested static icons (self-heal) ───
+log "Step 5c: Fix nested static icons if present"
+if [[ -d "${PROJECT_DIR}/static/icons/icons" ]]; then
+    warn "Detected static/icons/icons/ — flattening to static/icons/"
+    mkdir -p "${PROJECT_DIR}/static/icons"
+    mv "${PROJECT_DIR}/static/icons/icons"/*.png \
+       "${PROJECT_DIR}/static/icons/" 2>/dev/null || true
+    rm -rf "${PROJECT_DIR}/static/icons/icons"
+    ok "Icons flattened"
+else
+    ok "Icon directory structure is correct"
+fi
+
+# ─── 5e. Migration inventory ───
+log "Step 5d: Migration files in the repo"
 find "${PROJECT_DIR}/apps" -path "*/migrations/*.py" \
     ! -name "__init__.py" -printf "    %P\n" | sort
 ok "Migration inventory printed"
@@ -510,7 +623,7 @@ python manage.py check
 ok "Django check passed"
 
 # ============================================================================
-# Step 7 — Migrate shared schema (public)
+# Step 7 — Migrate shared schema
 # ============================================================================
 log "Step 7: Apply migrations to shared schema (public)"
 python manage.py migrate_schemas --shared --noinput
@@ -558,7 +671,6 @@ ok "All tenant schemas migrated"
 # Step 9b — Post-migration verification
 # ============================================================================
 log "Step 9b: Verifying all schemas are up to date"
-
 if python manage.py migrate_schemas --check 2>&1 | grep -q "No migrations to apply"; then
     ok "Every schema reports 'No migrations to apply' — all in sync"
 else
@@ -617,11 +729,23 @@ for tpl in "${TEMPLATES_TO_CHECK[@]}"; do
 done
 [[ "${MISSING_T}" -eq 0 ]] && ok "All Phase 6 + 7 templates present"
 
-# ─── Verify URL patterns reverse-resolve ───
-log "Step 10b: Verify URL patterns"
+# ─── Verify BOTH URLconfs import cleanly ───
+log "Step 10b: Verify URL patterns AND both URLconf imports"
 python manage.py shell <<'PY'
+import importlib
 from django.urls import reverse, NoReverseMatch
 
+# 1) Both URLconfs must import — catches missing imports like comm_views
+errors = []
+for mod in ('config.urls', 'config.urls_public'):
+    try:
+        importlib.import_module(mod)
+        print(f'  ✔ {mod} imports cleanly')
+    except Exception as e:
+        errors.append(f'{mod}: {type(e).__name__}: {e}')
+        print(f'  ✘ {mod} import failed: {type(e).__name__}: {e}')
+
+# 2) Named routes must reverse
 checks = [
     ('tenant', 'offline'),
     ('tenant', 'sync:sync'),
@@ -636,11 +760,20 @@ for scope, name in checks:
     except NoReverseMatch:
         print(f'  ⚠ {scope}:{name} not reverse-resolvable')
 
+# 3) WebSocket routing
 try:
     from apps.realtime.routing import websocket_urlpatterns
     print(f'  ✔ apps.realtime.routing has {len(websocket_urlpatterns)} WebSocket routes')
 except Exception as e:
+    errors.append(f'apps.realtime.routing: {e}')
     print(f'  ✘ apps.realtime.routing failed to import: {e}')
+
+if errors:
+    import sys
+    print('\n❌ URLconf errors — fix before restart:')
+    for e in errors:
+        print(f'   {e}')
+    sys.exit(1)
 PY
 ok "URL verification done"
 
@@ -668,7 +801,7 @@ ok "Superuser ready"
 # ============================================================================
 # Step 12 — Systemd services
 # ============================================================================
-log "Step 12: Systemd services"
+log "Step 12: Systemd services (Daphne port: ${DAPHNE_PORT})"
 
 cat > /etc/systemd/system/gunicorn-${PROJECT_NAME}.service <<EOF
 [Unit]
@@ -773,7 +906,7 @@ ok "Systemd services created and enabled"
 # ============================================================================
 # Step 15 — Nginx
 # ============================================================================
-log "Step 15: Nginx configuration"
+log "Step 15: Nginx configuration (WS on port ${DAPHNE_PORT})"
 
 cat > /etc/nginx/sites-available/${PROJECT_NAME} <<EOF
 server {
@@ -876,14 +1009,31 @@ else
 fi
 
 # ============================================================================
-# Step 17 — Restart services
+# Step 17 — Restart services (clean stop → kill stragglers → start)
 # ============================================================================
 log "Step 17: Restart services"
 
-systemctl restart gunicorn-${PROJECT_NAME}
-systemctl restart daphne-${PROJECT_NAME}
-systemctl restart celery-worker-${PROJECT_NAME}
-systemctl restart celery-beat-${PROJECT_NAME}
+restart_clean() {
+    local svc="$1"
+    systemctl stop "${svc}" 2>/dev/null || true
+    systemctl reset-failed "${svc}" 2>/dev/null || true
+    sleep 1
+    systemctl start "${svc}"
+}
+
+# Clean restart Daphne — kill any orphan first
+pkill -f "daphne.*${PROJECT_NAME}" 2>/dev/null || true
+sleep 1
+if ss -tln 2>/dev/null | grep -q ":${DAPHNE_PORT} "; then
+    warn "Port ${DAPHNE_PORT} still held — killing holder"
+    fuser -k "${DAPHNE_PORT}/tcp" 2>/dev/null || true
+    sleep 1
+fi
+
+restart_clean gunicorn-${PROJECT_NAME}
+restart_clean daphne-${PROJECT_NAME}
+restart_clean celery-worker-${PROJECT_NAME}
+restart_clean celery-beat-${PROJECT_NAME}
 
 sleep 3
 
@@ -960,6 +1110,7 @@ echo "  Public site    : https://${DOMAIN}/"
 echo "  Admin          : https://${DOMAIN}/admin/"
 echo "  First tenant   : https://pritech.${DOMAIN}/"
 echo "  PWA manifest   : https://${DOMAIN}/manifest.json"
+echo "  Daphne port    : ${DAPHNE_PORT}"
 echo "  WebSocket      : wss://${DOMAIN}/ws/notifications/"
 echo ""
 
@@ -967,37 +1118,10 @@ if [[ "${FAILED}" -gt 0 ]]; then
     warn "${FAILED} service(s) not active — see warnings above."
 fi
 
-if [[ "${C1}" == "400" ]]; then
-    warn "Public site returns 400 — nginx duplicate-header issue."
-fi
-
-if [[ "${C5}" == "000" ]]; then
-    warn "Tenant subdomain unreachable — wildcard DNS issue."
-fi
-
-if [[ "${C6}" != "200" ]]; then
-    warn "manifest.json not served — django-pwa misconfigured."
-fi
-
-if [[ "${C11}" != "200" ]]; then
-    warn "admin_motion.css missing — Phase 7 admin theme will not animate."
-fi
-
-if [[ "${C12}" != "200" ]]; then
-    warn "admin_motion.js missing — Phase 7 admin animations disabled."
-fi
-
-if [[ "${C13}" != "200" ]]; then
-    warn "realtime.js missing — WebSocket client not loaded."
-fi
-
-if [[ "${C14}" == "404" ]]; then
-    warn "WebSocket endpoint 404 — check config/asgi.py and apps.realtime.routing."
-fi
-
 if [[ "${C14}" == "502" || "${C14}" == "504" ]]; then
-    warn "WebSocket endpoint returned ${C14} — Daphne not responding on port ${DAPHNE_PORT}."
+    warn "WebSocket endpoint returned ${C14} — Daphne not responding on ${DAPHNE_PORT}."
     warn "  Check: sudo systemctl status daphne-${PROJECT_NAME}"
+    warn "  Logs:  sudo journalctl -u daphne-${PROJECT_NAME} -n 60 --no-pager"
 fi
 
 echo "  Logs:"

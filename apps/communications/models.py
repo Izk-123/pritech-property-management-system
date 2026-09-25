@@ -94,7 +94,7 @@ class NotificationLog(TimeStampedModel):
     subject = models.CharField(max_length=255, blank=True)
     body_preview = models.TextField(blank=True)
     status = models.CharField(
-        max_length=4, choices=Status.choices, default=Status.PENDING,
+        max_length=5, choices=Status.choices, default=Status.PENDING,
     )
     provider_message_id = models.CharField(max_length=255, blank=True)
     error_message = models.TextField(blank=True)

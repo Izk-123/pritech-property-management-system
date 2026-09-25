@@ -6,16 +6,20 @@ from django.urls import path, include
 from django.views.generic import TemplateView
 from apps.shared.tenants import views_signup
 from apps.shared.users.views import SchemaAwareLoginView
+from apps.communications import views as comm_views
 
 
 urlpatterns = [
     # Marketing home
     path('', TemplateView.as_view(template_name='pages/public_home.html'),
          name='public_home'),
-    
+
     # PWA manifest and service worker
     path('', include('pwa.urls')),
-    
+
+    # i18n — provides the `set_language` view used by Unfold's language switcher
+    path('i18n/', include('django.conf.urls.i18n')),
+
     # config/urls.py and config/urls_public.py
     path('offline/', TemplateView.as_view(template_name='pages/offline.html'),
         name='offline'),
@@ -32,7 +36,7 @@ urlpatterns = [
 
     # Health check
     path('health/', views_signup.HealthCheckView.as_view(), name='health'),
-    
+
     # Meta webhooks (public — Meta posts from an external IP)
     path('communications/whatsapp/webhook/',
          comm_views.whatsapp_webhook,

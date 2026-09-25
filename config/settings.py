@@ -467,8 +467,12 @@ INTERNAL_IPS = ['127.0.0.1']
 # Django Unfold (admin theme) — modern + animated
 #
 # Rounded corners, environment badge, sidebar separators, live badges,
-# inline tabs on change forms, and motion CSS/JS injected on every
-# admin page. The motion layer honours prefers-reduced-motion.
+# and motion CSS/JS injected on every admin page. The motion layer
+# honours prefers-reduced-motion.
+#
+# NOTE: Fieldset tabs are configured per-ModelAdmin by adding
+#       'classes': ['tab'] to each fieldset — NOT via UNFOLD['TABS'].
+#       See any ModelAdmin in apps/*/admin.py for an example.
 # ─────────────────────────────────────────────────────────────────────
 UNFOLD = {
     'SITE_TITLE': 'Pritech PMS',
@@ -530,30 +534,6 @@ UNFOLD = {
     ],
     'SCRIPTS': [
         'js/admin_motion.js',
-    ],
-
-    # Inline tabs in change forms — fieldset identifiers must match
-    # the names you give each fieldset in the model's admin class.
-    'TABS': [
-        {
-            'page': 'reservation_change',
-            'tabs': [
-                {'title': 'Stay',      'fieldset': 'StayDetails'},
-                {'title': 'Guest',     'fieldset': 'GuestInfo'},
-                {'title': 'Rooms',     'fieldset': 'AssignedRooms'},
-                {'title': 'Folio',     'fieldset': 'FolioSummary'},
-                {'title': 'Notes',     'fieldset': 'NotesAndExtras'},
-            ],
-        },
-        {
-            'page': 'property_change',
-            'tabs': [
-                {'title': 'Overview',  'fieldset': 'PropertyOverview'},
-                {'title': 'Contact',   'fieldset': 'PropertyContact'},
-                {'title': 'Units',     'fieldset': 'PropertyUnits'},
-                {'title': 'Documents', 'fieldset': 'PropertyDocuments'},
-            ],
-        },
     ],
 
     'SIDEBAR': {

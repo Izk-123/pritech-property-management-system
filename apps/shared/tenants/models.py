@@ -25,6 +25,12 @@ class Tenant(TenantMixin):
     contact_email = models.EmailField(blank=True)
     contact_phone = models.CharField(max_length=20, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    default_language = models.CharField(
+        max_length=5,
+        choices=[('en', 'English'), ('ny', 'Chichewa')],
+        default='en',
+        help_text='Default UI language for this tenant',
+    )
 
     auto_create_schema = True
     auto_drop_schema = False

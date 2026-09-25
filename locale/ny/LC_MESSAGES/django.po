@@ -1,69 +1,67 @@
-# SOME DESCRIPTIVE TITLE.
-# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
-# This file is distributed under the same license as the PACKAGE package.
-# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# Chichewa translation for Pritech PMS.
+# Copyright (C) 2026 Pritech
+# This file is distributed under the same license as the Pritech PMS package.
 #
-#, fuzzy
 msgid ""
 msgstr ""
-"Project-Id-Version: PACKAGE VERSION\n"
+"Project-Id-Version: Pritech PMS 1.0\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2026-09-25 05:00+0000\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language-Team: LANGUAGE <LL@li.org>\n"
-"Language: \n"
+"PO-Revision-Date: 2026-09-25 12:00+0000\n"
+"Last-Translator: Pritech <admin@pritechmw.com>\n"
+"Language-Team: Chichewa <ny@li.org>\n"
+"Language: ny\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=INTEGER; plural=EXPRESSION;\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
 #: templates/base.html:7
 msgid "Property management for Malawi hotels, lodges, and rentals."
-msgstr ""
+msgstr "Kuyang'anira katundu wa mahotela, maloji, ndi nyumba zobwereka ku Malawi."
 
 #: templates/base.html:243 templates/pages/home.html:6
 #: templates/pages/home.html:39 templates/pages/public_home.html:4
 #: templates/pages/public_home.html:31
 msgid "Property Management System"
-msgstr ""
+msgstr "Dongosolo Loyang'anira Katundu"
 
 #: templates/base.html:250
 msgid "Made in Malawi"
-msgstr ""
+msgstr "Zopangidwa ku Malawi"
 
 #: templates/pages/communications/inbound_list.html:4
 #: templates/pages/communications/inbound_list.html:25
 msgid "Inbound Messages"
-msgstr ""
+msgstr "Mauthenga Obwera"
 
 #: templates/pages/communications/inbound_list.html:21
 #: templates/pages/communications/inbound_reply.html:17
 #: templates/pages/communications/log_list.html:39
 msgid "Inbox"
-msgstr ""
+msgstr "Mbokosi Yamauthenga"
 
 #: templates/pages/communications/inbound_list.html:29
 msgid "unread"
-msgstr ""
+msgstr "osaswerengedwa"
 
 #: templates/pages/communications/inbound_list.html:40
 msgid "All"
-msgstr ""
+msgstr "Zonse"
 
 #: templates/pages/communications/inbound_list.html:48
 msgid "Unread"
-msgstr ""
+msgstr "Zosaswerengedwa"
 
 #: templates/pages/communications/inbound_list.html:78
 #: templates/pages/communications/inbound_reply.html:4
 #: templates/pages/communications/inbound_reply.html:27
 msgid "Reply"
-msgstr ""
+msgstr "Yankhani"
 
 #: templates/pages/communications/inbound_list.html:82
 msgid "Replied"
-msgstr ""
+msgstr "Zayankhidwa"
 
 #: templates/pages/communications/inbound_list.html:97
 #: templates/pages/communications/log_list.html:129
@@ -80,7 +78,7 @@ msgstr ""
 #: templates/pages/property/maintenance_list.html:98
 #: templates/pages/property/rent_invoice_list.html:77
 msgid "Previous"
-msgstr ""
+msgstr "Zam'mbuyo"
 
 #: templates/pages/communications/inbound_list.html:101
 #: templates/pages/communications/log_list.html:133
@@ -96,7 +94,7 @@ msgstr ""
 #: templates/pages/property/maintenance_list.html:102
 #: templates/pages/property/rent_invoice_list.html:81
 msgid "Page"
-msgstr ""
+msgstr "Tsamba"
 
 #: templates/pages/communications/inbound_list.html:108
 #: templates/pages/communications/log_list.html:140
@@ -113,24 +111,24 @@ msgstr ""
 #: templates/pages/property/maintenance_list.html:109
 #: templates/pages/property/rent_invoice_list.html:88
 msgid "Next"
-msgstr ""
+msgstr "Zotsatira"
 
 #: templates/pages/communications/inbound_list.html:122
 msgid "No inbound messages."
-msgstr ""
+msgstr "Palibe mauthenga obwera."
 
 #: templates/pages/communications/inbound_reply.html:31
 msgid "Reply to"
-msgstr ""
+msgstr "Yankhani kwa"
 
 #: templates/pages/communications/inbound_reply.html:38
 msgid "Original message"
-msgstr ""
+msgstr "Uthenga woyambirira"
 
 #: templates/pages/communications/inbound_reply.html:65
 #: templates/pages/communications/inbound_reply.html:89
 msgid "Send Reply"
-msgstr ""
+msgstr "Tumizani Yankho"
 
 #: templates/pages/communications/inbound_reply.html:72
 #: templates/pages/communications/inbound_reply.html:94
@@ -175,79 +173,79 @@ msgstr ""
 #: templates/pages/property/sales_offer_form.html:82
 #: templates/pages/property/sales_offer_form.html:99
 msgid "Cancel"
-msgstr ""
+msgstr "Lekani"
 
 #: templates/pages/communications/inbound_reply.html:78
 msgid "Replies are free inside the 24-hour WhatsApp customer service window."
-msgstr ""
+msgstr "Mayankho ndi aulere mkati mwa maola 24 a ntchito yamakasitomala pa WhatsApp."
 
 #: templates/pages/communications/log_detail.html:4
 #: templates/pages/communications/log_detail.html:77
 msgid "Message"
-msgstr ""
+msgstr "Uthenga"
 
 #: templates/pages/communications/log_detail.html:17
 msgid "All messages"
-msgstr ""
+msgstr "Mauthenga onse"
 
 #: templates/pages/communications/log_detail.html:45
 msgid "Delivery"
-msgstr ""
+msgstr "Kutumiza"
 
 #: templates/pages/communications/log_detail.html:49
 #: templates/pages/platform/tenant_detail.html:181
 msgid "Created"
-msgstr ""
+msgstr "Zapangidwa"
 
 #: templates/pages/communications/log_detail.html:54
 msgid "Sent"
-msgstr ""
+msgstr "Zatumizidwa"
 
 #: templates/pages/communications/log_detail.html:60
 msgid "Delivered"
-msgstr ""
+msgstr "Zafikitsidwa"
 
 #: templates/pages/communications/log_detail.html:66
 msgid "Provider ID"
-msgstr ""
+msgstr "ID ya Wopereka"
 
 #: templates/pages/communications/log_detail.html:95
 msgid "Error"
-msgstr ""
+msgstr "Cholakwika"
 
 #: templates/pages/communications/log_list.html:4
 #: templates/pages/communications/log_list.html:21
 msgid "Message Log"
-msgstr ""
+msgstr "Mbiri ya Mauthenga"
 
 #: templates/pages/communications/log_list.html:17
 #: templates/pages/communications/template_list.html:15
 msgid "Communications"
-msgstr ""
+msgstr "Kulumikizana"
 
 #: templates/pages/communications/log_list.html:25
 msgid "Every WhatsApp, email, and SMS the system has sent."
-msgstr ""
+msgstr "WhatsApp, imelo, ndi SMS zonse zomwe dongosolo latumiza."
 
 #: templates/pages/communications/log_list.html:34
 msgid "Templates"
-msgstr ""
+msgstr "Zitsanzo"
 
 #: templates/pages/communications/log_list.html:48
 #: templates/pages/compliance/eis_offline_queue.html:67
 #: templates/pages/compliance/eis_terminal_detail.html:85
 msgid "Failed"
-msgstr ""
+msgstr "Zalephera"
 
 #: templates/pages/communications/log_list.html:56
 #: templates/pages/compliance/eis_product_list.html:47
 #: templates/pages/compliance/fcy_dashboard.html:131
 msgid "Pending"
-msgstr ""
+msgstr "Zikudikira"
 
 #: templates/pages/communications/log_list.html:70
 msgid "All channels"
-msgstr ""
+msgstr "Njira zonse"
 
 #: templates/pages/communications/log_list.html:78
 #: templates/pages/compliance/eis_invoice_log_list.html:29
@@ -259,7 +257,7 @@ msgstr ""
 #: templates/pages/property/rent_invoice_list.html:24
 #: templates/pages/property/sales_listing_list.html:30
 msgid "All statuses"
-msgstr ""
+msgstr "Mikhalidwe yonse"
 
 #: templates/pages/communications/log_list.html:87
 #: templates/pages/compliance/eis_invoice_log_list.html:49
@@ -275,33 +273,33 @@ msgstr ""
 #: templates/pages/property/rent_invoice_list.html:35
 #: templates/pages/property/sales_listing_list.html:41
 msgid "Filter"
-msgstr ""
+msgstr "Sefani"
 
 #: templates/pages/communications/log_list.html:154
 msgid "No messages have been sent yet."
-msgstr ""
+msgstr "Palibe mauthenga omwe atumizidwa."
 
 #: templates/pages/communications/template_form.html:4
 msgid "Edit Template"
-msgstr ""
+msgstr "Sinthani Chitsanzo"
 
 #: templates/pages/communications/template_form.html:17
 msgid "All templates"
-msgstr ""
+msgstr "Zitsanzo zonse"
 
 #: templates/pages/communications/template_form.html:54
 #: templates/pages/communications/template_form.html:74
 msgid "Save Template"
-msgstr ""
+msgstr "Sungani Chitsanzo"
 
 #: templates/pages/communications/template_list.html:4
 #: templates/pages/communications/template_list.html:19
 msgid "Notification Templates"
-msgstr ""
+msgstr "Zitsanzo za Zidziwitso"
 
 #: templates/pages/communications/template_list.html:23
 msgid "Customise the wording of messages sent to guests and tenants."
-msgstr ""
+msgstr "Sinthani mawu a mauthenga otumizidwa kwa alendo ndi obwereka."
 
 #: templates/pages/communications/template_list.html:45
 #: templates/pages/people/detail.html:164
@@ -310,215 +308,215 @@ msgstr ""
 #: templates/pages/platform/tenant_list.html:74
 #: templates/pages/platform/tenant_list.html:120
 msgid "Active"
-msgstr ""
+msgstr "Zogwira"
 
 #: templates/pages/communications/template_list.html:45
 msgid "Off"
-msgstr ""
+msgstr "Zimitsidwa"
 
 #: templates/pages/communications/template_list.html:58
 msgid "No templates configured. Add them via the admin."
-msgstr ""
+msgstr "Palibe zitsanzo zokonzedwa. Onjezani kudzera mu admin."
 
 #: templates/pages/compliance/dashboard.html:4 templates/pages/home.html:112
 #: templates/pages/home.html:369 templates/pages/public_home.html:105
 #: templates/partials/_header_tenant.html:110
 #: templates/partials/_header_tenant.html:246
 msgid "Compliance"
-msgstr ""
+msgstr "Kutsatira Malamulo"
 
 #: templates/pages/compliance/dashboard.html:20
 msgid "Regulatory compliance"
-msgstr ""
+msgstr "Kutsatira malamulo"
 
 #: templates/pages/compliance/dashboard.html:24
 msgid "Compliance Dashboard"
-msgstr ""
+msgstr "Tsamba la Kutsatira Malamulo"
 
 #: templates/pages/compliance/dashboard.html:28
 msgid "MRA EIS, PayChangu, Tourism Levy, Forex and RBM returns at a glance."
-msgstr ""
+msgstr "MRA EIS, PayChangu, Msonkho wa Zokopa Alendo, Forex ndi zobwerera za RBM mwachidule."
 
 #: templates/pages/compliance/dashboard.html:44
 msgid "Action required"
-msgstr ""
+msgstr "Kuchitapo kanthu kofunika"
 
 #: templates/pages/compliance/dashboard.html:47
 msgid "EIS invoices queued or failed"
-msgstr ""
+msgstr "Ma invoice a EIS oikidwa pamzere kapena olephera"
 
 #: templates/pages/compliance/dashboard.html:50
 msgid "Tourism Levy records pending remittance"
-msgstr ""
+msgstr "Mbiri za Msonkho wa Zokopa Alendo zikudikira kutumizidwa"
 
 #: templates/pages/compliance/dashboard.html:53
 msgid "RBM returns pending submission"
-msgstr ""
+msgstr "Zobwerera za RBM zikudikira kutumizidwa"
 
 #: templates/pages/compliance/dashboard.html:77
 msgid "MRA EIS"
-msgstr ""
+msgstr "MRA EIS"
 
 #: templates/pages/compliance/dashboard.html:79
 msgid "Electronic Invoicing"
-msgstr ""
+msgstr "Ma Invoice a Pakompyuta"
 
 #: templates/pages/compliance/dashboard.html:85
 msgid "Active terminals"
-msgstr ""
+msgstr "Ma terminal ogwira"
 
 #: templates/pages/compliance/dashboard.html:89
 msgid "Validated this month"
-msgstr ""
+msgstr "Zotsimikizika mwezi uno"
 
 #: templates/pages/compliance/dashboard.html:95
 msgid "In queue"
-msgstr ""
+msgstr "Pa mzere"
 
 #: templates/pages/compliance/dashboard.html:119
 #: templates/partials/_header_tenant.html:124
 #: templates/partials/_header_tenant.html:250
 msgid "PayChangu"
-msgstr ""
+msgstr "PayChangu"
 
 #: templates/pages/compliance/dashboard.html:121
 msgid "Mobile money & card"
-msgstr ""
+msgstr "Ndalama za foni ndi khadi"
 
 #: templates/pages/compliance/dashboard.html:127
 msgid "Today's volume"
-msgstr ""
+msgstr "Kuchuluka kwa lero"
 
 #: templates/pages/compliance/dashboard.html:133
 msgid "Today's count"
-msgstr ""
+msgstr "Chiwerengero cha lero"
 
 #: templates/pages/compliance/dashboard.html:153 templates/pages/home.html:389
 #: templates/partials/_header_tenant.html:125
 #: templates/partials/_header_tenant.html:251
 msgid "Tourism Levy"
-msgstr ""
+msgstr "Msonkho wa Zokopa Alendo"
 
 #: templates/pages/compliance/dashboard.html:155
 #, python-format
 msgid "1%% marketing levy"
-msgstr ""
+msgstr "1%% msonkho wa malonda"
 
 #: templates/pages/compliance/dashboard.html:161
 msgid "This month"
-msgstr ""
+msgstr "Mwezi uno"
 
 #: templates/pages/compliance/dashboard.html:165
 msgid "Pending remit"
-msgstr ""
+msgstr "Zikudikira kutumizidwa"
 
 #: templates/pages/compliance/dashboard.html:189
 msgid "Forex"
-msgstr ""
+msgstr "Forex"
 
 #: templates/pages/compliance/dashboard.html:191
 msgid "Exchange rates"
-msgstr ""
+msgstr "Mitengo yosinthira ndalama"
 
 #: templates/pages/compliance/dashboard.html:225
 #: templates/pages/compliance/rbm_return_list.html:4
 #: templates/pages/compliance/rbm_return_list.html:25
 msgid "RBM Returns"
-msgstr ""
+msgstr "Zobwerera za RBM"
 
 #: templates/pages/compliance/dashboard.html:227
 msgid "Foreign currency returns"
-msgstr ""
+msgstr "Zobwerera za ndalama zakunja"
 
 #: templates/pages/compliance/dashboard.html:233
 msgid "Pending submission"
-msgstr ""
+msgstr "Zikudikira kutumizidwa"
 
 #: templates/pages/compliance/eis_invoice_log_list.html:4
 #: templates/pages/compliance/eis_invoice_log_list.html:12
 msgid "EIS Invoice Log"
-msgstr ""
+msgstr "Mbiri ya Ma Invoice a EIS"
 
 #: templates/pages/compliance/eis_invoice_log_list.html:16
 msgid "Every invoice submitted to MRA EIS with submission status."
-msgstr ""
+msgstr "Ma invoice onse otumizidwa ku MRA EIS ndi mmene zilili."
 
 #: templates/pages/compliance/eis_invoice_log_list.html:26
 msgid "Invoice number or MRA number…"
-msgstr ""
+msgstr "Nambala ya invoice kapena nambala ya MRA…"
 
 #: templates/pages/compliance/eis_invoice_log_list.html:37
 #: templates/pages/compliance/eis_offline_queue.html:17
 #: templates/pages/compliance/eis_terminal_detail.html:17
 msgid "All terminals"
-msgstr ""
+msgstr "Ma terminal onse"
 
 #: templates/pages/compliance/eis_invoice_log_list.html:66
 #: templates/pages/compliance/eis_offline_queue.html:87
 msgid "retries"
-msgstr ""
+msgstr "kuyesanso"
 
 #: templates/pages/compliance/eis_invoice_log_list.html:120
 msgid "No invoices in the log."
-msgstr ""
+msgstr "Palibe ma invoice mu mbiri."
 
 #: templates/pages/compliance/eis_offline_queue.html:4
 #: templates/partials/_header_tenant.html:123
 #: templates/partials/_header_tenant.html:249
 msgid "EIS Offline Queue"
-msgstr ""
+msgstr "Mzere wa EIS Wopanda Intaneti"
 
 #: templates/pages/compliance/eis_offline_queue.html:32
 msgid "Offline queue"
-msgstr ""
+msgstr "Mzere wopanda intaneti"
 
 #: templates/pages/compliance/eis_offline_queue.html:36
 #: templates/pages/compliance/eis_terminal_list.html:25
 msgid "Offline Queue"
-msgstr ""
+msgstr "Mzere Wopanda Intaneti"
 
 #: templates/pages/compliance/eis_offline_queue.html:40
 msgid ""
 "Invoices waiting to sync with MRA EIS. These were generated during outages."
-msgstr ""
+msgstr "Ma invoice akudikira kulumikizana ndi MRA EIS. Amenewa adapangidwa nthawi yopanda magetsi."
 
 #: templates/pages/compliance/eis_offline_queue.html:49
 msgid "Force Sync Now"
-msgstr ""
+msgstr "Kakamizani Kulumikiza Tsopano"
 
 #: templates/pages/compliance/eis_offline_queue.html:59
 msgid "Queued"
-msgstr ""
+msgstr "Pa mzere"
 
 #: templates/pages/compliance/eis_offline_queue.html:112
 msgid "Queue is empty"
-msgstr ""
+msgstr "Mzere ulibe kanthu"
 
 #: templates/pages/compliance/eis_offline_queue.html:115
 msgid "All invoices have been synced with MRA."
-msgstr ""
+msgstr "Ma invoice onse alumikizidwa ndi MRA."
 
 #: templates/pages/compliance/eis_offline_queue.html:121
 msgid ""
 "The sync task runs automatically every 15 minutes. Failed invoices retry up "
 "to 5 times before requiring manual intervention."
-msgstr ""
+msgstr "Ntchito yolumikiza imayenda yokha mphindi 15 zilizonse. Ma invoice olephera amayesanso mpaka kasanu asanafune kuthandizidwa ndi munthu."
 
 #: templates/pages/compliance/eis_product_list.html:4
 msgid "EIS Products"
-msgstr ""
+msgstr "Zogulitsa za EIS"
 
 #: templates/pages/compliance/eis_product_list.html:12
 msgid "MRA Product Mappings"
-msgstr ""
+msgstr "Mapu a Zogulitsa za MRA"
 
 #: templates/pages/compliance/eis_product_list.html:16
 msgid "Internal service codes mapped to MRA product codes for EIS submissions."
-msgstr ""
+msgstr "Ma code a ntchito amkati olumikizidwa ndi ma code a zogulitsa za MRA pa kutumiza kwa EIS."
 
 #: templates/pages/compliance/eis_product_list.html:25
 msgid "Internal Code"
-msgstr ""
+msgstr "Code Yamkati"
 
 #: templates/pages/compliance/eis_product_list.html:26
 #: templates/pages/hospitality/reservation_detail.html:205
@@ -526,11 +524,11 @@ msgstr ""
 #: templates/pages/property/rent_invoice_detail.html:106
 #: templates/pages/property/sales_listing_detail.html:61
 msgid "Description"
-msgstr ""
+msgstr "Kufotokozera"
 
 #: templates/pages/compliance/eis_product_list.html:27
 msgid "MRA Code"
-msgstr ""
+msgstr "Code ya MRA"
 
 #: templates/pages/compliance/eis_product_list.html:28
 #: templates/pages/compliance/levy_report.html:77 templates/pages/home.html:97
@@ -538,489 +536,489 @@ msgstr ""
 #: templates/partials/_header_tenant.html:63
 #: templates/partials/_header_tenant.html:231
 msgid "Property"
-msgstr ""
+msgstr "Katundu"
 
 #: templates/pages/compliance/eis_product_list.html:29
 #: templates/pages/platform/tenant_form.html:73
 #: templates/pages/platform/tenant_form.html:76
 msgid "Status"
-msgstr ""
+msgstr "Mkhalidwe"
 
 #: templates/pages/compliance/eis_product_list.html:47
 msgid "Approved"
-msgstr ""
+msgstr "Zovomerezeka"
 
 #: templates/pages/compliance/eis_product_list.html:63
 msgid "No products mapped yet."
-msgstr ""
+msgstr "Palibe zogulitsa zomwe zalumikizidwa."
 
 #: templates/pages/compliance/eis_product_list.html:66
 msgid "Map your services to MRA product codes in the admin panel."
-msgstr ""
+msgstr "Lumikizani ntchito zanu ndi ma code a zogulitsa za MRA mu admin."
 
 #: templates/pages/compliance/eis_terminal_detail.html:50
 msgid "Ping MRA"
-msgstr ""
+msgstr "Yesani MRA"
 
 #: templates/pages/compliance/eis_terminal_detail.html:59
 msgid "Sync Config"
-msgstr ""
+msgstr "Lumikizani Zokonza"
 
 #: templates/pages/compliance/eis_terminal_detail.html:69
 msgid "Validated"
-msgstr ""
+msgstr "Zotsimikizika"
 
 #: templates/pages/compliance/eis_terminal_detail.html:77
 msgid "Offline Queued"
-msgstr ""
+msgstr "Zopanda Intaneti pa Mzere"
 
 #: templates/pages/compliance/eis_terminal_detail.html:96
 msgid "Terminal Details"
-msgstr ""
+msgstr "Zambiri za Terminal"
 
 #: templates/pages/compliance/eis_terminal_detail.html:100
 #: templates/pages/compliance/eis_terminal_list.html:53
 msgid "TIN"
-msgstr ""
+msgstr "TIN"
 
 #: templates/pages/compliance/eis_terminal_detail.html:104
 msgid "Tax office"
-msgstr ""
+msgstr "Ofesi ya msonkho"
 
 #: templates/pages/compliance/eis_terminal_detail.html:108
 msgid "Activated"
-msgstr ""
+msgstr "Zatsegulidwa"
 
 #: templates/pages/compliance/eis_terminal_detail.html:112
 msgid "Last config sync"
-msgstr ""
+msgstr "Kulumikiza kotsiriza kwa zokonza"
 
 #: templates/pages/compliance/eis_terminal_detail.html:122
 msgid "Recent Invoices"
-msgstr ""
+msgstr "Ma Invoice Aposachedwa"
 
 #: templates/pages/compliance/eis_terminal_detail.html:129
 msgid "View all"
-msgstr ""
+msgstr "Onani zonse"
 
 #: templates/pages/compliance/eis_terminal_detail.html:163
 msgid "No invoices submitted yet."
-msgstr ""
+msgstr "Palibe ma invoice otumizidwa."
 
 #: templates/pages/compliance/eis_terminal_list.html:4
 #: templates/pages/compliance/eis_terminal_list.html:13
 #: templates/partials/_header_tenant.html:122
 #: templates/partials/_header_tenant.html:248
 msgid "MRA EIS Terminals"
-msgstr ""
+msgstr "Ma Terminal a MRA EIS"
 
 #: templates/pages/compliance/eis_terminal_list.html:17
 msgid ""
 "Registered terminals for the Malawi Revenue Authority Electronic Invoicing "
 "System."
-msgstr ""
+msgstr "Ma terminal olembetsa a Malawi Revenue Authority Electronic Invoicing System."
 
 #: templates/pages/compliance/eis_terminal_list.html:57
 msgid "Trading name"
-msgstr ""
+msgstr "Dzina la malonda"
 
 #: templates/pages/compliance/eis_terminal_list.html:64
 #: templates/pages/compliance/eis_terminal_list.html:71
 msgid "Last sync"
-msgstr ""
+msgstr "Kulumikiza kotsiriza"
 
 #: templates/pages/compliance/eis_terminal_list.html:72
 msgid "Never"
-msgstr ""
+msgstr "Palibe"
 
 #: templates/pages/compliance/eis_terminal_list.html:87
 msgid "No EIS terminals registered."
-msgstr ""
+msgstr "Palibe ma terminal a EIS olembetsa."
 
 #: templates/pages/compliance/eis_terminal_list.html:90
 msgid ""
 "Register terminals in the admin panel after obtaining a Terminal Activation "
 "Code from MRA."
-msgstr ""
+msgstr "Lembetsani ma terminal mu admin mukalandira Terminal Activation Code kuchokera ku MRA."
 
 #: templates/pages/compliance/fcy_dashboard.html:4
 #: templates/pages/compliance/fcy_dashboard.html:20
 msgid "Foreign Currency Compliance"
-msgstr ""
+msgstr "Kutsatira Malamulo a Ndalama Zakunja"
 
 #: templates/pages/compliance/fcy_dashboard.html:16
 msgid "Reserve Bank of Malawi"
-msgstr ""
+msgstr "Reserve Bank of Malawi"
 
 #: templates/pages/compliance/fcy_dashboard.html:24
 msgid "Reserve Bank of Malawi requirements. Monthly returns due by the 10th."
-msgstr ""
+msgstr "Zofunikira za Reserve Bank of Malawi. Zobwerera za mwezi ziyenera kufika pa 10."
 
 #: templates/pages/compliance/fcy_dashboard.html:30
 msgid "View RBM Returns"
-msgstr ""
+msgstr "Onani Zobwerera za RBM"
 
 #: templates/pages/compliance/fcy_dashboard.html:38
 msgid "Current Month Receipts"
-msgstr ""
+msgstr "Zolandira za Mwezi Uno"
 
 #: templates/pages/compliance/fcy_dashboard.html:46
 msgid "Returns This Month"
-msgstr ""
+msgstr "Zobwerera Mwezi Uno"
 
 #: templates/pages/compliance/fcy_dashboard.html:57
 msgid "Foreign Currency Bank Accounts"
-msgstr ""
+msgstr "Ma Akaunti a Banki a Ndalama Zakunja"
 
 #: templates/pages/compliance/fcy_dashboard.html:75
 msgid "Account"
-msgstr ""
+msgstr "Akaunti"
 
 #: templates/pages/compliance/fcy_dashboard.html:80
 msgid "Branch"
-msgstr ""
+msgstr "Nthambi"
 
 #: templates/pages/compliance/fcy_dashboard.html:85
 msgid "RBM authorized"
-msgstr ""
+msgstr "Zovomerezeka ndi RBM"
 
 #: templates/pages/compliance/fcy_dashboard.html:95
 msgid "No FCY bank accounts registered. Add them in the admin panel."
-msgstr ""
+msgstr "Palibe ma akaunti a banki a FCY olembetsa. Onjezani mu admin."
 
 #: templates/pages/compliance/fcy_dashboard.html:104
 msgid "Recent RBM Returns"
-msgstr ""
+msgstr "Zobwerera za RBM Zosachedwa"
 
 #: templates/pages/compliance/fcy_dashboard.html:118
 #: templates/pages/compliance/rbm_return_list.html:79
 msgid "transactions"
-msgstr ""
+msgstr "zochitika"
 
 #: templates/pages/compliance/fcy_dashboard.html:127
 #: templates/pages/compliance/rbm_return_list.html:88
 #: templates/pages/property/maintenance_detail.html:86
 msgid "Submitted"
-msgstr ""
+msgstr "Zatumizidwa"
 
 #: templates/pages/compliance/fcy_dashboard.html:141
 msgid "No returns generated yet."
-msgstr ""
+msgstr "Palibe zobwerera zopangidwa."
 
 #: templates/pages/compliance/forex_rate_list.html:4
 #: templates/pages/compliance/forex_rate_list.html:13
 #: templates/partials/_header_tenant.html:126
 #: templates/partials/_header_tenant.html:252
 msgid "Forex Rates"
-msgstr ""
+msgstr "Mitengo ya Forex"
 
 #: templates/pages/compliance/forex_rate_list.html:17
 msgid "Cached exchange rates. Auto-refreshed every 6 hours."
-msgstr ""
+msgstr "Mitengo yosinthira ndalama yosungidwa. Imasinthidwa yokha maola 6 aliwonse."
 
 #: templates/pages/compliance/forex_rate_list.html:25
 msgid "Refresh Now"
-msgstr ""
+msgstr "Sinthani Tsopano"
 
 #: templates/pages/compliance/forex_rate_list.html:47
 msgid "No cached rate. Refresh to fetch."
-msgstr ""
+msgstr "Palibe mtengo wosungidwa. Sinthani kuti mutenge."
 
 #: templates/pages/compliance/forex_rate_list.html:57
 msgid "Rate History"
-msgstr ""
+msgstr "Mbiri ya Mitengo"
 
 #: templates/pages/compliance/forex_rate_list.html:65
 #: templates/pages/compliance/rbm_return_list.html:51
 msgid "All currencies"
-msgstr ""
+msgstr "Ndalama zonse"
 
 #: templates/pages/compliance/forex_rate_list.html:86
 msgid "Pair"
-msgstr ""
+msgstr "Awiri"
 
 #: templates/pages/compliance/forex_rate_list.html:87
 msgid "Rate"
-msgstr ""
+msgstr "Mlingo"
 
 #: templates/pages/compliance/forex_rate_list.html:88
 msgid "Source"
-msgstr ""
+msgstr "Gwero"
 
 #: templates/pages/compliance/forex_rate_list.html:89
 msgid "Effective From"
-msgstr ""
+msgstr "Kuyambira"
 
 #: templates/pages/compliance/forex_rate_list.html:90
 msgid "Effective To"
-msgstr ""
+msgstr "Kufikira"
 
 #: templates/pages/compliance/forex_rate_list.html:113
 #: templates/pages/documents/list.html:42
 #: templates/pages/documents/list.html:102
 msgid "Current"
-msgstr ""
+msgstr "Zapano"
 
 #: templates/pages/compliance/forex_rate_list.html:150
 msgid "No rates cached yet."
-msgstr ""
+msgstr "Palibe mitengo yosungidwa."
 
 #: templates/pages/compliance/levy_report.html:4
 #: templates/pages/compliance/levy_report.html:20
 msgid "Tourism Levy Report"
-msgstr ""
+msgstr "Lipoti la Msonkho wa Zokopa Alendo"
 
 #: templates/pages/compliance/levy_report.html:16
 msgid "Tourism & Hotels Act CAP 50:01"
-msgstr ""
+msgstr "Tourism & Hotels Act CAP 50:01"
 
 #: templates/pages/compliance/levy_report.html:24
 #, python-format
 msgid ""
 "1%% marketing levy per Tourism and Hotels Act CAP 50:01. Remit by the 12th "
 "of the following month."
-msgstr ""
+msgstr "1%% msonkho wa malonda malinga ndi Tourism and Hotels Act CAP 50:01. Tumizani pa 12 ya mwezi wotsatira."
 
 #: templates/pages/compliance/levy_report.html:37
 msgid "Mark All Remitted"
-msgstr ""
+msgstr "Lembani Zonse Zatumizidwa"
 
 #: templates/pages/compliance/levy_report.html:62
 msgid "View"
-msgstr ""
+msgstr "Onani"
 
 #: templates/pages/compliance/levy_report.html:70
 msgid "Summary by Property"
-msgstr ""
+msgstr "Chidule mwa Katundu"
 
 #: templates/pages/compliance/levy_report.html:78
 msgid "Room Charges"
-msgstr ""
+msgstr "Malipiro a Zipinda"
 
 #: templates/pages/compliance/levy_report.html:79
 #, python-format
 msgid "Levy (1%%)"
-msgstr ""
+msgstr "Msonkho (1%%)"
 
 #: templates/pages/compliance/levy_report.html:80
 msgid "Folios"
-msgstr ""
+msgstr "Ma Folio"
 
 #: templates/pages/compliance/levy_report.html:98
 msgid "No records for this month."
-msgstr ""
+msgstr "Palibe mbiri ya mwezi uno."
 
 #: templates/pages/compliance/levy_report.html:107
 msgid "Total Levy Due"
-msgstr ""
+msgstr "Msonkho Wonse Wofunika"
 
 #: templates/pages/compliance/levy_report.html:123
 msgid "Detailed Records"
-msgstr ""
+msgstr "Mbiri Zatsatanetsatane"
 
 #: templates/pages/compliance/levy_report.html:149
 msgid "Remitted"
-msgstr ""
+msgstr "Zatumizidwa"
 
 #: templates/pages/compliance/levy_report.html:160
 msgid "Mark Remitted"
-msgstr ""
+msgstr "Lembani Zatumizidwa"
 
 #: templates/pages/compliance/levy_report.html:171
 msgid "No levy records for this month."
-msgstr ""
+msgstr "Palibe mbiri ya msonkho ya mwezi uno."
 
 #: templates/pages/compliance/paychangu_transaction_list.html:4
 #: templates/pages/compliance/paychangu_transaction_list.html:12
 msgid "PayChangu Transactions"
-msgstr ""
+msgstr "Zochitika za PayChangu"
 
 #: templates/pages/compliance/paychangu_transaction_list.html:16
 msgid "Mobile money and card payments processed through PayChangu."
-msgstr ""
+msgstr "Malipiro a ndalama za foni ndi khadi opangidwa kudzera PayChangu."
 
 #: templates/pages/compliance/paychangu_transaction_list.html:24
 msgid "Today's Volume"
-msgstr ""
+msgstr "Kuchuluka kwa Lero"
 
 #: templates/pages/compliance/paychangu_transaction_list.html:32
 msgid "Today's Count"
-msgstr ""
+msgstr "Chiwerengero cha Lero"
 
 #: templates/pages/compliance/paychangu_transaction_list.html:44
 msgid "Charge ID, ref, phone, name…"
-msgstr ""
+msgstr "ID ya malipiro, ref, foni, dzina…"
 
 #: templates/pages/compliance/paychangu_transaction_list.html:55
 msgid "All methods"
-msgstr ""
+msgstr "Njira zonse"
 
 #: templates/pages/compliance/paychangu_transaction_list.html:138
 msgid "No transactions found."
-msgstr ""
+msgstr "Palibe zochitika zopezeka."
 
 #: templates/pages/compliance/rbm_return_list.html:17
 msgid "FCY Dashboard"
-msgstr ""
+msgstr "Tsamba la FCY"
 
 #: templates/pages/compliance/rbm_return_list.html:29
 msgid "Reserve Bank of Malawi monthly foreign currency returns."
-msgstr ""
+msgstr "Zobwerera za mwezi za ndalama zakunja za Reserve Bank of Malawi."
 
 #: templates/pages/compliance/rbm_return_list.html:38
 msgid "Generate Last Month"
-msgstr ""
+msgstr "Pangani Mwezi Watha"
 
 #: templates/pages/compliance/rbm_return_list.html:99
 msgid "Mark Submitted"
-msgstr ""
+msgstr "Lembani Zatumizidwa"
 
 #: templates/pages/compliance/rbm_return_list.html:140
 msgid "No RBM returns generated yet."
-msgstr ""
+msgstr "Palibe zobwerera za RBM zopangidwa."
 
 #: templates/pages/compliance/rbm_return_list.html:143
 msgid ""
 "Click 'Generate Last Month' to create returns from last month's transactions."
-msgstr ""
+msgstr "Dinani 'Pangani Mwezi Watha' kuti mupange zobwerera kuchokera ku zochitika za mwezi watha."
 
 #: templates/pages/documents/list.html:4 templates/pages/documents/list.html:14
 #: templates/partials/_header_tenant.html:100
 #: templates/partials/_header_tenant.html:242
 msgid "Documents"
-msgstr ""
+msgstr "Zolemba"
 
 #: templates/pages/documents/list.html:18
 msgid "Contracts, IDs, invoices, and property photos."
-msgstr ""
+msgstr "Makontrakitala, ma ID, ma invoice, ndi zithunzi za katundu."
 
 #: templates/pages/documents/list.html:28
 #: templates/pages/documents/upload.html:58
 #: templates/pages/documents/upload.html:78
 msgid "Upload"
-msgstr ""
+msgstr "Kwezani"
 
 #: templates/pages/documents/list.html:36 templates/pages/people/list.html:36
 #: templates/pages/property/maintenance_detail.html:136
 #: templates/pages/property/rent_invoice_detail.html:125
 msgid "Total"
-msgstr ""
+msgstr "Zonse"
 
 #: templates/pages/documents/list.html:56
 msgid "Search by title or notes…"
-msgstr ""
+msgstr "Sakani ndi mutu kapena zolemba…"
 
 #: templates/pages/documents/list.html:59
 #: templates/pages/properties/list.html:44
 msgid "All types"
-msgstr ""
+msgstr "Mitundu yonse"
 
 #: templates/pages/documents/list.html:73
 msgid "Current only"
-msgstr ""
+msgstr "Zapano zokha"
 
 #: templates/pages/documents/list.html:111
 msgid "Open"
-msgstr ""
+msgstr "Tsegulani"
 
 #: templates/pages/documents/list.html:151
 msgid "No documents yet"
-msgstr ""
+msgstr "Palibe zolemba"
 
 #: templates/pages/documents/list.html:154
 msgid "Upload lease agreements, IDs, and invoices here."
-msgstr ""
+msgstr "Kwezani makontrakitala a mgwirizano, ma ID, ndi ma invoice pano."
 
 #: templates/pages/documents/list.html:158
 #: templates/pages/documents/upload.html:4
 #: templates/pages/documents/upload.html:31
 msgid "Upload Document"
-msgstr ""
+msgstr "Kwezani Cholemba"
 
 #: templates/pages/documents/upload.html:17
 msgid "All documents"
-msgstr ""
+msgstr "Zolemba zonse"
 
 #: templates/pages/documents/upload.html:27
 msgid "New upload"
-msgstr ""
+msgstr "Kukweza kwatsopano"
 
 #: templates/pages/documents/upload.html:35
 msgid "Attach a file to a person, property, lease, or reservation."
-msgstr ""
+msgstr "Lumikizani fayilo ndi munthu, katundu, mgwirizano, kapena kusungitsa."
 
 #: templates/pages/health.html:5
 msgid "Health Check"
-msgstr ""
+msgstr "Kuyang'ana Thanzi"
 
 #: templates/pages/home.html:29 templates/pages/public_home.html:21
 msgid "Built for Malawi"
-msgstr ""
+msgstr "Zopangira Malawi"
 
 #: templates/pages/home.html:45 templates/pages/public_home.html:37
 msgid ""
 "Hotels, lodges, rentals, and properties for sale — all in one platform. MRA "
 "EIS compliant. Mobile money ready. Built to survive ESCOM outages."
-msgstr ""
+msgstr "Mahotela, maloji, nyumba zobwereka, ndi katundu wogulitsa — zonse pa nsanja imodzi. Zogwirizana ndi MRA EIS. Zokonzeka ndalama za foni. Zopangidwa kuti zipirire kusowa kwa magetsi kwa ESCOM."
 
 #: templates/pages/home.html:53 templates/pages/public_home.html:45
 msgid "Start free trial"
-msgstr ""
+msgstr "Yambani kuyesa kwaulere"
 
 #: templates/pages/home.html:63 templates/pages/public_home.html:55
 #: templates/pages/signup.html:108 templates/partials/_header_public.html:105
 #: templates/partials/_header_public.html:181
 msgid "Sign in"
-msgstr ""
+msgstr "Lowani"
 
 #: templates/pages/home.html:82 templates/pages/public_home.html:75
 #: templates/partials/_header_tenant.html:224
 msgid "Hospitality"
-msgstr ""
+msgstr "Zaulendo"
 
 #: templates/pages/home.html:84
 msgid "Reservations, check-in/out, housekeeping, folios, night audit."
-msgstr ""
+msgstr "Kusungitsa, kulowa/kutuluka, kuyeretsa, ma folio, kuyang'ana usiku."
 
 #: templates/pages/home.html:99
 msgid "Leases, rent invoicing, arrears tracking, maintenance, sales."
-msgstr ""
+msgstr "Migwirizano, ma invoice a renti, kufufuza ngongole, kukonza, kugulitsa."
 
 #: templates/pages/home.html:114
 msgid "MRA EIS, PayChangu, Tourism Levy, RBM returns."
-msgstr ""
+msgstr "MRA EIS, PayChangu, Msonkho wa Zokopa Alendo, zobwerera za RBM."
 
 #: templates/pages/home.html:127 templates/pages/public_home.html:120
 msgid "Mobile money"
-msgstr ""
+msgstr "Ndalama za foni"
 
 #: templates/pages/home.html:129
 msgid "Airtel Money, TNM Mpamba, and cards via PayChangu."
-msgstr ""
+msgstr "Airtel Money, TNM Mpamba, ndi makhadi kudzera PayChangu."
 
 #: templates/pages/home.html:142 templates/pages/public_home.html:135
 msgid "Offline-ready"
-msgstr ""
+msgstr "Zokonzeka popanda intaneti"
 
 #: templates/pages/home.html:144 templates/pages/public_home.html:137
 msgid "Keeps working during ESCOM outages with PWA and auto-sync."
-msgstr ""
+msgstr "Imagwirabe ntchito nthawi yosowa magetsi kwa ESCOM ndi PWA ndi kulumikiza kokha."
 
 #: templates/pages/home.html:157 templates/pages/public_home.html:150
 msgid "Multi-currency"
-msgstr ""
+msgstr "Ndalama zambiri"
 
 #: templates/pages/home.html:159 templates/pages/public_home.html:152
 msgid "MWK, USD, and EUR billing with FX rate locking."
-msgstr ""
+msgstr "Kulipira kwa MWK, USD, ndi EUR ndi kukhazikitsa mtengo wa FX."
 
 #: templates/pages/home.html:166
 msgid "Trusted by hotels, lodges, and property managers across Malawi."
-msgstr ""
+msgstr "Zodalirika ndi mahotela, maloji, ndi oyang'anira katundu ku Malawi konse."
 
 #: templates/pages/home.html:190
 msgid "Staff workspace"
-msgstr ""
+msgstr "Malo antchito"
 
 #: templates/pages/home.html:195 templates/pages/home.html:199
 #, python-format
@@ -1030,25 +1028,29 @@ msgid ""
 "x\">%(name)s</span>\n"
 "      "
 msgstr ""
+"\n"
+"      Takulandirani, <span class=\"text-gradient animate-gradient-"
+"x\">%(name)s</span>\n"
+"      "
 
 #: templates/pages/home.html:207
 msgid "Quick access to your daily tools."
-msgstr ""
+msgstr "Kufikira mwachangu zida zanu za tsiku ndi tsiku."
 
 #: templates/pages/home.html:214
 msgid "Daily Operations"
-msgstr ""
+msgstr "Ntchito za Tsiku ndi Tsiku"
 
 #: templates/pages/home.html:230 templates/pages/hospitality/front_desk.html:4
 #: templates/pages/hospitality/front_desk.html:14
 #: templates/partials/_header_tenant.html:47
 #: templates/partials/_header_tenant.html:225
 msgid "Front Desk"
-msgstr ""
+msgstr "Desiki Lakutsogolo"
 
 #: templates/pages/home.html:232
 msgid "Arrivals, departures, in-house guests"
-msgstr ""
+msgstr "Obwera, onyamuka, alendo mkati"
 
 #: templates/pages/home.html:250
 #: templates/pages/hospitality/reservation_list.html:4
@@ -1057,46 +1059,46 @@ msgstr ""
 #: templates/partials/_header_tenant.html:51
 #: templates/partials/_header_tenant.html:226
 msgid "Reservations"
-msgstr ""
+msgstr "Kusungitsa"
 
 #: templates/pages/home.html:252
 msgid "Search, create, edit bookings"
-msgstr ""
+msgstr "Sakani, pangani, sinthani zosungitsa"
 
 #: templates/pages/home.html:272 templates/partials/_header_tenant.html:55
 #: templates/partials/_header_tenant.html:227
 msgid "Housekeeping"
-msgstr ""
+msgstr "Kuyeretsa Nyumba"
 
 #: templates/pages/home.html:274
 msgid "Room cleaning and inspections"
-msgstr ""
+msgstr "Kuyeretsa zipinda ndi kuyang'ana"
 
 #: templates/pages/home.html:284 templates/partials/_header_public.html:24
 #: templates/partials/_header_tenant.html:29
 msgid "Property Management"
-msgstr ""
+msgstr "Kuyang'anira Katundu"
 
 #: templates/pages/home.html:301
 #: templates/pages/property/availability_dashboard.html:4
 #: templates/pages/property/availability_dashboard.html:23
 msgid "Property Dashboard"
-msgstr ""
+msgstr "Tsamba la Katundu"
 
 #: templates/pages/home.html:303
 msgid "Leases, arrears, sales pipeline"
-msgstr ""
+msgstr "Migwirizano, ngongole, njira ya kugulitsa"
 
 #: templates/pages/home.html:321 templates/pages/property/lease_list.html:4
 #: templates/pages/property/lease_list.html:12
 #: templates/partials/_header_tenant.html:75
 #: templates/partials/_header_tenant.html:233
 msgid "Leases"
-msgstr ""
+msgstr "Migwirizano"
 
 #: templates/pages/home.html:323
 msgid "Rental contracts and renewals"
-msgstr ""
+msgstr "Makontrakitala obwereka ndi kukonzanso"
 
 #: templates/pages/home.html:341
 #: templates/pages/property/rent_invoice_list.html:4
@@ -1104,115 +1106,115 @@ msgstr ""
 #: templates/partials/_header_tenant.html:76
 #: templates/partials/_header_tenant.html:234
 msgid "Rent Invoices"
-msgstr ""
+msgstr "Ma Invoice a Renti"
 
 #: templates/pages/home.html:343
 msgid "Monthly bills and payments"
-msgstr ""
+msgstr "Mabilu a mwezi ndi malipiro"
 
 #: templates/pages/home.html:353
 msgid "Compliance & Finance"
-msgstr ""
+msgstr "Kutsatira Malamulo & Zachuma"
 
 #: templates/pages/home.html:371
 msgid "MRA EIS, PayChangu, levy, forex"
-msgstr ""
+msgstr "MRA EIS, PayChangu, msonkho, forex"
 
 #: templates/pages/home.html:391
 msgid "Monthly remittance report"
-msgstr ""
+msgstr "Lipoti la kutumiza kwa mwezi"
 
 #: templates/pages/home.html:410 templates/partials/_header_public.html:65
 #: templates/partials/_header_public.html:164
 #: templates/partials/_header_tenant.html:258
 msgid "Admin Panel"
-msgstr ""
+msgstr "Gulu la Admin"
 
 #: templates/pages/home.html:412
 msgid "Full management interface"
-msgstr ""
+msgstr "Mawonekedwe onse oyang'anira"
 
 #: templates/pages/home.html:425
 msgid "View public property listings"
-msgstr ""
+msgstr "Onani mindandanda ya katundu wapagulu"
 
 #: templates/pages/home.html:449
 msgid "Now taking bookings"
-msgstr ""
+msgstr "Tsopano tikulandira zosungitsa"
 
 #: templates/pages/home.html:460
 msgid "Browse available rooms, chalets, apartments, and rental properties."
-msgstr ""
+msgstr "Yang'anani zipinda zilipo, ma chalet, ma apartment, ndi nyumba zobwereka."
 
 #: templates/pages/home.html:468
 msgid "Browse properties"
-msgstr ""
+msgstr "Yang'anani katundu"
 
 #: templates/pages/home.html:478
 msgid "Staff sign in"
-msgstr ""
+msgstr "Kulowa kwa antchito"
 
 #: templates/pages/hospitality/check_in.html:4
 #: templates/pages/hospitality/check_in.html:32
 #: templates/pages/hospitality/reservation_detail.html:55
 #: templates/partials/_front_desk_body.html:34
 msgid "Check In"
-msgstr ""
+msgstr "Kulowa"
 
 #: templates/pages/hospitality/check_in.html:18
 #: templates/pages/hospitality/check_out.html:17
 #: templates/pages/hospitality/folio_charge_form.html:17
 #: templates/pages/hospitality/folio_payment_form.html:17
 msgid "Back to reservation"
-msgstr ""
+msgstr "Bwererani ku kusungitsa"
 
 #: templates/pages/hospitality/check_in.html:48
 #: templates/pages/hospitality/reservation_detail.html:84
 msgid "Check-in"
-msgstr ""
+msgstr "Kulowa"
 
 #: templates/pages/hospitality/check_in.html:52
 #: templates/pages/hospitality/reservation_detail.html:88
 msgid "Check-out"
-msgstr ""
+msgstr "Kutuluka"
 
 #: templates/pages/hospitality/check_in.html:56
 #: templates/pages/hospitality/reservation_detail.html:96
 msgid "Guests"
-msgstr ""
+msgstr "Alendo"
 
 #: templates/pages/hospitality/check_in.html:58
 #: templates/pages/hospitality/reservation_detail.html:98
 #: templates/pages/properties/detail.html:111
 #: templates/partials/_front_desk_body.html:29
 msgid "adults"
-msgstr ""
+msgstr "akuluakulu"
 
 #: templates/pages/hospitality/check_in.html:59
 #: templates/pages/hospitality/reservation_detail.html:99
 #: templates/pages/properties/detail.html:112
 #: templates/partials/_front_desk_body.html:30
 msgid "children"
-msgstr ""
+msgstr "ana"
 
 #: templates/pages/hospitality/check_in.html:69
 msgid "Check-in saved offline. Will sync when online."
-msgstr ""
+msgstr "Kulowa kusungidwa popanda intaneti. Kudzalumikizidwa mukakhala pa intaneti."
 
 #: templates/pages/hospitality/check_in.html:92
 #: templates/pages/hospitality/check_in.html:114
 msgid "Confirm Check In"
-msgstr ""
+msgstr "Tsimikizani Kulowa"
 
 #: templates/pages/hospitality/check_out.html:4
 #: templates/pages/hospitality/check_out.html:26
 #: templates/pages/hospitality/reservation_detail.html:69
 msgid "Check Out"
-msgstr ""
+msgstr "Kutuluka"
 
 #: templates/pages/hospitality/check_out.html:44
 msgid "Folio Summary"
-msgstr ""
+msgstr "Chidule cha Folio"
 
 #: templates/pages/hospitality/check_out.html:72
 #: templates/pages/hospitality/reservation_detail.html:250
@@ -1220,13 +1222,13 @@ msgstr ""
 #: templates/pages/property/sales_agreement_detail.html:71
 #: templates/pages/property/sales_agreement_detail.html:114
 msgid "Balance"
-msgstr ""
+msgstr "Zotsala"
 
 #: templates/pages/hospitality/check_out.html:93
 msgid ""
 "This folio has an outstanding balance. Settle or write off before checking "
 "out."
-msgstr ""
+msgstr "Folio iyi ili ndi zotsala zomwe ziyenera kulipidwa. Lipirani kapena chotsani musanatuluke."
 
 #: templates/pages/hospitality/check_out.html:99
 #: templates/pages/hospitality/folio_payment_form.html:4
@@ -1240,320 +1242,320 @@ msgstr ""
 #: templates/pages/property/rent_payment_form.html:79
 #: templates/pages/property/rent_payment_form.html:98
 msgid "Record Payment"
-msgstr ""
+msgstr "Lembani Malipiro"
 
 #: templates/pages/hospitality/check_out.html:112
 msgid "Check-out saved offline. Will sync when online."
-msgstr ""
+msgstr "Kutuluka kusungidwa popanda intaneti. Kudzalumikizidwa mukakhala pa intaneti."
 
 #: templates/pages/hospitality/check_out.html:119
 msgid "Checking out will mark the room for housekeeping and close the folio."
-msgstr ""
+msgstr "Kutuluka kudzawonetsa chipinda kuti chiyeretsedwe ndi kutseka folio."
 
 #: templates/pages/hospitality/check_out.html:131
 msgid "Confirm Check Out"
-msgstr ""
+msgstr "Tsimikizani Kutuluka"
 
 #: templates/pages/hospitality/folio_charge_form.html:4
 #: templates/pages/hospitality/folio_charge_form.html:31
 #: templates/pages/hospitality/folio_charge_form.html:84
 #: templates/pages/hospitality/folio_charge_form.html:104
 msgid "Post Charge"
-msgstr ""
+msgstr "Onjezani Malipiro"
 
 #: templates/pages/hospitality/folio_charge_form.html:27
 msgid "Folio Charge"
-msgstr ""
+msgstr "Malipiro a Folio"
 
 #: templates/pages/hospitality/folio_charge_form.html:45
 msgid "Current balance"
-msgstr ""
+msgstr "Zotsala zapano"
 
 #: templates/pages/hospitality/folio_charge_form.html:60
 msgid "Charge saved offline. Will sync when online."
-msgstr ""
+msgstr "Malipiro asungidwa popanda intaneti. Adzalumikizidwa mukakhala pa intaneti."
 
 #: templates/pages/hospitality/folio_payment_form.html:27
 msgid "Folio Payment"
-msgstr ""
+msgstr "Malipiro a Folio"
 
 #: templates/pages/hospitality/folio_payment_form.html:47
 #: templates/pages/property/rent_payment_form.html:45
 msgid "Outstanding balance"
-msgstr ""
+msgstr "Zotsala zofunika"
 
 #: templates/pages/hospitality/folio_payment_form.html:63
 msgid "Payment saved offline. Will sync when online."
-msgstr ""
+msgstr "Malipiro asungidwa popanda intaneti. Adzalumikizidwa mukakhala pa intaneti."
 
 #: templates/pages/hospitality/front_desk.html:33
 msgid "Live"
-msgstr ""
+msgstr "Pompopo"
 
 #: templates/pages/hospitality/front_desk.html:43
 msgid "Walk-in"
-msgstr ""
+msgstr "Wobwera yekha"
 
 #: templates/pages/hospitality/front_desk.html:88
 msgid "Payment received"
-msgstr ""
+msgstr "Malipiro alandiridwa"
 
 #: templates/pages/hospitality/front_desk.html:94
 msgid "New reservation"
-msgstr ""
+msgstr "Kusungitsa kwatsopano"
 
 #: templates/pages/hospitality/front_desk.html:100
 msgid "Charge posted"
-msgstr ""
+msgstr "Malipiro alembedwa"
 
 #: templates/pages/hospitality/reservation_detail.html:18
 #: templates/pages/hospitality/reservation_form.html:20
 msgid "All reservations"
-msgstr ""
+msgstr "Kusungitsa konse"
 
 #: templates/pages/hospitality/reservation_detail.html:62
 #: templates/pages/people/detail.html:42
 #: templates/pages/platform/tenant_detail.html:61
 #: templates/pages/property/lease_detail.html:62
 msgid "Edit"
-msgstr ""
+msgstr "Sinthani"
 
 #: templates/pages/hospitality/reservation_detail.html:80
 msgid "Stay"
-msgstr ""
+msgstr "Kukhala"
 
 #: templates/pages/hospitality/reservation_detail.html:92
 msgid "Nights"
-msgstr ""
+msgstr "Mausiku"
 
 #: templates/pages/hospitality/reservation_detail.html:104
 msgid "Rate plan"
-msgstr ""
+msgstr "Dongosolo la mitengo"
 
 #: templates/pages/hospitality/reservation_detail.html:113
 msgid "Guest"
-msgstr ""
+msgstr "Mlendo"
 
 #: templates/pages/hospitality/reservation_detail.html:117
 #: templates/pages/platform/tenant_detail.html:146
 msgid "Name"
-msgstr ""
+msgstr "Dzina"
 
 #: templates/pages/hospitality/reservation_detail.html:121
 #: templates/pages/platform/tenant_detail.html:154
 msgid "Phone"
-msgstr ""
+msgstr "Foni"
 
 #: templates/pages/hospitality/reservation_detail.html:126
 #: templates/pages/people/detail.html:86
 #: templates/pages/platform/tenant_detail.html:150
 msgid "Email"
-msgstr ""
+msgstr "Imelo"
 
 #: templates/pages/hospitality/reservation_detail.html:132
 msgid "ID"
-msgstr ""
+msgstr "ID"
 
 #: templates/pages/hospitality/reservation_detail.html:144
 msgid "Assigned Rooms"
-msgstr ""
+msgstr "Zipinda Zoperekedwa"
 
 #: templates/pages/hospitality/reservation_detail.html:154
 #: templates/pages/properties/detail.html:135
 #: templates/partials/_unit_detail.html:66
 msgid "night"
-msgstr ""
+msgstr "usiku"
 
 #: templates/pages/hospitality/reservation_detail.html:159
 msgid "In"
-msgstr ""
+msgstr "Kulowa"
 
 #: templates/pages/hospitality/reservation_detail.html:172
 msgid "Special Requests"
-msgstr ""
+msgstr "Zopempha Zapadera"
 
 #: templates/pages/hospitality/reservation_detail.html:185
 msgid "Folio"
-msgstr ""
+msgstr "Folio"
 
 #: templates/pages/hospitality/reservation_detail.html:195
 msgid "Post charge"
-msgstr ""
+msgstr "Onjezani malipiro"
 
 #: templates/pages/hospitality/reservation_detail.html:206
 #: templates/pages/property/rent_invoice_detail.html:107
 #: templates/pages/property/sales_agreement_detail.html:112
 msgid "Amount"
-msgstr ""
+msgstr "Kuchuluka"
 
 #: templates/pages/hospitality/reservation_detail.html:225
 msgid "No charges posted yet."
-msgstr ""
+msgstr "Palibe malipiro omwe alembedwa."
 
 #: templates/pages/hospitality/reservation_detail.html:233
 #: templates/pages/property/rent_invoice_detail.html:143
 msgid "Payments"
-msgstr ""
+msgstr "Malipiro"
 
 #: templates/pages/hospitality/reservation_form.html:5
 #: templates/pages/hospitality/reservation_form.html:40
 msgid "Edit Reservation"
-msgstr ""
+msgstr "Sinthani Kusungitsa"
 
 #: templates/pages/hospitality/reservation_form.html:5
 #: templates/pages/hospitality/reservation_form.html:42
 msgid "New Reservation"
-msgstr ""
+msgstr "Kusungitsa Kwatsopano"
 
 #: templates/pages/hospitality/reservation_form.html:32
 #: templates/pages/people/form.html:31
 #: templates/pages/platform/tenant_form.html:31
 #: templates/pages/property/lease_form.html:29
 msgid "Editing"
-msgstr ""
+msgstr "Mukusintha"
 
 #: templates/pages/hospitality/reservation_form.html:34
 msgid "New booking"
-msgstr ""
+msgstr "Kusungitsa kwatsopano"
 
 #: templates/pages/hospitality/reservation_form.html:47
 #: templates/pages/people/form.html:39
 #: templates/pages/property/lease_form.html:37
 msgid "Fields marked with"
-msgstr ""
+msgstr "Minda yolembedwa ndi"
 
 #: templates/pages/hospitality/reservation_form.html:48
 #: templates/pages/people/form.html:40
 #: templates/pages/property/lease_form.html:38
 msgid "are required."
-msgstr ""
+msgstr "ndi yofunika."
 
 #: templates/pages/hospitality/reservation_form.html:64
 msgid "Reservation saved offline. Will sync when online."
-msgstr ""
+msgstr "Kusungitsa kusungidwa popanda intaneti. Kudzalumikizidwa mukakhala pa intaneti."
 
 #: templates/pages/hospitality/reservation_form.html:74
 #: templates/pages/hospitality/reservation_form.html:77
 msgid "Guest & Property"
-msgstr ""
+msgstr "Mlendo & Katundu"
 
 #: templates/pages/hospitality/reservation_form.html:87
 #: templates/pages/hospitality/reservation_form.html:90
 msgid "Stay Dates"
-msgstr ""
+msgstr "Masiku Okhala"
 
 #: templates/pages/hospitality/reservation_form.html:100
 #: templates/pages/hospitality/reservation_form.html:103
 msgid "Guests & Source"
-msgstr ""
+msgstr "Alendo & Gwero"
 
 #: templates/pages/hospitality/reservation_form.html:114
 #: templates/pages/hospitality/reservation_form.html:117
 msgid "Rate & Notes"
-msgstr ""
+msgstr "Mtengo & Zolemba"
 
 #: templates/pages/hospitality/reservation_form.html:131
 msgid "Save Reservation"
-msgstr ""
+msgstr "Sungani Kusungitsa"
 
 #: templates/pages/hospitality/reservation_form.html:151
 #: templates/pages/people/form.html:131
 #: templates/pages/platform/tenant_form.html:125
 #: templates/pages/property/lease_form.html:141
 msgid "Save"
-msgstr ""
+msgstr "Sungani"
 
 #: templates/pages/hospitality/reservation_list.html:22
 msgid "New"
-msgstr ""
+msgstr "Watsopano"
 
 #: templates/pages/hospitality/reservation_list.html:32
 msgid "Reservation #, guest name, or phone…"
-msgstr ""
+msgstr "Nambala ya kusungitsa, dzina la mlendo, kapena foni…"
 
 #: templates/pages/hospitality/reservation_list.html:115
 msgid "No reservations found."
-msgstr ""
+msgstr "Palibe kusungitsa kopezeka."
 
 #: templates/pages/hospitality/task_list.html:4
 #: templates/pages/hospitality/task_list.html:13
 msgid "My Tasks"
-msgstr ""
+msgstr "Ntchito Zanga"
 
 #: templates/pages/hospitality/task_list.html:17
 msgid "done today"
-msgstr ""
+msgstr "zachitika lero"
 
 #: templates/pages/hospitality/task_list.html:56
 msgid "Task start saved offline. Will sync when online."
-msgstr ""
+msgstr "Kuyamba kwa ntchito kusungidwa popanda intaneti. Kudzalumikizidwa mukakhala pa intaneti."
 
 #: templates/pages/hospitality/task_list.html:66
 #: templates/pages/property/lease_detail.html:88
 msgid "Start"
-msgstr ""
+msgstr "Yambani"
 
 #: templates/pages/hospitality/task_list.html:74
 msgid "Mark-clean saved offline. Will sync when online."
-msgstr ""
+msgstr "Kulemba kuyeretsa kusungidwa popanda intaneti. Kudzalumikizidwa mukakhala pa intaneti."
 
 #: templates/pages/hospitality/task_list.html:86
 msgid "Mark Clean"
-msgstr ""
+msgstr "Lembani Zoyeretsedwa"
 
 #: templates/pages/hospitality/task_list.html:94
 msgid "Inspection saved offline. Will sync when online."
-msgstr ""
+msgstr "Kuyang'ana kusungidwa popanda intaneti. Kudzalumikizidwa mukakhala pa intaneti."
 
 #: templates/pages/hospitality/task_list.html:107
 msgid "Inspect"
-msgstr ""
+msgstr "Yang'anani"
 
 #: templates/pages/hospitality/task_list.html:124
 msgid "No tasks assigned. Great work!"
-msgstr ""
+msgstr "Palibe ntchito zoperekedwa. Ntchito yabwino!"
 
 #: templates/pages/offline.html:4
 msgid "Offline"
-msgstr ""
+msgstr "Popanda intaneti"
 
 #: templates/pages/offline.html:24
 msgid "You're offline"
-msgstr ""
+msgstr "Muli popanda intaneti"
 
 #: templates/pages/offline.html:28
 msgid ""
 "Pritech PMS is running in offline mode. Your changes are saved locally and "
 "will sync automatically when the connection returns."
-msgstr ""
+msgstr "Pritech PMS ikugwira ntchito popanda intaneti. Zosintha zanu zasungidwa m'deralo ndipo zidzalumikizidwa zokha mukakhala ndi intaneti."
 
 #: templates/pages/offline.html:35
 msgid "Pending changes"
-msgstr ""
+msgstr "Zosintha zikudikira"
 
 #: templates/pages/offline.html:45
 msgid "What's waiting to sync"
-msgstr ""
+msgstr "Zomwe zikudikira kulumikizidwa"
 
 #: templates/pages/offline.html:54
 msgid "Try again"
-msgstr ""
+msgstr "Yesaninso"
 
 #: templates/pages/offline.html:58
 msgid "Your data is safe. Reconnect to sync."
-msgstr ""
+msgstr "Deta yanu ndi yotetezeka. Lumikizaninso kuti musinthane."
 
 #: templates/pages/people/detail.html:17 templates/pages/people/form.html:20
 msgid "All people"
-msgstr ""
+msgstr "Anthu onse"
 
 #: templates/pages/people/detail.html:28 templates/pages/people/list.html:42
 msgid "Blacklisted"
-msgstr ""
+msgstr "Olembedwa pamndandanda wakuda"
 
 #: templates/pages/people/detail.html:57
 msgid "This person is blacklisted"
-msgstr ""
+msgstr "Munthu uyu ali pamndandanda wakuda"
 
 #: templates/pages/people/detail.html:71 templates/pages/people/form.html:73
 #: templates/pages/people/form.html:76
@@ -1562,124 +1564,124 @@ msgstr ""
 #: templates/pages/platform/tenant_form.html:89
 #: templates/pages/properties/detail.html:56
 msgid "Contact"
-msgstr ""
+msgstr "Kulumikizana"
 
 #: templates/pages/people/detail.html:75
 msgid "Primary phone"
-msgstr ""
+msgstr "Foni yoyamba"
 
 #: templates/pages/people/detail.html:80
 msgid "Secondary phone"
-msgstr ""
+msgstr "Foni yachiwiri"
 
 #: templates/pages/people/detail.html:92
 msgid "Address"
-msgstr ""
+msgstr "Adiresi"
 
 #: templates/pages/people/detail.html:98
 msgid "District"
-msgstr ""
+msgstr "Boma"
 
 #: templates/pages/people/detail.html:108 templates/pages/people/form.html:55
 #: templates/pages/people/form.html:58
 #: templates/pages/platform/tenant_form.html:58
 #: templates/pages/platform/tenant_form.html:61
 msgid "Identity"
-msgstr ""
+msgstr "Chizindikiritso"
 
 #: templates/pages/people/detail.html:113
 msgid "ID type"
-msgstr ""
+msgstr "Mtundu wa ID"
 
 #: templates/pages/people/detail.html:119
 msgid "ID number"
-msgstr ""
+msgstr "Nambala ya ID"
 
 #: templates/pages/people/detail.html:125
 msgid "Date of birth"
-msgstr ""
+msgstr "Tsiku lobadwa"
 
 #: templates/pages/people/detail.html:130
 msgid "Nationality"
-msgstr ""
+msgstr "Dziko"
 
 #: templates/pages/people/detail.html:134
 msgid "Added"
-msgstr ""
+msgstr "Zonjezedwa"
 
 #: templates/pages/people/detail.html:144
 msgid "Property Roles"
-msgstr ""
+msgstr "Maudindo a Katundu"
 
 #: templates/pages/people/detail.html:157
 msgid "since"
-msgstr ""
+msgstr "kuyambira"
 
 #: templates/pages/people/detail.html:158
 #: templates/partials/_front_desk_body.html:124
 msgid "until"
-msgstr ""
+msgstr "mpaka"
 
 #: templates/pages/people/detail.html:164
 msgid "Inactive"
-msgstr ""
+msgstr "Sagwira"
 
 #: templates/pages/people/detail.html:172
 msgid "No property roles assigned yet."
-msgstr ""
+msgstr "Palibe maudindo a katundu operekedwa."
 
 #: templates/pages/people/form.html:5 templates/pages/people/form.html:35
 msgid "Edit Person"
-msgstr ""
+msgstr "Sinthani Munthu"
 
 #: templates/pages/people/form.html:5 templates/pages/people/form.html:35
 #: templates/pages/people/list.html:28 templates/pages/people/list.html:166
 msgid "New Person"
-msgstr ""
+msgstr "Munthu Watsopano"
 
 #: templates/pages/people/form.html:31
 msgid "Registration"
-msgstr ""
+msgstr "Kulembetsa"
 
 #: templates/pages/people/form.html:94 templates/pages/people/form.html:97
 msgid "Risk"
-msgstr ""
+msgstr "Chiwopsezo"
 
 #: templates/pages/people/form.html:111
 #: templates/pages/platform/tenant_form.html:105
 msgid "Save Changes"
-msgstr ""
+msgstr "Sungani Zosintha"
 
 #: templates/pages/people/form.html:111
 msgid "Register Person"
-msgstr ""
+msgstr "Lembetsani Munthu"
 
 #: templates/pages/people/form.html:131
 msgid "Register"
-msgstr ""
+msgstr "Lembetsani"
 
 #: templates/pages/people/list.html:4 templates/pages/people/list.html:14
 #: templates/pages/platform/tenant_detail.html:105
 #: templates/partials/_header_tenant.html:99
 #: templates/partials/_header_tenant.html:241
 msgid "People"
-msgstr ""
+msgstr "Anthu"
 
 #: templates/pages/people/list.html:18
 msgid "Guests, tenants, buyers, landlords, and staff."
-msgstr ""
+msgstr "Alendo, obwereka, ogula, eni nyumba, ndi antchito."
 
 #: templates/pages/people/list.html:58
 msgid "Name, phone, email, or ID…"
-msgstr ""
+msgstr "Dzina, foni, imelo, kapena ID…"
 
 #: templates/pages/people/list.html:61
 msgid "All nationalities"
-msgstr ""
+msgstr "Madziko onse"
 
 #: templates/pages/people/list.html:75
 msgid "Blacklisted only"
-msgstr ""
+msgstr "Olembedwa pamndandanda wakuda okha"
 
 #: templates/pages/people/list.html:115
 msgid ""
@@ -1691,39 +1693,45 @@ msgid_plural ""
 "          roles\n"
 "          "
 msgstr[0] ""
+"\n"
+"          udindo\n"
+"          "
 msgstr[1] ""
+"\n"
+"          maudindo\n"
+"          "
 
 #: templates/pages/people/list.html:159
 msgid "No people found"
-msgstr ""
+msgstr "Palibe anthu opezeka"
 
 #: templates/pages/people/list.html:162
 msgid "Register your first guest, tenant, or buyer."
-msgstr ""
+msgstr "Lembetsani mlendo, wobwereka, kapena wogula wanu woyamba."
 
 #: templates/pages/platform/tenant_detail.html:17
 #: templates/pages/platform/tenant_form.html:20
 msgid "All tenants"
-msgstr ""
+msgstr "Obwereka onse"
 
 #: templates/pages/platform/tenant_detail.html:44
 #: templates/pages/platform/tenant_list.html:55
 #: templates/pages/platform/tenant_list.html:77
 #: templates/pages/platform/tenant_list.html:120
 msgid "Suspended"
-msgstr ""
+msgstr "Zoyimitsidwa"
 
 #: templates/pages/platform/tenant_detail.html:49
 msgid "Trial"
-msgstr ""
+msgstr "Kuyesa"
 
 #: templates/pages/platform/tenant_detail.html:71
 msgid "Suspend"
-msgstr ""
+msgstr "Yimitsani"
 
 #: templates/pages/platform/tenant_detail.html:81
 msgid "Reactivate"
-msgstr ""
+msgstr "Yambitsaninso"
 
 #: templates/pages/platform/tenant_detail.html:93
 #: templates/pages/properties/list.html:4
@@ -1731,74 +1739,74 @@ msgstr ""
 #: templates/partials/_header_tenant.html:39
 #: templates/partials/_header_tenant.html:219
 msgid "Properties"
-msgstr ""
+msgstr "Katundu"
 
 #: templates/pages/platform/tenant_detail.html:99
 msgid "Units"
-msgstr ""
+msgstr "Mayunitsi"
 
 #: templates/pages/platform/tenant_detail.html:117
 msgid "Active Leases"
-msgstr ""
+msgstr "Migwirizano Yogwira"
 
 #: templates/pages/platform/tenant_detail.html:132
 msgid "Could not load tenant stats:"
-msgstr ""
+msgstr "Sitinathe kutsegula ziwerengero za wobwereka:"
 
 #: templates/pages/platform/tenant_detail.html:163
 msgid "Subscription"
-msgstr ""
+msgstr "Kulembetsa"
 
 #: templates/pages/platform/tenant_detail.html:167
 msgid "Plan"
-msgstr ""
+msgstr "Dongosolo"
 
 #: templates/pages/platform/tenant_detail.html:171
 msgid "On trial"
-msgstr ""
+msgstr "Pa kuyesa"
 
 #: templates/pages/platform/tenant_detail.html:173
 msgid "Yes"
-msgstr ""
+msgstr "Inde"
 
 #: templates/pages/platform/tenant_detail.html:173
 msgid "No"
-msgstr ""
+msgstr "Ayi"
 
 #: templates/pages/platform/tenant_detail.html:177
 msgid "Paid until"
-msgstr ""
+msgstr "Zolipidwa mpaka"
 
 #: templates/pages/platform/tenant_detail.html:191
 msgid "Domains"
-msgstr ""
+msgstr "Madomeni"
 
 #: templates/pages/platform/tenant_detail.html:200
 msgid "Primary"
-msgstr ""
+msgstr "Yoyamba"
 
 #: templates/pages/platform/tenant_detail.html:213
 msgid "Danger Zone"
-msgstr ""
+msgstr "Malo Oopsa"
 
 #: templates/pages/platform/tenant_detail.html:216
 msgid ""
 "Permanently delete this tenant and drop their entire schema. This action "
 "cannot be undone."
-msgstr ""
+msgstr "Chotsani wobwereka uyu kwathunthu ndi kuchotsa schema yake yonse. Izi sizingabwezedwe."
 
 #: templates/pages/platform/tenant_detail.html:221
 msgid "Type the tenant name to confirm:"
-msgstr ""
+msgstr "Lembani dzina la wobwereka kutsimikizira:"
 
 #: templates/pages/platform/tenant_detail.html:231
 msgid "Permanently Delete Tenant"
-msgstr ""
+msgstr "Chotsani Wobwereka Kwathunthu"
 
 #: templates/pages/platform/tenant_form.html:5
 #: templates/pages/platform/tenant_form.html:35
 msgid "Edit Tenant"
-msgstr ""
+msgstr "Sinthani Wobwereka"
 
 #: templates/pages/platform/tenant_form.html:5
 #: templates/pages/platform/tenant_form.html:35
@@ -1806,97 +1814,97 @@ msgstr ""
 #: templates/partials/_header_public.html:62
 #: templates/partials/_header_public.html:161
 msgid "New Tenant"
-msgstr ""
+msgstr "Wobwereka Watsopano"
 
 #: templates/pages/platform/tenant_form.html:31
 msgid "Provisioning"
-msgstr ""
+msgstr "Kukonza"
 
 #: templates/pages/platform/tenant_form.html:40
 msgid "Update tenant metadata and subscription details."
-msgstr ""
+msgstr "Sinthani metadata ya wobwereka ndi zambiri za kulembetsa."
 
 #: templates/pages/platform/tenant_form.html:42
 msgid ""
 "Provision a new tenant workspace with its own database schema and subdomain."
-msgstr ""
+msgstr "Konzani malo atsopano a wobwereka ndi schema yake ya database ndi subdomain."
 
 #: templates/pages/platform/tenant_form.html:105
 msgid "Provision Tenant"
-msgstr ""
+msgstr "Konzani Wobwereka"
 
 #: templates/pages/platform/tenant_form.html:125
 msgid "Provision"
-msgstr ""
+msgstr "Konzani"
 
 #: templates/pages/platform/tenant_list.html:4
 #: templates/pages/platform/tenant_list.html:25
 #: templates/partials/_header_public.html:59
 #: templates/partials/_header_public.html:158
 msgid "Tenants"
-msgstr ""
+msgstr "Obwereka"
 
 #: templates/pages/platform/tenant_list.html:21
 msgid "Platform admin"
-msgstr ""
+msgstr "Admin wa nsanja"
 
 #: templates/pages/platform/tenant_list.html:29
 msgid "Manage all client workspaces on the platform."
-msgstr ""
+msgstr "Yang'anirani malo onse a makasitomala pa nsanja."
 
 #: templates/pages/platform/tenant_list.html:69
 msgid "Search by name, subdomain, or email…"
-msgstr ""
+msgstr "Sakani ndi dzina, subdomain, kapena imelo…"
 
 #: templates/pages/platform/tenant_list.html:81
 msgid "All plans"
-msgstr ""
+msgstr "Madongosolo onse"
 
 #: templates/pages/platform/tenant_list.html:112
 msgid "created"
-msgstr ""
+msgstr "zapangidwa"
 
 #: templates/pages/platform/tenant_list.html:159
 msgid "No tenants found."
-msgstr ""
+msgstr "Palibe obwereka opezeka."
 
 #: templates/pages/properties/detail.html:18
 msgid "All properties"
-msgstr ""
+msgstr "Katundu wonse"
 
 #: templates/pages/properties/detail.html:31
 msgid "Region"
-msgstr ""
+msgstr "Chigawo"
 
 #: templates/pages/properties/detail.html:38
 #: templates/pages/properties/list.html:124
 msgid "available"
-msgstr ""
+msgstr "zilipo"
 
 #: templates/pages/properties/detail.html:46
 msgid "About this property"
-msgstr ""
+msgstr "Za katundu uyu"
 
 #: templates/pages/properties/detail.html:90
 msgid "Available units"
-msgstr ""
+msgstr "Mayunitsi alipo"
 
 #: templates/pages/properties/detail.html:104
 msgid "Available"
-msgstr ""
+msgstr "Zilipo"
 
 #: templates/pages/properties/detail.html:109
 msgid "Capacity"
-msgstr ""
+msgstr "Kuchuluka kwa anthu"
 
 #: templates/pages/properties/detail.html:116
 #: templates/partials/_unit_detail.html:39
 msgid "Beds"
-msgstr ""
+msgstr "Mabedi"
 
 #: templates/pages/properties/detail.html:150
 msgid "No units are currently available. Check back later."
-msgstr ""
+msgstr "Palibe mayunitsi alipo pakadali pano. Bweraninso nthawi ina."
 
 #: templates/pages/properties/detail.html:162
 #, python-format
@@ -1909,880 +1917,9 @@ msgid_plural ""
 "      %(count)s other units\n"
 "      "
 msgstr[0] ""
+"\n"
+"      %(count)s yuniti ina\n"
+"      "
 msgstr[1] ""
-
-#: templates/pages/properties/list.html:17
-#, python-format
-msgid ""
 "\n"
-"      %(count)s property available\n"
-"      "
-msgid_plural ""
-"\n"
-"      %(count)s properties available\n"
-"      "
-msgstr[0] ""
-msgstr[1] ""
-
-#: templates/pages/properties/list.html:38
-msgid "Search by name, district, or description…"
-msgstr ""
-
-#: templates/pages/properties/list.html:53
-msgid "All regions"
-msgstr ""
-
-#: templates/pages/properties/list.html:62
-msgid "All districts"
-msgstr ""
-
-#: templates/pages/properties/list.html:73
-msgid "Search"
-msgstr ""
-
-#: templates/pages/properties/list.html:80
-msgid "Clear"
-msgstr ""
-
-#: templates/pages/properties/list.html:151
-#, python-format
-msgid ""
-"\n"
-"      Page %(num)s of %(total)s\n"
-"      "
-msgstr ""
-
-#: templates/pages/properties/list.html:175
-msgid "No properties found"
-msgstr ""
-
-#: templates/pages/properties/list.html:179
-msgid "Try adjusting your search or filters."
-msgstr ""
-
-#: templates/pages/properties/list.html:181
-msgid "Check back soon — properties are being added."
-msgstr ""
-
-#: templates/pages/property/availability_dashboard.html:19
-msgid "Live overview"
-msgstr ""
-
-#: templates/pages/property/availability_dashboard.html:34
-msgid "Units by Status"
-msgstr ""
-
-#: templates/pages/property/availability_dashboard.html:51
-msgid "No units registered."
-msgstr ""
-
-#: templates/pages/property/availability_dashboard.html:64
-msgid "Expiring Leases"
-msgstr ""
-
-#: templates/pages/property/availability_dashboard.html:66
-msgid "next 90 days"
-msgstr ""
-
-#: templates/pages/property/availability_dashboard.html:90
-msgid "month"
-msgstr ""
-
-#: templates/pages/property/availability_dashboard.html:99
-msgid "No leases expiring in the next 90 days."
-msgstr ""
-
-#: templates/pages/property/availability_dashboard.html:112
-msgid "Rent Arrears"
-msgstr ""
-
-#: templates/pages/property/availability_dashboard.html:131
-#: templates/pages/property/lease_detail.html:201
-#: templates/pages/property/rent_invoice_list.html:53
-msgid "due"
-msgstr ""
-
-#: templates/pages/property/availability_dashboard.html:139
-#: templates/pages/property/rent_invoice_detail.html:42
-msgid "days overdue"
-msgstr ""
-
-#: templates/pages/property/availability_dashboard.html:148
-msgid "No arrears. All rent collected."
-msgstr ""
-
-#: templates/pages/property/availability_dashboard.html:161
-msgid "Sales Pipeline"
-msgstr ""
-
-#: templates/pages/property/availability_dashboard.html:192
-msgid "No active sale listings."
-msgstr ""
-
-#: templates/pages/property/lease_detail.html:17
-#: templates/pages/property/lease_form.html:19
-msgid "All leases"
-msgstr ""
-
-#: templates/pages/property/lease_detail.html:54
-msgid "Activate"
-msgstr ""
-
-#: templates/pages/property/lease_detail.html:68
-#: templates/pages/property/lease_renew.html:92
-msgid "Renew"
-msgstr ""
-
-#: templates/pages/property/lease_detail.html:74
-#: templates/pages/property/lease_terminate.html:86
-msgid "Terminate"
-msgstr ""
-
-#: templates/pages/property/lease_detail.html:84
-#: templates/pages/property/lease_form.html:65
-#: templates/pages/property/lease_form.html:67
-msgid "Term"
-msgstr ""
-
-#: templates/pages/property/lease_detail.html:92
-msgid "End"
-msgstr ""
-
-#: templates/pages/property/lease_detail.html:97
-msgid "Rent-free until"
-msgstr ""
-
-#: templates/pages/property/lease_detail.html:102
-msgid "Due day"
-msgstr ""
-
-#: templates/pages/property/lease_detail.html:107
-#: templates/pages/property/lease_renew.html:56
-msgid "Escalation"
-msgstr ""
-
-#: templates/pages/property/lease_detail.html:108
-msgid "year"
-msgstr ""
-
-#: templates/pages/property/lease_detail.html:116
-msgid "Financials"
-msgstr ""
-
-#: templates/pages/property/lease_detail.html:120
-#: templates/pages/property/lease_form.html:79
-#: templates/pages/property/lease_form.html:81
-msgid "Rent"
-msgstr ""
-
-#: templates/pages/property/lease_detail.html:124
-#: templates/pages/property/sales_agreement_detail.html:91
-msgid "Deposit"
-msgstr ""
-
-#: templates/pages/property/lease_detail.html:128
-msgid "Deposit received"
-msgstr ""
-
-#: templates/pages/property/lease_detail.html:132
-msgid "Deposit balance"
-msgstr ""
-
-#: templates/pages/property/lease_detail.html:144
-msgid "Invoiced"
-msgstr ""
-
-#: templates/pages/property/lease_detail.html:150
-#: templates/pages/property/sales_agreement_detail.html:63
-#: templates/pages/property/sales_agreement_detail.html:113
-#: templates/pages/property/sales_agreement_detail.html:159
-msgid "Paid"
-msgstr ""
-
-#: templates/pages/property/lease_detail.html:158
-msgid "Outstanding"
-msgstr ""
-
-#: templates/pages/property/lease_detail.html:173
-msgid "Invoices"
-msgstr ""
-
-#: templates/pages/property/lease_detail.html:184
-msgid "Generate invoice"
-msgstr ""
-
-#: templates/pages/property/lease_detail.html:220
-msgid "No invoices generated yet."
-msgstr ""
-
-#: templates/pages/property/lease_form.html:5
-#: templates/pages/property/lease_form.html:33
-msgid "Edit Lease"
-msgstr ""
-
-#: templates/pages/property/lease_form.html:5
-#: templates/pages/property/lease_form.html:33
-#: templates/pages/property/lease_list.html:21
-msgid "New Lease"
-msgstr ""
-
-#: templates/pages/property/lease_form.html:29
-msgid "New lease"
-msgstr ""
-
-#: templates/pages/property/lease_form.html:51
-#: templates/pages/property/lease_form.html:53
-msgid "Parties"
-msgstr ""
-
-#: templates/pages/property/lease_form.html:93
-#: templates/pages/property/lease_form.html:95
-msgid "Deposit & Late Fees"
-msgstr ""
-
-#: templates/pages/property/lease_form.html:106
-#: templates/pages/property/lease_form.html:108
-#: templates/pages/property/lease_renew.html:32
-msgid "Renewal"
-msgstr ""
-
-#: templates/pages/property/lease_form.html:123
-msgid "Save Lease"
-msgstr ""
-
-#: templates/pages/property/lease_list.html:30
-msgid "Lease #, tenant, or unit…"
-msgstr ""
-
-#: templates/pages/property/lease_list.html:114
-msgid "No leases found."
-msgstr ""
-
-#: templates/pages/property/lease_renew.html:4
-#: templates/pages/property/lease_renew.html:36
-#: templates/pages/property/lease_renew.html:74
-msgid "Renew Lease"
-msgstr ""
-
-#: templates/pages/property/lease_renew.html:17
-#: templates/pages/property/lease_terminate.html:17
-#: templates/pages/property/rent_invoice_generate.html:17
-msgid "Back to lease"
-msgstr ""
-
-#: templates/pages/property/lease_renew.html:47
-msgid "Current end"
-msgstr ""
-
-#: templates/pages/property/lease_renew.html:51
-msgid "Current rent"
-msgstr ""
-
-#: templates/pages/property/lease_terminate.html:4
-#: templates/pages/property/lease_terminate.html:35
-#: templates/pages/property/lease_terminate.html:68
-msgid "Terminate Lease"
-msgstr ""
-
-#: templates/pages/property/lease_terminate.html:31
-msgid "Termination"
-msgstr ""
-
-#: templates/pages/property/lease_terminate.html:52
-msgid ""
-"Terminating this lease will release the unit. This action is recorded in the "
-"audit log."
-msgstr ""
-
-#: templates/pages/property/maintenance_assign.html:4
-msgid "Assign Maintenance"
-msgstr ""
-
-#: templates/pages/property/maintenance_assign.html:17
-#: templates/pages/property/maintenance_complete.html:17
-msgid "Back to request"
-msgstr ""
-
-#: templates/pages/property/maintenance_assign.html:27
-#: templates/pages/property/maintenance_assign.html:51
-#: templates/pages/property/maintenance_assign.html:70
-#: templates/pages/property/maintenance_detail.html:55
-msgid "Assign"
-msgstr ""
-
-#: templates/pages/property/maintenance_assign.html:31
-msgid "Assign Request"
-msgstr ""
-
-#: templates/pages/property/maintenance_complete.html:4
-msgid "Complete Maintenance"
-msgstr ""
-
-#: templates/pages/property/maintenance_complete.html:31
-msgid "Completion"
-msgstr ""
-
-#: templates/pages/property/maintenance_complete.html:35
-msgid "Complete Request"
-msgstr ""
-
-#: templates/pages/property/maintenance_complete.html:61
-msgid "Mark Complete"
-msgstr ""
-
-#: templates/pages/property/maintenance_complete.html:80
-#: templates/pages/property/maintenance_detail.html:62
-msgid "Complete"
-msgstr ""
-
-#: templates/pages/property/maintenance_detail.html:17
-#: templates/pages/property/maintenance_form.html:17
-msgid "All maintenance"
-msgstr ""
-
-#: templates/pages/property/maintenance_detail.html:72
-msgid "Verify"
-msgstr ""
-
-#: templates/pages/property/maintenance_detail.html:82
-msgid "Details"
-msgstr ""
-
-#: templates/pages/property/maintenance_detail.html:91
-msgid "By"
-msgstr ""
-
-#: templates/pages/property/maintenance_detail.html:97
-msgid "Assigned to"
-msgstr ""
-
-#: templates/pages/property/maintenance_detail.html:102
-msgid "Contractor"
-msgstr ""
-
-#: templates/pages/property/maintenance_detail.html:108
-msgid "Acknowledged"
-msgstr ""
-
-#: templates/pages/property/maintenance_detail.html:114
-msgid "Completed"
-msgstr ""
-
-#: templates/pages/property/maintenance_detail.html:123
-msgid "Costs"
-msgstr ""
-
-#: templates/pages/property/maintenance_detail.html:127
-msgid "Parts"
-msgstr ""
-
-#: templates/pages/property/maintenance_detail.html:131
-msgid "Labour"
-msgstr ""
-
-#: templates/pages/property/maintenance_detail.html:156
-msgid "Resolution"
-msgstr ""
-
-#: templates/pages/property/maintenance_form.html:4
-#: templates/pages/property/maintenance_form.html:31
-msgid "Log Maintenance Request"
-msgstr ""
-
-#: templates/pages/property/maintenance_form.html:27
-msgid "New request"
-msgstr ""
-
-#: templates/pages/property/maintenance_form.html:53
-#: templates/pages/property/maintenance_form.html:71
-#: templates/pages/property/maintenance_list.html:21
-msgid "Log Request"
-msgstr ""
-
-#: templates/pages/property/maintenance_list.html:4
-#: templates/pages/property/maintenance_list.html:12
-#: templates/partials/_header_tenant.html:77
-#: templates/partials/_header_tenant.html:235
-msgid "Maintenance"
-msgstr ""
-
-#: templates/pages/property/maintenance_list.html:30
-msgid "Title, description, or unit…"
-msgstr ""
-
-#: templates/pages/property/maintenance_list.html:41
-msgid "All priorities"
-msgstr ""
-
-#: templates/pages/property/maintenance_list.html:123
-msgid "No maintenance requests found."
-msgstr ""
-
-#: templates/pages/property/rent_invoice_detail.html:17
-msgid "All invoices"
-msgstr ""
-
-#: templates/pages/property/rent_invoice_detail.html:61
-#: templates/pages/property/rent_invoice_line_form.html:4
-#: templates/pages/property/rent_invoice_line_form.html:31
-#: templates/pages/property/rent_invoice_line_form.html:53
-#: templates/pages/property/rent_invoice_line_form.html:72
-msgid "Add Line"
-msgstr ""
-
-#: templates/pages/property/rent_invoice_detail.html:71
-msgid "Period"
-msgstr ""
-
-#: templates/pages/property/rent_invoice_detail.html:79
-msgid "Due date"
-msgstr ""
-
-#: templates/pages/property/rent_invoice_detail.html:98
-msgid "Charges"
-msgstr ""
-
-#: templates/pages/property/rent_invoice_detail.html:134
-msgid "No charges on this invoice."
-msgstr ""
-
-#: templates/pages/property/rent_invoice_detail.html:165
-msgid "No payments recorded yet."
-msgstr ""
-
-#: templates/pages/property/rent_invoice_generate.html:4
-#: templates/pages/property/rent_invoice_generate.html:31
-msgid "Generate Invoice"
-msgstr ""
-
-#: templates/pages/property/rent_invoice_generate.html:27
-msgid "Rent invoice"
-msgstr ""
-
-#: templates/pages/property/rent_invoice_generate.html:53
-#: templates/pages/property/rent_invoice_generate.html:71
-msgid "Generate"
-msgstr ""
-
-#: templates/pages/property/rent_invoice_line_form.html:17
-#: templates/pages/property/rent_payment_form.html:17
-msgid "Back to invoice"
-msgstr ""
-
-#: templates/pages/property/rent_invoice_line_form.html:27
-msgid "Invoice line"
-msgstr ""
-
-#: templates/pages/property/rent_invoice_list.html:21
-msgid "Invoice #, tenant, or unit…"
-msgstr ""
-
-#: templates/pages/property/rent_invoice_list.html:102
-msgid "No invoices found."
-msgstr ""
-
-#: templates/pages/property/rent_payment_form.html:27
-msgid "Payment"
-msgstr ""
-
-#: templates/pages/property/sales_agreement_detail.html:17
-#: templates/pages/property/sales_agreement_form.html:17
-#: templates/pages/property/sales_offer_form.html:17
-msgid "Back to listing"
-msgstr ""
-
-#: templates/pages/property/sales_agreement_detail.html:46
-msgid "Complete Sale"
-msgstr ""
-
-#: templates/pages/property/sales_agreement_detail.html:55
-msgid "Sale Price"
-msgstr ""
-
-#: templates/pages/property/sales_agreement_detail.html:83
-msgid "Terms"
-msgstr ""
-
-#: templates/pages/property/sales_agreement_detail.html:87
-msgid "Completion date"
-msgstr ""
-
-#: templates/pages/property/sales_agreement_detail.html:95
-msgid "Deposit paid"
-msgstr ""
-
-#: templates/pages/property/sales_agreement_detail.html:104
-msgid "Installments"
-msgstr ""
-
-#: templates/pages/property/sales_agreement_detail.html:111
-msgid "Due"
-msgstr ""
-
-#: templates/pages/property/sales_agreement_detail.html:141
-msgid "Commissions"
-msgstr ""
-
-#: templates/pages/property/sales_agreement_form.html:4
-#: templates/pages/property/sales_agreement_form.html:31
-#: templates/pages/property/sales_listing_detail.html:125
-msgid "Create Sale Agreement"
-msgstr ""
-
-#: templates/pages/property/sales_agreement_form.html:27
-msgid "Sale agreement"
-msgstr ""
-
-#: templates/pages/property/sales_agreement_form.html:62
-msgid "Create Agreement"
-msgstr ""
-
-#: templates/pages/property/sales_agreement_form.html:81
-#: templates/pages/property/sales_listing_form.html:75
-msgid "Create"
-msgstr ""
-
-#: templates/pages/property/sales_listing_detail.html:17
-#: templates/pages/property/sales_listing_form.html:17
-msgid "All listings"
-msgstr ""
-
-#: templates/pages/property/sales_listing_detail.html:54
-#: templates/pages/property/sales_offer_form.html:4
-#: templates/pages/property/sales_offer_form.html:31
-#: templates/pages/property/sales_offer_form.html:75
-msgid "Record Offer"
-msgstr ""
-
-#: templates/pages/property/sales_listing_detail.html:72
-msgid "Offers"
-msgstr ""
-
-#: templates/pages/property/sales_listing_detail.html:107
-msgid "Conditions:"
-msgstr ""
-
-#: templates/pages/property/sales_listing_detail.html:118
-msgid "Accept Offer"
-msgstr ""
-
-#: templates/pages/property/sales_listing_detail.html:134
-msgid "No offers yet."
-msgstr ""
-
-#: templates/pages/property/sales_listing_form.html:4
-#: templates/pages/property/sales_listing_form.html:31
-msgid "New Sale Listing"
-msgstr ""
-
-#: templates/pages/property/sales_listing_form.html:27
-msgid "New listing"
-msgstr ""
-
-#: templates/pages/property/sales_listing_form.html:57
-msgid "Create Listing"
-msgstr ""
-
-#: templates/pages/property/sales_listing_list.html:4
-#: templates/pages/property/sales_listing_list.html:12
-#: templates/partials/_header_tenant.html:78
-#: templates/partials/_header_tenant.html:236
-msgid "Sale Listings"
-msgstr ""
-
-#: templates/pages/property/sales_listing_list.html:21
-msgid "New Listing"
-msgstr ""
-
-#: templates/pages/property/sales_listing_list.html:81
-msgid "No sale listings found."
-msgstr ""
-
-#: templates/pages/property/sales_offer_form.html:27
-msgid "New offer"
-msgstr ""
-
-#: templates/pages/property/sales_offer_form.html:42
-msgid "Asking price"
-msgstr ""
-
-#: templates/pages/property/sales_offer_form.html:49
-msgid "Minimum"
-msgstr ""
-
-#: templates/pages/property/sales_offer_form.html:94
-msgid "Record"
-msgstr ""
-
-#: templates/pages/public_home.html:77
-msgid "Reservations, check-in/out, housekeeping, folios, and night audit."
-msgstr ""
-
-#: templates/pages/public_home.html:92
-msgid "Leases, rent invoicing, arrears tracking, maintenance, sales pipeline."
-msgstr ""
-
-#: templates/pages/public_home.html:107
-msgid "MRA EIS invoicing, PayChangu mobile money, Tourism Levy, RBM returns."
-msgstr ""
-
-#: templates/pages/public_home.html:122
-msgid "Airtel Money, TNM Mpamba, and card payments via PayChangu."
-msgstr ""
-
-#: templates/pages/signup.html:4 templates/pages/signup.html:36
-msgid "Create your workspace"
-msgstr ""
-
-#: templates/pages/signup.html:31
-msgid "Free trial"
-msgstr ""
-
-#: templates/pages/signup.html:40
-msgid "Set up your property management system in under a minute."
-msgstr ""
-
-#: templates/pages/signup.html:55 templates/pages/signup.html:58
-msgid "Your organization"
-msgstr ""
-
-#: templates/pages/signup.html:68 templates/pages/signup.html:71
-msgid "Your account"
-msgstr ""
-
-#: templates/pages/signup.html:94 templates/pages/signup.html:122
-msgid "Create workspace"
-msgstr ""
-
-#: templates/pages/signup.html:104
-msgid "Already have an account?"
-msgstr ""
-
-#: templates/pages/signup_success.html:4
-msgid "Workspace created"
-msgstr ""
-
-#: templates/pages/signup_success.html:22
-#, python-format
-msgid "%(tenant_name)s is ready!"
-msgstr ""
-
-#: templates/pages/signup_success.html:24
-msgid "Your workspace is ready!"
-msgstr ""
-
-#: templates/pages/signup_success.html:30
-msgid "Your property management system is set up and waiting for you."
-msgstr ""
-
-#: templates/pages/signup_success.html:38
-msgid "Your workspace URL"
-msgstr ""
-
-#: templates/pages/signup_success.html:50
-msgid "Sign in to your workspace"
-msgstr ""
-
-#: templates/pages/signup_success.html:65 templates/registration/login.html:133
-msgid "Back to home"
-msgstr ""
-
-#: templates/partials/_front_desk_body.html:10
-msgid "Today's Arrivals"
-msgstr ""
-
-#: templates/partials/_front_desk_body.html:44
-msgid "No arrivals today."
-msgstr ""
-
-#: templates/partials/_front_desk_body.html:56
-msgid "Today's Departures"
-msgstr ""
-
-#: templates/partials/_front_desk_body.html:93
-msgid "No departures today."
-msgstr ""
-
-#: templates/partials/_front_desk_body.html:105
-msgid "In-House Guests"
-msgstr ""
-
-#: templates/partials/_front_desk_body.html:142
-msgid "No guests in-house."
-msgstr ""
-
-#: templates/partials/_header_public.html:34
-#: templates/partials/_header_public.html:148
-msgid "Home"
-msgstr ""
-
-#: templates/partials/_header_public.html:38
-#: templates/partials/_header_public.html:151
-msgid "Sign up"
-msgstr ""
-
-#: templates/partials/_header_public.html:47
-#: templates/partials/_header_public.html:156
-msgid "Platform"
-msgstr ""
-
-#: templates/partials/_header_public.html:74
-#: templates/partials/_header_public.html:113
-#: templates/partials/_header_tenant.html:135
-#: templates/partials/_header_tenant.html:179
-msgid "Toggle dark mode"
-msgstr ""
-
-#: templates/partials/_header_public.html:99
-#: templates/partials/_header_public.html:174
-#: templates/partials/_header_tenant.html:165
-#: templates/partials/_header_tenant.html:267
-msgid "Sign Out"
-msgstr ""
-
-#: templates/partials/_header_public.html:128
-#: templates/partials/_header_tenant.html:194
-msgid "Menu"
-msgstr ""
-
-#: templates/partials/_header_tenant.html:74
-#: templates/partials/_header_tenant.html:232
-msgid "Dashboard"
-msgstr ""
-
-#: templates/partials/_header_tenant.html:88
-#: templates/partials/_header_tenant.html:240
-msgid "Records"
-msgstr ""
-
-#: templates/partials/_header_tenant.html:121
-#: templates/partials/_header_tenant.html:247
-msgid "Overview"
-msgstr ""
-
-#: templates/partials/_header_tenant.html:127
-#: templates/partials/_header_tenant.html:253
-msgid "FCY & RBM"
-msgstr ""
-
-#: templates/partials/_header_tenant.html:154
-#: templates/partials/_header_tenant.html:257
-msgid "Admin"
-msgstr ""
-
-#: templates/partials/_header_tenant.html:171
-msgid "Staff"
-msgstr ""
-
-#: templates/partials/_header_tenant.html:274
-#: templates/registration/login.html:24
-msgid "Staff Sign In"
-msgstr ""
-
-#: templates/partials/_offline_indicator.html:12
-#: templates/partials/_offline_indicator.html:30
-msgid "Online"
-msgstr ""
-
-#: templates/partials/_offline_indicator.html:36
-msgid "Offline — changes saved locally"
-msgstr ""
-
-#: templates/partials/_offline_indicator.html:42
-msgid "Syncing…"
-msgstr ""
-
-#: templates/partials/_offline_indicator.html:68
-msgid "Back online"
-msgstr ""
-
-#: templates/partials/_offline_indicator.html:81
-msgid "Syncing"
-msgstr ""
-
-#: templates/partials/_offline_indicator.html:82
-msgid "change(s)"
-msgstr ""
-
-#: templates/partials/_offline_indicator.html:84
-msgid "All changes synced"
-msgstr ""
-
-#: templates/partials/_pwa_install_prompt.html:17
-msgid "Install Pritech PMS"
-msgstr ""
-
-#: templates/partials/_pwa_install_prompt.html:20
-msgid "Add to your home screen for faster access and offline use."
-msgstr ""
-
-#: templates/partials/_pwa_install_prompt.html:25
-#: templates/partials/_unit_detail.html:7
-msgid "Close"
-msgstr ""
-
-#: templates/partials/_pwa_install_prompt.html:40
-msgid "Install"
-msgstr ""
-
-#: templates/partials/_pwa_install_prompt.html:45
-msgid "Not now"
-msgstr ""
-
-#: templates/partials/_pwa_install_prompt.html:86
-msgid "To install: tap Share → Add to Home Screen"
-msgstr ""
-
-#: templates/partials/_unit_detail.html:31
-msgid "Adults"
-msgstr ""
-
-#: templates/partials/_unit_detail.html:35
-msgid "Children"
-msgstr ""
-
-#: templates/partials/_unit_detail.html:44
-msgid "Floor"
-msgstr ""
-
-#: templates/partials/_unit_detail.html:53
-msgid "Amenities"
-msgstr ""
-
-#: templates/registration/login.html:4 templates/registration/login.html:114
-msgid "Sign In"
-msgstr ""
-
-#: templates/registration/login.html:28
-msgid "Access the front desk and housekeeping tools."
-msgstr ""
-
-#: templates/registration/login.html:37
-msgid "You are offline"
-msgstr ""
-
-#: templates/registration/login.html:38
-msgid ""
-"Sign-in requires an internet connection the first time. If you have signed "
-"in before, your session may still be valid."
-msgstr ""
-
-#: templates/registration/login.html:53
-msgid "Email address"
-msgstr ""
-
-#: templates/registration/login.html:65
-msgid "Password"
-msgstr ""
-
-#: templates/registration/login.html:72
-msgid "Forgot?"
-msgstr ""
-
-#: templates/registration/login.html:84
-msgid "Show password"
-msgstr ""
-
-#: templates/registration/login.html:128
-msgid "Back to dashboard"
-msgstr ""
+"      %(count)s mayuniti ena\n

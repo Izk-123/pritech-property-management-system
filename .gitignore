@@ -13,3 +13,4 @@ staticfiles/
 .pytest_cache/
 theme/static/css/dist/
 celerybeat-schedule*.mo
+locale/*/LC_MESSAGES/*.mo

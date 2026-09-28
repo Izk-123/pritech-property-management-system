@@ -38,9 +38,15 @@ urlpatterns = [
     # ─── Auth ──────────────────────────────────────────────────────
     # Phase 8 — two-factor URLs available on tenant subdomains too, so
     # staff can enroll and recover devices without leaving the tenant.
-    path('', include('two_factor.urls', namespace='two_factor')),
+    #
+    # NOTE: the 2-tuple form supplies `app_name` explicitly. Passing a
+    # `namespace=` keyword without an app_name declared at module level
+    # in `two_factor/urls.py` raises ImproperlyConfigured on some
+    # versions of django-two-factor-auth. The tuple form always works.
+    path('', include(('two_factor.urls', 'two_factor'))),
 
-    # Legacy alias: redirect /login/ to the 2FA login view
+    # Legacy alias: /login/ still routes through the tenant-membership-
+    # aware SchemaAwareLoginView.
     path('login/', SchemaAwareLoginView.as_view(), name='login'),
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),
 

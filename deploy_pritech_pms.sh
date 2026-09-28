@@ -4,10 +4,14 @@
 #   Phase 5: multi-tenant via django-tenants
 #   Phase 6: PWA + offline-first
 #   Phase 7: Channels + Redis WebSockets + WhatsApp/email + animated admin
+#   Phase 8: auth hardening (Argon2, 2FA, Axes, rate limits, JWT), CSP,
+#            Chichewa localization, django-redis cache, health checks,
+#            backups, DR docs
 #
-# Idempotent and self-healing. Auto-detects a free Daphne port, cleans stale
-# processes, flattens nested static icons, verifies both URLconfs import,
-# and reconciles public-schema drift caused by regenerated migration files.
+# Idempotent and self-healing. Fails fast on URLconf/middleware errors
+# BEFORE attempting migrations. Auto-detects a free Daphne port, cleans
+# stale processes, flattens nested static icons, reconciles public-schema
+# drift, compiles translations, and verifies the Phase 8 auth stack.
 #
 # Usage:
 #   sudo bash deploy_pritech_pms.sh              # deploy / update
@@ -81,6 +85,8 @@ banner() {
 command -v git >/dev/null  || die "git not installed."
 command -v psql >/dev/null || die "psql not installed — apt install postgresql-client."
 command -v nginx >/dev/null || die "nginx not installed."
+command -v msgfmt >/dev/null 2>&1 || \
+    warn "msgfmt (gettext) not installed — Chichewa translations will not compile. Run: apt install gettext"
 
 banner "Pritech PMS deploy — $(date '+%Y-%m-%d %H:%M:%S')"
 echo "  Domain      : ${DOMAIN}"
@@ -206,6 +212,20 @@ if [[ "${ENV_ONLY}" != "true" ]]; then
     else
         warn "Redis DB 2 not responding — Channels will fail to broadcast"
     fi
+
+    log "Pre-flight: checking Redis on DB 1 (cache — Phase 8)"
+    if redis-cli -n 1 ping >/dev/null 2>&1; then
+        ok "Redis DB 1 responding"
+    else
+        warn "Redis DB 1 not responding — django-redis cache will fall back to DB"
+    fi
+
+    log "Pre-flight: checking gettext (Phase 8 translations)"
+    if command -v msgfmt >/dev/null 2>&1; then
+        ok "msgfmt present ($(msgfmt --version | head -1))"
+    else
+        warn "msgfmt missing — install with: apt-get install -y gettext"
+    fi
 fi
 
 # ============================================================================
@@ -293,6 +313,7 @@ if [[ "${ENV_ONLY}" != "true" ]]; then
     pip install -r requirements.txt
     ok "Dependencies installed"
 
+    # ── Core packages that must import ──────────────────────────────────
     for pkg in \
         django_tenants \
         requests \
@@ -308,18 +329,49 @@ if [[ "${ENV_ONLY}" != "true" ]]; then
             die "Python package '${pkg}' not installed. Check requirements.txt."
         fi
     done
-    ok "All required packages importable"
+    ok "All core packages importable"
 
-    for pkg in paychangu pyxrate; do
+    # ── Phase 8 auth hardening — must import, deploy fails otherwise ────
+    for pkg in \
+        django_otp \
+        two_factor \
+        axes \
+        django_ratelimit \
+        csp \
+        django_redis \
+        rest_framework \
+        rest_framework_simplejwt \
+        argon2
+    do
+        if ! python -c "import ${pkg}" 2>/dev/null; then
+            die "Phase 8 package '${pkg}' not installed. Check requirements.txt."
+        fi
+    done
+    ok "All Phase 8 auth/CSP/cache packages importable"
+
+    # ── Compliance packages — optional, warn only ───────────────────────
+    # NOTE: pip package is `pyxrate`, but the importable module is `xrate`.
+    # The check must use the module name, not the pip name.
+    for pkg in paychangu xrate; do
         python -c "import ${pkg}" 2>/dev/null \
             || warn "Python package '${pkg}' not installed — Phase 4 features disabled."
     done
 
-    for app in apps.core.sync apps.realtime apps.communications; do
+    # ── Project apps ────────────────────────────────────────────────────
+    for app in apps.core.sync apps.realtime apps.communications \
+               apps.shared.users apps.shared.tenants; do
         if ! python -c "import ${app}" 2>/dev/null; then
             die "App not importable: ${app} — check SHARED_APPS/TENANT_APPS and the app directory."
         fi
         ok "App importable: ${app}"
+    done
+
+    # ── Phase 8 auth apps ──────────────────────────────────────────────
+    for app in apps.shared.tenants.views_health apps.shared.tenants.tasks \
+               apps.shared.users.middleware; do
+        if ! python -c "import ${app}" 2>/dev/null; then
+            warn "Phase 8 module not importable: ${app} — some features disabled."
+        fi
     done
 fi
 
@@ -405,6 +457,14 @@ WHATSAPP_ACCESS_TOKEN=
 WHATSAPP_APP_SECRET=
 WHATSAPP_WEBHOOK_VERIFY_TOKEN=
 WHATSAPP_API_VERSION=v21.0
+
+# ─── Phase 8 — auth hardening ─────────────────────────────────────────
+AXES_ENABLED=True
+TWO_FACTOR_ENABLED=True
+
+# ─── Phase 8 — backups ────────────────────────────────────────────────
+BACKUP_DIR=/var/backups/pritech
+BACKUP_RETENTION_DAYS=30
 EOF
 
     chmod 600 "${ENV_FILE}"
@@ -470,6 +530,14 @@ else
     env_set_if_missing WHATSAPP_WEBHOOK_VERIFY_TOKEN ""
     env_set_if_missing WHATSAPP_API_VERSION          "v21.0"
 
+    # ── Phase 8 — auth hardening ────────────────────────────────────────
+    env_set_if_missing AXES_ENABLED       "True"
+    env_set_if_missing TWO_FACTOR_ENABLED "True"
+
+    # ── Phase 8 — backups ───────────────────────────────────────────────
+    env_set_if_missing BACKUP_DIR            "/var/backups/pritech"
+    env_set_if_missing BACKUP_RETENTION_DAYS "30"
+
     if grep -qE '^DEFAULT_FROM_EMAIL=.*<.*>' "${ENV_FILE}" \
        && ! grep -qE '^DEFAULT_FROM_EMAIL="' "${ENV_FILE}"; then
         CURRENT_FROM="$(env_get DEFAULT_FROM_EMAIL)"
@@ -534,16 +602,50 @@ sudo -u postgres psql -d "${DB_NAME}" -c "ALTER SCHEMA public OWNER TO ${DB_USER
 ok "Database ready"
 
 # ============================================================================
-# Step 5 — Migrations: verify + generate + sanity-check
+# Step 5 — Django configuration check (fail fast BEFORE migrations)
+#
+# If the URLconf, middleware, or app registry has an error, we want a
+# clear message here, not a cryptic traceback from makemigrations.
+# Common Phase 8 failures caught by this step:
+#   • two_factor include without app_name / tuple form
+#   • Missing app in SHARED_APPS (csp, axes, django_ratelimit, two_factor)
+#   • Missing middleware class (csp.middleware.CSPMiddleware etc.)
+#   • Missing package (import error cascading from settings.py)
+# ============================================================================
+log "Step 5: Verify Django configuration loads"
+
+if ! python manage.py check > /tmp/django-check.log 2>&1; then
+    warn "Django check FAILED — the URLconf, middleware, or app registry has an error."
+    warn ""
+    warn "Traceback (last 30 lines):"
+    tail -30 /tmp/django-check.log | sed 's/^/    /'
+    warn ""
+    warn "Common causes for Phase 8:"
+    warn "  • urls.py must use the tuple form for two_factor:"
+    warn "      path('', include(('two_factor.urls', 'two_factor'))),"
+    warn "    The keyword form (namespace=...) requires an app_name"
+    warn "    declared in two_factor/urls.py, which some versions omit."
+    warn "  • A Phase 8 package is missing:"
+    warn "      pip install -r requirements.txt"
+    warn "  • A Phase 8 app is missing from SHARED_APPS:"
+    warn "      csp, axes, django_ratelimit, two_factor, django_otp"
+    warn ""
+    warn "Full log: /tmp/django-check.log"
+    die "Fix the error above and re-run the deploy script."
+fi
+ok "Django configuration is valid"
+
+# ============================================================================
+# Step 5a — Migrations: verify + generate + sanity-check
 #
 # Auto-generated migrations use TIMESTAMPED names so a regenerated file can
 # never collide with an already-applied migration record in django_migrations.
 # ============================================================================
-log "Step 5: Ensure all migrations exist and are current"
+log "Step 5a: Ensure all migrations exist and are current"
 
 MIGRATION_TS="$(date +%Y%m%d_%H%M%S)"
 
-# ─── 5a. tenants ───
+# ─── 5a.1 tenants ───
 TENANTS_MIGRATION="${PROJECT_DIR}/apps/shared/tenants/migrations/0001_initial.py"
 if [[ ! -f "${TENANTS_MIGRATION}" ]]; then
     warn "tenants/migrations/0001_initial.py missing — generating now"
@@ -556,6 +658,23 @@ if [[ ! -f "${TENANTS_MIGRATION}" ]]; then
     fi
 else
     ok "tenants migration present"
+fi
+
+# ─── 5a.2 shared_users (Phase 8 auth-critical) ───
+SHARED_USERS_MIG_DIR="${PROJECT_DIR}/apps/shared/users/migrations"
+if [[ -d "${SHARED_USERS_MIG_DIR}" ]]; then
+    if compgen -G "${SHARED_USERS_MIG_DIR}/[0-9]*.py" > /dev/null; then
+        ok "shared_users migrations present"
+    else
+        warn "shared_users has no migrations — generating now"
+        python manage.py makemigrations shared_users --name "auto_${MIGRATION_TS}"
+        warn "⚠ Commit this file to git or it regenerates every deploy."
+    fi
+else
+    warn "shared_users/migrations/ directory missing — creating and generating"
+    mkdir -p "${SHARED_USERS_MIG_DIR}"
+    touch "${SHARED_USERS_MIG_DIR}/__init__.py"
+    python manage.py makemigrations shared_users --name "auto_${MIGRATION_TS}" || true
 fi
 
 # ─── 5b. communications ───
@@ -574,19 +693,24 @@ else
 fi
 
 # ─── 5c. General check ───
-log "Step 5b: Running makemigrations --check --dry-run"
-if ! python manage.py makemigrations --check --dry-run 2>&1 | tee /tmp/migrations-check.log | grep -q "No changes detected"; then
+log "Step 5c: Running makemigrations --check --dry-run"
+set +e
+MAKEMIGRATIONS_OUT=$(python manage.py makemigrations --check --dry-run 2>&1)
+MAKEMIGRATIONS_RC=$?
+set -e
+
+if [[ ${MAKEMIGRATIONS_RC} -eq 0 ]] && echo "${MAKEMIGRATIONS_OUT}" | grep -q "No changes detected"; then
+    ok "All models have up-to-date migrations"
+else
     warn "Model changes without migrations detected:"
-    cat /tmp/migrations-check.log | sed 's/^/    /'
+    echo "${MAKEMIGRATIONS_OUT}" | sed 's/^/    /'
     warn "Generating them now (they MUST be committed to git afterwards):"
     python manage.py makemigrations --name "auto_${MIGRATION_TS}"
     warn "⚠ Run 'git add */migrations/ && git commit' from your dev machine."
-else
-    ok "All models have up-to-date migrations"
 fi
 
 # ─── 5d. Flatten nested static icons (self-heal) ───
-log "Step 5c: Fix nested static icons if present"
+log "Step 5d: Fix nested static icons if present"
 if [[ -d "${PROJECT_DIR}/static/icons/icons" ]]; then
     warn "Detected static/icons/icons/ — flattening to static/icons/"
     mkdir -p "${PROJECT_DIR}/static/icons"
@@ -599,13 +723,13 @@ else
 fi
 
 # ─── 5e. Migration inventory ───
-log "Step 5d: Migration files in the repo"
+log "Step 5e: Migration files in the repo"
 find "${PROJECT_DIR}/apps" -path "*/migrations/*.py" \
     ! -name "__init__.py" -printf "    %P\n" | sort
 ok "Migration inventory printed"
 
 # ============================================================================
-# Step 6 — Django check
+# Step 6 — Django check (second pass, belt-and-braces)
 # ============================================================================
 log "Step 6: Django configuration check"
 python manage.py check
@@ -855,6 +979,68 @@ else
 fi
 
 # ============================================================================
+# Step 9c — Compile translations (Phase 8)
+#
+# Runs after migrations and before collectstatic so compiled .mo files
+# ship in the same static collection pass. Non-fatal: if gettext is
+# missing or the .po file has a duplicate msgid, we warn loudly and
+# continue — the app still runs, just with English fallback for Chichewa.
+# ============================================================================
+log "Step 9c: Compiling translations"
+
+mkdir -p "${PROJECT_DIR}/locale/en/LC_MESSAGES" \
+         "${PROJECT_DIR}/locale/ny/LC_MESSAGES"
+
+if ! command -v msgfmt >/dev/null 2>&1; then
+    warn "msgfmt (gettext) not installed — Chichewa UI will fall back to English strings."
+    warn "  Install with: apt-get install -y gettext"
+else
+    set +e
+    COMPILE_OUT=$(python manage.py compilemessages 2>&1)
+    COMPILE_RC=$?
+    set -e
+
+    if [[ ${COMPILE_RC} -eq 0 ]]; then
+        ok "Translations compiled"
+
+        for lang in en ny; do
+            MO_FILE="${PROJECT_DIR}/locale/${lang}/LC_MESSAGES/django.mo"
+            if [[ -f "${MO_FILE}" ]]; then
+                info "  ✔ locale/${lang}/LC_MESSAGES/django.mo ($(stat -c%s "${MO_FILE}") bytes)"
+            else
+                warn "  ✘ locale/${lang}/LC_MESSAGES/django.mo NOT generated"
+            fi
+        done
+    else
+        warn "compilemessages failed (exit ${COMPILE_RC}) — Chichewa UI may fall back to English."
+        warn ""
+        warn "Last 15 lines of output:"
+        echo "${COMPILE_OUT}" | tail -15 | sed 's/^/    /'
+        warn ""
+
+        # Detect the common duplicate-msgid failure and print the fix
+        if echo "${COMPILE_OUT}" | grep -q "duplicate message definition"; then
+            warn "Detected: duplicate msgid in the .po file."
+            warn "Fix with msgcat (keeps the first occurrence of each msgid):"
+            warn ""
+            for lang in en ny; do
+                PO="${PROJECT_DIR}/locale/${lang}/LC_MESSAGES/django.po"
+                [[ -f "${PO}" ]] || continue
+                warn "    cp ${PO} ${PO}.bak"
+                warn "    msgcat --use-first --output-file=/tmp/django-${lang}-fixed.po ${PO}"
+                warn "    msgfmt --check --output-file=/dev/null /tmp/django-${lang}-fixed.po && \\"
+                warn "        mv /tmp/django-${lang}-fixed.po ${PO}"
+                warn ""
+            done
+            warn "Then commit the fixed .po files and re-run the deploy."
+        fi
+
+        warn ""
+        warn "Continuing — the app runs fine, Chichewa strings just fall back to English."
+    fi
+fi
+
+# ============================================================================
 # Step 10 — Collect static files + verify assets
 # ============================================================================
 log "Step 10: Collect static files"
@@ -886,6 +1072,22 @@ for asset in "${PHASE7_ASSETS[@]}"; do
     [[ -f "${PROJECT_DIR}/${asset}" ]] || { warn "Missing Phase 7 asset: ${asset}"; MISSING7=$((MISSING7 + 1)); }
 done
 [[ "${MISSING7}" -eq 0 ]] && ok "All 3 Phase 7 static assets present"
+
+# ─── Phase 8 templates ─────────────────────────────────────────────────────
+PHASE8_TEMPLATES=(
+    "templates/registration/password_reset_form.html"
+    "templates/registration/password_reset_done.html"
+    "templates/registration/password_reset_confirm.html"
+    "templates/registration/password_reset_complete.html"
+    "templates/registration/password_reset_email.txt"
+    "templates/registration/password_reset_subject.txt"
+    "templates/partials/_language_switcher.html"
+)
+MISSING8=0
+for tpl in "${PHASE8_TEMPLATES[@]}"; do
+    [[ -f "${PROJECT_DIR}/${tpl}" ]] || { warn "Missing Phase 8 template: ${tpl}"; MISSING8=$((MISSING8 + 1)); }
+done
+[[ "${MISSING8}" -eq 0 ]] && ok "All 7 Phase 8 templates present"
 
 TEMPLATES_TO_CHECK=(
     "templates/pages/offline.html"
@@ -925,6 +1127,11 @@ checks = [
     ('tenant', 'communications:log_list'),
     ('tenant', 'communications:inbound_list'),
     ('tenant', 'communications:template_list'),
+    ('tenant', 'health'),
+    ('tenant', 'password_reset'),
+    ('tenant', 'password_reset_done'),
+    ('tenant', 'password_reset_confirm'),
+    ('tenant', 'password_reset_complete'),
 ]
 for scope, name in checks:
     try:
@@ -933,12 +1140,35 @@ for scope, name in checks:
     except NoReverseMatch:
         print(f'  ⚠ {scope}:{name} not reverse-resolvable')
 
+# Phase 8 — two_factor URLs are reverse-resolvable via namespace
+for name in ('two_factor:login', 'two_factor:setup'):
+    try:
+        url = reverse(name)
+        print(f'  ✔ public:{name} → {url}')
+    except NoReverseMatch:
+        print(f'  ⚠ public:{name} not reverse-resolvable (2FA not installed)')
+
 try:
     from apps.realtime.routing import websocket_urlpatterns
     print(f'  ✔ apps.realtime.routing has {len(websocket_urlpatterns)} WebSocket routes')
 except Exception as e:
     errors.append(f'apps.realtime.routing: {e}')
     print(f'  ✘ apps.realtime.routing failed to import: {e}')
+
+# Phase 8 — verify authentication backends include Axes
+try:
+    from django.conf import settings as s
+    backends = s.AUTHENTICATION_BACKENDS
+    if any('axes' in b for b in backends):
+        print(f'  ✔ Axes backend registered ({len(backends)} total)')
+    else:
+        print(f'  ⚠ Axes backend NOT in AUTHENTICATION_BACKENDS')
+    if s.PASSWORD_HASHERS and 'Argon2' in s.PASSWORD_HASHERS[0]:
+        print(f'  ✔ Argon2 is the default password hasher')
+    else:
+        print(f'  ⚠ Argon2 is not the first password hasher')
+except Exception as e:
+    print(f'  ⚠ Could not inspect Phase 8 settings: {e}')
 
 if errors:
     import sys
@@ -1103,6 +1333,17 @@ server {
     ssl_prefer_server_ciphers on;
     ssl_session_cache shared:SSL:10m;
     ssl_session_timeout 10m;
+
+    # Phase 8 — health check: unlogged, cache-bypassing
+    location = /health/ {
+        proxy_http_version 1.1;
+        proxy_pass http://unix:${PROJECT_DIR}/gunicorn.sock;
+        proxy_set_header Host              \$host;
+        proxy_set_header X-Real-IP         \$remote_addr;
+        proxy_set_header X-Forwarded-For   \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        access_log off;
+    }
 
     location /static/ {
         alias ${PROJECT_DIR}/staticfiles/;
@@ -1270,10 +1511,42 @@ C13=$(check "realtime-js"      "https://${DOMAIN}/static/js/realtime.js")
 C14=$(check "ws-endpoint"      "https://${DOMAIN}/ws/notifications/")
 C15=$(check "comm-log"         "https://${DOMAIN}/communications/logs/")
 
+log "  -- Phase 8: auth hardening + localization + health --"
+C16=$(check "health"                "https://${DOMAIN}/health/")
+C17=$(check "password-reset"        "https://${DOMAIN}/password-reset/")
+C18=$(check "password-reset-done"   "https://${DOMAIN}/password-reset/done/")
+C19=$(check "2fa-login"             "https://${DOMAIN}/account/login/")
+C20=$(check "language-switcher"     "https://${DOMAIN}/i18n/setlang/")
+
+# ── Parse health check JSON ────────────────────────────────────────────────
+HEALTH_BODY=$(curl -sS -k --max-time 10 "https://${DOMAIN}/health/" 2>/dev/null || echo '{}')
+if echo "${HEALTH_BODY}" | grep -q '"status": "ok"'; then
+    ok "Health check reports status=ok"
+    echo "${HEALTH_BODY}" | sed 's/^/    /'
+elif echo "${HEALTH_BODY}" | grep -q '"status": "degraded"'; then
+    warn "Health check reports status=degraded:"
+    echo "${HEALTH_BODY}" | sed 's/^/    /'
+else
+    warn "Health check did not return recognizable JSON"
+fi
+
+# ── Verify compiled translations shipped ───────────────────────────────────
+if [[ -f "${PROJECT_DIR}/locale/ny/LC_MESSAGES/django.mo" ]]; then
+    ok "Chichewa translations compiled and present"
+else
+    warn "Chichewa .mo file missing — run: python manage.py compilemessages"
+fi
+
 # ============================================================================
 # Done
 # ============================================================================
 chmod +x "${PROJECT_DIR}/deploy_pritech_pms.sh" 2>/dev/null || true
+
+# Mark backup + restore scripts executable if present
+for script in backup_db.sh backup_media.sh restore_db.sh; do
+    [[ -f "${PROJECT_DIR}/scripts/${script}" ]] && \
+        chmod +x "${PROJECT_DIR}/scripts/${script}" 2>/dev/null || true
+done
 
 banner "Deploy complete — $(date '+%H:%M:%S')"
 echo "  HEAD           : $(git -C ${PROJECT_DIR} rev-parse --short HEAD)"
@@ -1281,6 +1554,7 @@ echo "  Public site    : https://${DOMAIN}/"
 echo "  Admin          : https://${DOMAIN}/admin/"
 echo "  First tenant   : https://pritech.${DOMAIN}/"
 echo "  PWA manifest   : https://${DOMAIN}/manifest.json"
+echo "  Health check   : https://${DOMAIN}/health/"
 echo "  Daphne port    : ${DAPHNE_PORT}"
 echo "  WebSocket      : wss://${DOMAIN}/ws/notifications/"
 echo ""
@@ -1295,10 +1569,25 @@ if [[ "${C14}" == "502" || "${C14}" == "504" ]]; then
     warn "  Logs:  sudo journalctl -u daphne-${PROJECT_NAME} -n 60 --no-pager"
 fi
 
+if [[ "${C16}" != "200" ]]; then
+    warn "Health check returned ${C16} instead of 200."
+    warn "  Inspect body: curl -sS https://${DOMAIN}/health/ | jq"
+fi
+
 echo "  Logs:"
 echo "    journalctl -u gunicorn-${PROJECT_NAME}      -n 40 --no-pager"
 echo "    journalctl -u daphne-${PROJECT_NAME}        -n 40 --no-pager"
 echo "    journalctl -u celery-worker-${PROJECT_NAME} -n 30 --no-pager"
+echo "    journalctl -u celery-beat-${PROJECT_NAME}   -n 30 --no-pager"
+echo ""
+echo "  ─── Phase 8 — one-time setup reminders ──────────────────────────────"
+echo "  1. Add backup cron entries (sudo crontab -e):"
+echo "       0 3 * * * ${PROJECT_DIR}/scripts/backup_db.sh    >> /var/log/pritech-backup.log 2>&1"
+echo "       0 4 * * * ${PROJECT_DIR}/scripts/backup_media.sh >> /var/log/pritech-backup.log 2>&1"
+echo "  2. Install logrotate config:"
+echo "       sudo cp docs/logrotate.pritech-pms /etc/logrotate.d/pritech-pms"
+echo "  3. Force 2FA enrollment for platform admins:"
+echo "       Visit https://${DOMAIN}/account/two_factor/setup/ as a superuser"
 echo ""
 echo "  Superuser (if newly created): admin@pritechmw.com / ChangeMe123!"
 echo "  ⚠ CHANGE THE SUPERUSER PASSWORD IMMEDIATELY"

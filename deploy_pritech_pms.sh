@@ -351,7 +351,6 @@ if [[ "${ENV_ONLY}" != "true" ]]; then
 
     # ── Compliance packages — optional, warn only ───────────────────────
     # NOTE: pip package is `pyxrate`, but the importable module is `xrate`.
-    # The check must use the module name, not the pip name.
     for pkg in paychangu xrate; do
         python -c "import ${pkg}" 2>/dev/null \
             || warn "Python package '${pkg}' not installed — Phase 4 features disabled."
@@ -366,7 +365,7 @@ if [[ "${ENV_ONLY}" != "true" ]]; then
         ok "App importable: ${app}"
     done
 
-    # ── Phase 8 auth apps ──────────────────────────────────────────────
+    # ── Phase 8 auth modules ────────────────────────────────────────────
     for app in apps.shared.tenants.views_health apps.shared.tenants.tasks \
                apps.shared.users.middleware; do
         if ! python -c "import ${app}" 2>/dev/null; then
@@ -606,11 +605,6 @@ ok "Database ready"
 #
 # If the URLconf, middleware, or app registry has an error, we want a
 # clear message here, not a cryptic traceback from makemigrations.
-# Common Phase 8 failures caught by this step:
-#   • two_factor include without app_name / tuple form
-#   • Missing app in SHARED_APPS (csp, axes, django_ratelimit, two_factor)
-#   • Missing middleware class (csp.middleware.CSPMiddleware etc.)
-#   • Missing package (import error cascading from settings.py)
 # ============================================================================
 log "Step 5: Verify Django configuration loads"
 
@@ -620,16 +614,41 @@ if ! python manage.py check > /tmp/django-check.log 2>&1; then
     warn "Traceback (last 30 lines):"
     tail -30 /tmp/django-check.log | sed 's/^/    /'
     warn ""
-    warn "Common causes for Phase 8:"
-    warn "  • urls.py must use the tuple form for two_factor:"
-    warn "      path('', include(('two_factor.urls', 'two_factor'))),"
-    warn "    The keyword form (namespace=...) requires an app_name"
-    warn "    declared in two_factor/urls.py, which some versions omit."
-    warn "  • A Phase 8 package is missing:"
-    warn "      pip install -r requirements.txt"
-    warn "  • A Phase 8 app is missing from SHARED_APPS:"
-    warn "      csp, axes, django_ratelimit, two_factor, django_otp"
-    warn ""
+
+    # Detect the specific two_factor URL include error and give the exact fix
+    if grep -q "Your URL pattern 'two_factor'" /tmp/django-check.log; then
+        warn "Detected: two_factor URL include is broken."
+        warn ""
+        warn "Django's include() rejects passing a module path string in the"
+        warn "first element of a 2-tuple, and django-two-factor-auth doesn't"
+        warn "declare app_name at module level. The fix is a thin wrapper"
+        warn "module that re-exports the patterns with app_name set:"
+        warn ""
+        warn "  1. Create config/urls_two_factor.py:"
+        warn ""
+        warn "         from two_factor.urls import urlpatterns  # noqa: F401"
+        warn "         app_name = 'two_factor'"
+        warn ""
+        warn "  2. In both config/urls.py and config/urls_public.py replace:"
+        warn ""
+        warn "         path('', include(('two_factor.urls', 'two_factor'))),"
+        warn ""
+        warn "     with:"
+        warn ""
+        warn "         path('', include('config.urls_two_factor')),"
+        warn ""
+        warn "  3. Commit and re-run this script."
+        warn ""
+    else
+        warn "Common causes for Phase 8:"
+        warn "  • A Phase 8 package is missing:"
+        warn "      pip install -r requirements.txt"
+        warn "  • A Phase 8 app is missing from SHARED_APPS:"
+        warn "      csp, axes, django_ratelimit, two_factor, django_otp"
+        warn "  • A middleware class name is wrong"
+        warn ""
+    fi
+
     warn "Full log: /tmp/django-check.log"
     die "Fix the error above and re-run the deploy script."
 fi
@@ -637,9 +656,6 @@ ok "Django configuration is valid"
 
 # ============================================================================
 # Step 5a — Migrations: verify + generate + sanity-check
-#
-# Auto-generated migrations use TIMESTAMPED names so a regenerated file can
-# never collide with an already-applied migration record in django_migrations.
 # ============================================================================
 log "Step 5a: Ensure all migrations exist and are current"
 
@@ -677,7 +693,7 @@ else
     python manage.py makemigrations shared_users --name "auto_${MIGRATION_TS}" || true
 fi
 
-# ─── 5b. communications ───
+# ─── 5a.3 communications ───
 COMM_MIGRATION="${PROJECT_DIR}/apps/communications/migrations/0001_initial.py"
 if [[ ! -f "${COMM_MIGRATION}" ]]; then
     warn "communications/migrations/0001_initial.py missing — generating now"
@@ -692,8 +708,8 @@ else
     ok "communications migration present"
 fi
 
-# ─── 5c. General check ───
-log "Step 5c: Running makemigrations --check --dry-run"
+# ─── 5a.4 General check ───
+log "Step 5a.4: Running makemigrations --check --dry-run"
 set +e
 MAKEMIGRATIONS_OUT=$(python manage.py makemigrations --check --dry-run 2>&1)
 MAKEMIGRATIONS_RC=$?
@@ -709,8 +725,8 @@ else
     warn "⚠ Run 'git add */migrations/ && git commit' from your dev machine."
 fi
 
-# ─── 5d. Flatten nested static icons (self-heal) ───
-log "Step 5d: Fix nested static icons if present"
+# ─── 5a.5 Flatten nested static icons (self-heal) ───
+log "Step 5a.5: Fix nested static icons if present"
 if [[ -d "${PROJECT_DIR}/static/icons/icons" ]]; then
     warn "Detected static/icons/icons/ — flattening to static/icons/"
     mkdir -p "${PROJECT_DIR}/static/icons"
@@ -722,8 +738,8 @@ else
     ok "Icon directory structure is correct"
 fi
 
-# ─── 5e. Migration inventory ───
-log "Step 5e: Migration files in the repo"
+# ─── 5a.6 Migration inventory ───
+log "Step 5a.6: Migration files in the repo"
 find "${PROJECT_DIR}/apps" -path "*/migrations/*.py" \
     ! -name "__init__.py" -printf "    %P\n" | sort
 ok "Migration inventory printed"
@@ -744,16 +760,6 @@ ok "Shared schema migrated"
 
 # ============================================================================
 # Step 7b — Schema reconciliation (SHARED_APPS only)
-#
-# The public schema only contains models from SHARED_APPS. Tenant-schema
-# models live in per-tenant schemas and are migrated separately by Step 9.
-#
-# Bug we guard against: a migration file regenerated with the same name
-# after being recorded as applied — Django sees it as done and skips it,
-# leaving the DB behind the models.
-#
-# Uses a status-file handshake rather than exit codes so it can't fail
-# silently the way a raw `manage.py shell` heredoc can.
 # ============================================================================
 log "Step 7b: Verify public schema matches shared-app models"
 
@@ -910,13 +916,6 @@ case "${STATUS}" in
         done < <(grep '^UNFIXABLE|' /tmp/drift-check.log)
         warn ""
         warn "Full log: /tmp/drift-check.log"
-        warn "Manual recovery:"
-        warn "  1. sudo -u postgres psql -d ${DB_NAME} -c \\"
-        warn "       \"SELECT id, app, name, applied FROM django_migrations \\"
-        warn "        WHERE app='<app_label>' ORDER BY id DESC LIMIT 20;\""
-        warn "  2. If the migration file exists but the table/column is missing,"
-        warn "     delete the recorded migration row and re-run:"
-        warn "       python manage.py migrate_schemas --shared"
         die "Cannot continue with schema drift unresolved."
         ;;
 
@@ -981,10 +980,9 @@ fi
 # ============================================================================
 # Step 9c — Compile translations (Phase 8)
 #
-# Runs after migrations and before collectstatic so compiled .mo files
-# ship in the same static collection pass. Non-fatal: if gettext is
-# missing or the .po file has a duplicate msgid, we warn loudly and
-# continue — the app still runs, just with English fallback for Chichewa.
+# Non-fatal. If gettext is missing or the .po file has a duplicate msgid,
+# we warn loudly and continue — the app still runs, just with English
+# fallback for Chichewa.
 # ============================================================================
 log "Step 9c: Compiling translations"
 
@@ -1018,7 +1016,6 @@ else
         echo "${COMPILE_OUT}" | tail -15 | sed 's/^/    /'
         warn ""
 
-        # Detect the common duplicate-msgid failure and print the fix
         if echo "${COMPILE_OUT}" | grep -q "duplicate message definition"; then
             warn "Detected: duplicate msgid in the .po file."
             warn "Fix with msgcat (keeps the first occurrence of each msgid):"
@@ -1035,7 +1032,6 @@ else
             warn "Then commit the fixed .po files and re-run the deploy."
         fi
 
-        warn ""
         warn "Continuing — the app runs fine, Chichewa strings just fall back to English."
     fi
 fi
@@ -1073,7 +1069,6 @@ for asset in "${PHASE7_ASSETS[@]}"; do
 done
 [[ "${MISSING7}" -eq 0 ]] && ok "All 3 Phase 7 static assets present"
 
-# ─── Phase 8 templates ─────────────────────────────────────────────────────
 PHASE8_TEMPLATES=(
     "templates/registration/password_reset_form.html"
     "templates/registration/password_reset_done.html"
@@ -1155,7 +1150,6 @@ except Exception as e:
     errors.append(f'apps.realtime.routing: {e}')
     print(f'  ✘ apps.realtime.routing failed to import: {e}')
 
-# Phase 8 — verify authentication backends include Axes
 try:
     from django.conf import settings as s
     backends = s.AUTHENTICATION_BACKENDS
@@ -1334,7 +1328,6 @@ server {
     ssl_session_cache shared:SSL:10m;
     ssl_session_timeout 10m;
 
-    # Phase 8 — health check: unlogged, cache-bypassing
     location = /health/ {
         proxy_http_version 1.1;
         proxy_pass http://unix:${PROJECT_DIR}/gunicorn.sock;
@@ -1518,7 +1511,6 @@ C18=$(check "password-reset-done"   "https://${DOMAIN}/password-reset/done/")
 C19=$(check "2fa-login"             "https://${DOMAIN}/account/login/")
 C20=$(check "language-switcher"     "https://${DOMAIN}/i18n/setlang/")
 
-# ── Parse health check JSON ────────────────────────────────────────────────
 HEALTH_BODY=$(curl -sS -k --max-time 10 "https://${DOMAIN}/health/" 2>/dev/null || echo '{}')
 if echo "${HEALTH_BODY}" | grep -q '"status": "ok"'; then
     ok "Health check reports status=ok"
@@ -1530,7 +1522,6 @@ else
     warn "Health check did not return recognizable JSON"
 fi
 
-# ── Verify compiled translations shipped ───────────────────────────────────
 if [[ -f "${PROJECT_DIR}/locale/ny/LC_MESSAGES/django.mo" ]]; then
     ok "Chichewa translations compiled and present"
 else
@@ -1542,7 +1533,6 @@ fi
 # ============================================================================
 chmod +x "${PROJECT_DIR}/deploy_pritech_pms.sh" 2>/dev/null || true
 
-# Mark backup + restore scripts executable if present
 for script in backup_db.sh backup_media.sh restore_db.sh; do
     [[ -f "${PROJECT_DIR}/scripts/${script}" ]] && \
         chmod +x "${PROJECT_DIR}/scripts/${script}" 2>/dev/null || true

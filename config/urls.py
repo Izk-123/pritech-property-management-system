@@ -36,14 +36,14 @@ urlpatterns = [
     path('documents/', include('apps.core.documents.urls')),
 
     # ─── Auth ──────────────────────────────────────────────────────
-    # Phase 8 — two-factor URLs available on tenant subdomains too, so
-    # staff can enroll and recover devices without leaving the tenant.
-    #
-    # NOTE: the 2-tuple form supplies `app_name` explicitly. Passing a
-    # `namespace=` keyword without an app_name declared at module level
-    # in `two_factor/urls.py` raises ImproperlyConfigured on some
-    # versions of django-two-factor-auth. The tuple form always works.
-    path('', include(('two_factor.urls', 'two_factor'))),
+    # Phase 8 — django-two-factor-auth owns /account/login/ and all 2FA
+    # setup/recovery paths. We include a thin wrapper module
+    # (config/urls_two_factor.py) that declares app_name = 'two_factor'
+    # so the namespace resolves. The upstream two_factor.urls module
+    # doesn't declare app_name, which is why a plain include() of that
+    # module fails, and why the 2-tuple form misbehaves (Django expects
+    # a pattern list, not a module path, in the first tuple element).
+    path('', include('config.urls_two_factor')),
 
     # Legacy alias: /login/ still routes through the tenant-membership-
     # aware SchemaAwareLoginView.

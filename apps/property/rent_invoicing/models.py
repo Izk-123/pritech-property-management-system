@@ -1,3 +1,4 @@
+# apps/property/rent_invoicing/models.py
 from django.db import models
 from django.db.models import Sum
 from django.utils import timezone
@@ -43,9 +44,16 @@ class RentInvoice(TimeStampedModel):
     class Meta:
         ordering = ['-due_date']
         indexes = [
+            # Lease detail view: invoices for one lease filtered by status.
             models.Index(fields=['lease', 'status']),
+            # Aging report: due_date range with status filter.
             models.Index(fields=['due_date', 'status']),
+            # Tenant statement: invoices for one person filtered by status.
             models.Index(fields=['tenant', 'status']),
+            # Overdue dashboard: status first, then due_date window.
+            # Reversed column order from the aging report above so that
+            # the planner can use either access pattern without a sort.
+            models.Index(fields=['status', 'due_date']),
         ]
 
     def __str__(self):

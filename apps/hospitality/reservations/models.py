@@ -1,3 +1,4 @@
+# apps/hospitality/reservations/models.py
 import builtins
 
 from django.db import models
@@ -61,9 +62,21 @@ class Reservation(TimeStampedModel):
     class Meta:
         ordering = ['-check_in']
         indexes = [
-            models.Index(fields=['property', 'status', 'check_in', 'check_out']),
+            # Front desk + availability queries: property + status range
+            # scan, ordered by the stay window.
+            models.Index(
+                fields=['property', 'status', 'check_in', 'check_out'],
+            ),
+            # Lookup by reservation number (search, deep links).
             models.Index(fields=['reservation_number']),
+            # Filter by guest (guest profile → reservations).
             models.Index(fields=['primary_guest']),
+            # Arrivals dashboard: check_in == today.
+            models.Index(fields=['check_in']),
+            # Arrivals by status + date, and in-house spanning queries.
+            models.Index(fields=['status', 'check_in']),
+            # Audit / "recently created" listings.
+            models.Index(fields=['created_at']),
         ]
         constraints = [
             models.CheckConstraint(

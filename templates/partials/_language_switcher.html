@@ -1,37 +1,50 @@
 {% load i18n %}
 
 {% get_current_language as CURRENT_LANGUAGE %}
-{% get_available_languages as LANGUAGES %}
-{% get_language_info_list for LANGUAGES as languages %}
+{% get_available_languages as AVAILABLE_LANGUAGES %}
+{% get_language_info_list for AVAILABLE_LANGUAGES as languages %}
 
 {% if languages|length > 1 %}
-<div class="relative" data-nav-dropdown>
+<div data-nav-dropdown class="relative"
+     data-animate="fade-left" data-animate-now>
   <button type="button" data-nav-dropdown-trigger
-          aria-expanded="false"
-          class="nav-icon-btn">
+          aria-haspopup="true" aria-expanded="false"
+          aria-label="{% trans 'Change language' %}"
+          class="nav-icon-btn"
+          data-press>
     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"
          stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
          aria-hidden="true">
-      <circle cx="12" cy="12" r="9"/>
-      <path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18" />
+      <path d="M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18" />
     </svg>
-    <span class="sr-only">{% trans "Change language" %}</span>
   </button>
-  <div data-nav-dropdown-menu class="hidden absolute right-0 z-50 mt-1 w-40
-              rounded-xl border border-slate-200 bg-white/95 py-1 shadow-xl
-              backdrop-blur-xl dark:border-white/10 dark:bg-slate-800/95">
+
+  <div data-nav-dropdown-menu
+       class="hidden absolute right-0 z-50 mt-1 w-44 overflow-hidden rounded-xl
+              border border-slate-200 bg-white/95 py-1 shadow-soft backdrop-blur-xl
+              dark:border-white/10 dark:bg-slate-800/95">
     <form action="{% url 'set_language' %}" method="post">
       {% csrf_token %}
       <input type="hidden" name="next" value="{{ request.path }}">
+
       {% for language in languages %}
       <button type="submit" name="language" value="{{ language.code }}"
-              class="menu-item flex w-full items-center justify-between
+              class="menu-item flex w-full items-center justify-between gap-3
                      {% if language.code == CURRENT_LANGUAGE %}text-primary-600 dark:text-primary-400{% endif %}">
-        <span>{{ language.name_local }}</span>
+        <span class="flex flex-col items-start">
+          <span class="text-sm font-medium">{{ language.name_local }}</span>
+          <span class="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500">
+            {{ language.code }}
+          </span>
+        </span>
         {% if language.code == CURRENT_LANGUAGE %}
-        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor"
-             viewBox="0 0 24 24" stroke-width="2.5">
-          <path d="M5 13l4 4L19 7"/>
+        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor"
+             viewBox="0 0 24 24" stroke-width="2.5"
+             stroke-linecap="round" stroke-linejoin="round"
+             aria-hidden="true">
+          <path d="M5 13l4 4L19 7" />
         </svg>
         {% endif %}
       </button>

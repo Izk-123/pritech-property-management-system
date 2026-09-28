@@ -1,0 +1,65 @@
+{% extends "two_factor/_base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Enable Two-Factor Authentication" %}{% endblock %}
+
+{% block subtitle %}
+<p data-animate="fade-up" data-animate-now data-animate-delay="140"
+   class="mt-2 text-sm text-slate-500 dark:text-slate-400">
+  {% trans "Scan the QR code with Google Authenticator, Authy, or 1Password." %}
+</p>
+{% endblock %}
+
+{% block body %}
+<form method="post" novalidate
+      data-animate="fade-up" data-animate-now data-animate-delay="240">
+  {% csrf_token %}
+
+  {% include "partials/_form_errors.html" %}
+
+  {% if wizard.steps.current == 'generator' %}
+    <div class="rounded-2xl border border-slate-200 bg-white p-4 text-center
+                dark:border-white/10 dark:bg-slate-900/50">
+      <img src="{{ QR_URL }}" alt="{% trans 'QR code' %}"
+           class="mx-auto h-44 w-44 rounded-lg" />
+      <p class="mt-3 text-xs text-slate-500 dark:text-slate-400">
+        {% trans "Can't scan? Enter this key manually:" %}
+      </p>
+      <code class="mt-1 block break-all rounded-lg bg-slate-100 px-3 py-2
+                   font-mono text-sm dark:bg-slate-800">
+        {{ secret }}
+      </code>
+    </div>
+  {% endif %}
+
+  {% for field in wizard.form %}
+  <div class="mt-4">
+    <label for="{{ field.id_for_label }}"
+           class="mb-1.5 block text-sm font-medium
+                  text-slate-700 dark:text-slate-300">
+      {{ field.label }}
+    </label>
+    {{ field }}
+    {% for error in field.errors %}
+    <p class="mt-1.5 text-xs text-red-600 dark:text-red-400">{{ error }}</p>
+    {% endfor %}
+  </div>
+  {% endfor %}
+
+  <div class="mt-5 flex flex-wrap gap-2">
+    {% if wizard.steps.prev %}
+    <button type="submit" name="wizard_goto_step" value="{{ wizard.steps.prev }}"
+            data-press data-hover="lift"
+            class="btn border border-slate-200 bg-slate-100 px-4 py-2.5 text-slate-700
+                   hover:bg-slate-200 dark:border-white/10 dark:bg-white/5
+                   dark:text-slate-200 dark:hover:bg-white/10">
+      ← {% trans "Back" %}
+    </button>
+    {% endif %}
+    <button type="submit" data-press data-hover="grow"
+            class="btn btn-primary flex-1 py-2.5">
+      {% trans "Enable 2FA" %}
+    </button>
+  </div>
+</form>
+{% endblock %}

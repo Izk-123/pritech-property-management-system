@@ -1,16 +1,74 @@
+# ─────────────────────────────────────────────────────────────────────
+# Pritech PMS — Git ignore rules
+# ─────────────────────────────────────────────────────────────────────
+
+# ─── Virtualenv ──────────────────────────────────────────────────────
 venv/
+.venv/
+env/
+ENV/
+
+# ─── Python bytecode / caches ────────────────────────────────────────
 __pycache__/
-*.pyc
-*.pyo
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+eggs/
+.eggs/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# ─── Django ──────────────────────────────────────────────────────────
 db.sqlite3
 db.sqlite3-journal
-.env
-media/
 staticfiles/
+media/
+logs/
+*.log
+
+# ─── Environment files ───────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ─── Celery ──────────────────────────────────────────────────────────
+celerybeat-schedule
+celerybeat-schedule.*
+celerybeat-schedule*
+
+# ─── Testing ─────────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+nosetests.xml
+
+# ─── IDE / Editor ────────────────────────────────────────────────────
 .vscode/
 .idea/
-*.log
-.pytest_cache/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# ─── Tailwind compiled output ────────────────────────────────────────
 theme/static/css/dist/
-celerybeat-schedule*.mo
-locale/*/LC_MESSAGES/*.mo
+
+# ─── Windows ─────────────────────────────────────────────────────────
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ─── Local overrides ─────────────────────────────────────────────────
+*.local

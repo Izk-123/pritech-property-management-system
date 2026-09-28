@@ -1,32 +1,76 @@
+# ─────────────────────────────────────────────────────────────────────
+# Pritech PMS — Python dependencies
+#
+# Install:
+#     source venv/bin/activate
+#     pip install -r requirements.txt
+#
+# Upgrade after pulling a new requirements.txt:
+#     pip install --upgrade -r requirements.txt
+# ─────────────────────────────────────────────────────────────────────
+
+# ─── Core framework ─────────────────────────────────────────────────
 Django>=5.2,<6.0
+python-decouple
+django-environ
+django-tenants
+psycopg2-binary
+
+# ─── HTTP / API ─────────────────────────────────────────────────────
 djangorestframework
 djangorestframework-simplejwt
 django-filter
-django-environ
+django-cors-headers
+requests
+
+# ─── Auth & security (Phase 8) ──────────────────────────────────────
+django-otp
+django-two-factor-auth[phonenumbers]
+qrcode
+django-axes
+django-ratelimit
+argon2-cffi
+django-csp
+
+# ─── Background tasks ───────────────────────────────────────────────
+celery
+redis
+django-redis
+django-celery-beat
+django-celery-results
+
+# ─── Real-time (Phase 7) ────────────────────────────────────────────
+channels
+channels-redis
+daphne
+
+# ─── Static files & serving ─────────────────────────────────────────
+whitenoise
+gunicorn
 Pillow
+
+# ─── Frontend ───────────────────────────────────────────────────────
+django-tailwind
 django-unfold
+
+# ─── PWA (Phase 6) ──────────────────────────────────────────────────
+django-pwa
+
+# ─── Email (Phase 7) ────────────────────────────────────────────────
+django-anymail[mailgun]
+
+# ─── Audit ──────────────────────────────────────────────────────────
+django-auditlog
+
+# ─── Compliance (Phase 4) ───────────────────────────────────────────
+paychangu
+pyxrate
+
+# ─── Monitoring ─────────────────────────────────────────────────────
+sentry-sdk
+
+# ─── Dev & testing ──────────────────────────────────────────────────
 pytest
 pytest-django
 factory-boy
 django-debug-toolbar
-gunicorn
-whitenoise
-sentry-sdk
-django-cors-headers
-python-decouple
-django-tailwind
-django-auditlog
-psycopg2-binary
-django-tenants
-celery
-redis
-django-celery-beat
-django-celery-results
-requests
-paychangu
-pyxrate
-django-pwa
-channels
-channels-redis
-daphne
-django-anymail[mailgun]

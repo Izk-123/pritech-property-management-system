@@ -16,6 +16,186 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
+# ─────────────────────────────────────────────────────────────────────
+# Phase 8 — registration (password reset)
+# ─────────────────────────────────────────────────────────────────────
+
+#: templates/registration/password_reset_form.html:6
+msgid "Reset password"
+msgstr "Sinthani achinsinsi"
+
+#: templates/registration/password_reset_form.html:11
+msgid "Reset your password"
+msgstr "Sinthani achinsinsi anu"
+
+#: templates/registration/password_reset_form.html:13
+msgid "Enter your email and we'll send you a reset link."
+msgstr "Lowetsani imelo yanu ndipo tidzakutumizirani ulalo wosintha achinsinsi."
+
+#: templates/registration/password_reset_form.html:21
+#: templates/registration/password_reset_email.txt:4
+msgid "Email address"
+msgstr "Imelo"
+
+#: templates/registration/password_reset_form.html:28
+msgid "Send reset link"
+msgstr "Tumizani ulalo wosintha"
+
+#: templates/registration/password_reset_form.html:36
+#: templates/registration/password_reset_done.html:15
+#: templates/registration/password_reset_complete.html:14
+msgid "Back to sign in"
+msgstr "Bwererani kukalowa"
+
+#: templates/registration/password_reset_subject.txt:1
+msgid "Reset your Pritech PMS password"
+msgstr "Sinthani achinsinsi anu a Pritech PMS"
+
+#: templates/registration/password_reset_email.txt:2
+msgid "Hi"
+msgstr "Moni"
+
+#: templates/registration/password_reset_email.txt:4
+#, python-format
+msgid ""
+"Someone requested a password reset for your Pritech PMS account at %(site_url)s."
+msgstr "Wina wapempha kusintha achinsinsi a akaunti yanu ya Pritech PMS pa %(site_url)s."
+
+#: templates/registration/password_reset_email.txt:6
+msgid "If this was you, click the link below to set a new password:"
+msgstr "Ngati ndi inu, dinani ulalo pansipa kuti mukonze achinsinsi atsopano:"
+
+#: templates/registration/password_reset_email.txt:10
+msgid ""
+"This link expires in 24 hours. If you didn't request a reset, you can safely "
+"ignore this email."
+msgstr "Ulalo uwu utha mkati mwa maola 24. Ngati simunapemphe kusintha, mutha kunyalanyaza imelo iyi."
+
+#: templates/registration/password_reset_email.txt:12
+msgid "— The Pritech PMS team"
+msgstr "— Gulu la Pritech PMS"
+
+#: templates/registration/password_reset_done.html:6
+#: templates/registration/password_reset_done.html:10
+msgid "Check your email"
+msgstr "Yang'anani imelo yanu"
+
+#: templates/registration/password_reset_done.html:12
+msgid ""
+"If an account exists for that email, we've sent a reset link. Check your "
+"inbox and spam folder."
+msgstr "Ngati akaunti ilipo pa imelo imeneyo, tatumiza ulalo wosintha. Yang'anani mbokosi yanu ndi foda ya spam."
+
+#: templates/registration/password_reset_confirm.html:6
+msgid "Set new password"
+msgstr "Konzani achinsinsi atsopano"
+
+#: templates/registration/password_reset_confirm.html:11
+msgid "Set a new password"
+msgstr "Konzani achinsinsi atsopano"
+
+#: templates/registration/password_reset_confirm.html:28
+msgid "Change password"
+msgstr "Sinthani achinsinsi"
+
+#: templates/registration/password_reset_confirm.html:37
+msgid "This reset link is invalid or has expired. Request a new one."
+msgstr "Ulalo uwu wosintha ndi wosavomerezeka kapena watha. Pemphani watsopano."
+
+#: templates/registration/password_reset_confirm.html:41
+msgid "Request new link"
+msgstr "Pemphani ulalo watsopano"
+
+#: templates/registration/password_reset_complete.html:6
+#: templates/registration/password_reset_complete.html:10
+msgid "Password changed"
+msgstr "Achinsinsi asinthidwa"
+
+#: templates/registration/password_reset_complete.html:12
+msgid "You can now sign in with your new password."
+msgstr "Mutha kulowa ndi achinsinsi anu atsopano."
+
+#: templates/registration/password_reset_complete.html:15
+msgid "Sign in"
+msgstr "Lowani"
+
+#: templates/registration/login.html
+msgid "Sign In"
+msgstr "Lowani"
+
+#: templates/registration/login.html
+msgid "Password"
+msgstr "Achinsinsi"
+
+# ─────────────────────────────────────────────────────────────────────
+# Phase 8 — language switcher partial
+# ─────────────────────────────────────────────────────────────────────
+
+#: templates/partials/_language_switcher.html:13
+#: templates/partials/_language_switcher.html:22
+msgid "Change language"
+msgstr "Sinthani chilankhulo"
+
+# ─────────────────────────────────────────────────────────────────────
+# Phase 8 — common UI additions
+# ─────────────────────────────────────────────────────────────────────
+
+#: templates/partials/_header_tenant.html
+#: templates/partials/_header_public.html
+msgid "Sign Out"
+msgstr "Tulukani"
+
+msgid "Delete"
+msgstr "Chotsani"
+
+msgid "Search"
+msgstr "Sakani"
+
+msgid "Loading…"
+msgstr "Ikutsegula…"
+
+# ─────────────────────────────────────────────────────────────────────
+# Phase 8 — hospitality seed strings
+# ─────────────────────────────────────────────────────────────────────
+
+msgid "Hotel"
+msgstr "Hotela"
+
+msgid "Lodge"
+msgstr "Loji"
+
+msgid "Room"
+msgstr "Chipinda"
+
+msgid "Rooms"
+msgstr "Zipinda"
+
+msgid "Occupied"
+msgstr "Yatengedwa"
+
+msgid "Cleaning"
+msgstr "Ikutsukidwa"
+
+msgid "Maintenance"
+msgstr "Kukonza"
+
+# ─────────────────────────────────────────────────────────────────────
+# Phase 8 — property seed strings
+# ─────────────────────────────────────────────────────────────────────
+
+msgid "Lease"
+msgstr "Mgwirizano"
+
+msgid "Rent Invoice"
+msgstr "Invoice ya Renti"
+
+msgid "Sale Listing"
+msgstr "Kugulitsa"
+
+# ─────────────────────────────────────────────────────────────────────
+# Existing translations (Phase 1–7)
+# ─────────────────────────────────────────────────────────────────────
+
 #: templates/base.html:7
 msgid "Property management for Malawi hotels, lodges, and rentals."
 msgstr "Kuyang'anira katundu wa mahotela, maloji, ndi nyumba zobwereka ku Malawi."

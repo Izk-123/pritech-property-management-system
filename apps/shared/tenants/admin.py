@@ -7,9 +7,9 @@ from .models import Tenant, Domain
 class TenantAdmin(ModelAdmin):
     list_display = (
         'name', 'schema_name', 'plan', 'is_active',
-        'on_trial', 'paid_until', 'created_at',
+        'on_trial', 'paid_until', 'default_language', 'created_at',
     )
-    list_filter = ('plan', 'is_active', 'on_trial')
+    list_filter = ('plan', 'is_active', 'on_trial', 'default_language')
     search_fields = ('name', 'schema_name', 'contact_email', 'contact_name')
     readonly_fields = ('created_at',)
     fieldsets = (
@@ -21,6 +21,14 @@ class TenantAdmin(ModelAdmin):
         }),
         ('Contact', {
             'fields': ('contact_name', 'contact_email', 'contact_phone'),
+        }),
+        # Phase 8 — per-tenant default UI language
+        ('Localization', {
+            'fields': ('default_language',),
+            'description': (
+                'Default UI language for this tenant. Staff can still '
+                'switch per-session using the language switcher in the header.'
+            ),
         }),
         ('Metadata', {
             'fields': ('created_at',),

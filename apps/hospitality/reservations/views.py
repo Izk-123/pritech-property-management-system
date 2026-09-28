@@ -1,5 +1,7 @@
+# apps/hospitality/reservations/views.py
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib import messages
+from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
 from django.utils import timezone
@@ -34,9 +36,9 @@ class ReservationListView(LoginRequiredMixin, ListView):
         search = self.request.GET.get('q', '').strip()
         if search:
             qs = qs.filter(
-                models.Q(reservation_number__icontains=search) |
-                models.Q(primary_guest__full_name__icontains=search) |
-                models.Q(primary_guest__phone_primary__icontains=search)
+                Q(reservation_number__icontains=search) |
+                Q(primary_guest__full_name__icontains=search) |
+                Q(primary_guest__phone_primary__icontains=search)
             )
         return qs
 
@@ -194,6 +196,15 @@ class CheckOutView(LoginRequiredMixin, DetailView):
 
 
 # ─── Front Desk Dashboard ─────────────────────────────────────────
+#
+# Phase 8 — query optimisation. Three hot queries on every page load:
+#   • arrivals    → CONFIRMED, check_in == today
+#   • departures  → CHECKED_IN, check_out == today
+#   • in_house    → CHECKED_IN, spanning today
+#
+# Each uses select_related to avoid N+1 on guest/property. The arrivals
+# and in_house lists prefetch rooms + folio so the template doesn't
+# round-trip per row.
 
 class FrontDeskDashboardView(LoginRequiredMixin, ListView):
     template_name = 'pages/hospitality/front_desk.html'
@@ -201,21 +212,42 @@ class FrontDeskDashboardView(LoginRequiredMixin, ListView):
 
     def get_queryset(self):
         today = timezone.now().date()
-        return Reservation.objects.filter(
-            status=Reservation.Status.CONFIRMED,
-            check_in=today,
-        ).select_related('primary_guest', 'property').order_by('primary_guest__full_name')
+        return (
+            Reservation.objects
+            .filter(
+                status=Reservation.Status.CONFIRMED,
+                check_in=today,
+            )
+            .select_related('primary_guest', 'property')
+            .prefetch_related('rooms__unit')
+            .order_by('primary_guest__full_name')
+        )
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         today = timezone.now().date()
-        ctx['departures'] = Reservation.objects.filter(
-            status=Reservation.Status.CHECKED_IN,
-            check_out=today,
-        ).select_related('primary_guest', 'property')
-        ctx['in_house'] = Reservation.objects.filter(
-            status=Reservation.Status.CHECKED_IN,
-            check_in__lte=today,
-            check_out__gt=today,
-        ).select_related('primary_guest', 'property').prefetch_related('folio')
+
+        ctx['departures'] = (
+            Reservation.objects
+            .filter(
+                status=Reservation.Status.CHECKED_IN,
+                check_out=today,
+            )
+            .select_related('primary_guest', 'property')
+            .prefetch_related('rooms__unit', 'folio')
+            .order_by('primary_guest__full_name')
+        )
+
+        ctx['in_house'] = (
+            Reservation.objects
+            .filter(
+                status=Reservation.Status.CHECKED_IN,
+                check_in__lte=today,
+                check_out__gt=today,
+            )
+            .select_related('primary_guest', 'property')
+            .prefetch_related('rooms__unit', 'folio')
+            .order_by('primary_guest__full_name')
+        )
+
         return ctx

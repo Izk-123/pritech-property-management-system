@@ -1,43 +1,93 @@
+# config/urls_public.py
+"""
+Public-schema URL configuration.
+
+Handles marketing, signup, platform admin, tenant-aware authentication,
+2FA, password reset, meta webhooks, and the comprehensive health check.
+"""
+
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
 from django.contrib.auth import views as auth_views
 from django.urls import path, include
 from django.views.generic import TemplateView
+
 from apps.shared.tenants import views_signup
+from apps.shared.tenants.views_health import health_check
 from apps.shared.users.views import SchemaAwareLoginView
 from apps.communications import views as comm_views
 
 
 urlpatterns = [
-    # Marketing home
+    # ─── Marketing home ────────────────────────────────────────────
     path('', TemplateView.as_view(template_name='pages/public_home.html'),
          name='public_home'),
 
-    # PWA manifest and service worker
+    # ─── PWA manifest and service worker ───────────────────────────
     path('', include('pwa.urls')),
 
-    # i18n — provides the `set_language` view used by Unfold's language switcher
+    # ─── i18n — provides `set_language` for the language switcher ──
     path('i18n/', include('django.conf.urls.i18n')),
 
-    # config/urls.py and config/urls_public.py
+    # ─── Offline fallback page ─────────────────────────────────────
     path('offline/', TemplateView.as_view(template_name='pages/offline.html'),
-        name='offline'),
+         name='offline'),
 
-    # Signup
+    # ─── Signup ────────────────────────────────────────────────────
     path('signup/', include('apps.shared.tenants.urls_signup')),
 
-    # Platform admin (tenant management)
+    # ─── Platform admin (tenant management) ────────────────────────
     path('platform/', include('apps.shared.tenants.urls_platform')),
 
-    # Auth
+    # ─── Auth ──────────────────────────────────────────────────────
+    # Phase 8 — django-two-factor-auth owns /account/login/ and all 2FA
+    # setup/recovery paths. The SchemaAwareLoginView is still wired in as
+    # the underlying login form so tenant membership checks still apply.
+    path('', include('two_factor.urls', namespace='two_factor')),
+
+    # Legacy alias: redirect /login/ to the 2FA login view
     path('login/', SchemaAwareLoginView.as_view(), name='login'),
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),
 
-    # Health check
-    path('health/', views_signup.HealthCheckView.as_view(), name='health'),
+    # ─── Password reset (Phase 8 — AU-08) ──────────────────────────
+    path(
+        'password-reset/',
+        auth_views.PasswordResetView.as_view(
+            template_name='registration/password_reset_form.html',
+            email_template_name='registration/password_reset_email.txt',
+            subject_template_name='registration/password_reset_subject.txt',
+            success_url='/password-reset/done/',
+        ),
+        name='password_reset',
+    ),
+    path(
+        'password-reset/done/',
+        auth_views.PasswordResetDoneView.as_view(
+            template_name='registration/password_reset_done.html',
+        ),
+        name='password_reset_done',
+    ),
+    path(
+        'password-reset/<uidb64>/<token>/',
+        auth_views.PasswordResetConfirmView.as_view(
+            template_name='registration/password_reset_confirm.html',
+            success_url='/password-reset/complete/',
+        ),
+        name='password_reset_confirm',
+    ),
+    path(
+        'password-reset/complete/',
+        auth_views.PasswordResetCompleteView.as_view(
+            template_name='registration/password_reset_complete.html',
+        ),
+        name='password_reset_complete',
+    ),
 
-    # Meta webhooks (public — Meta posts from an external IP)
+    # ─── Health check (Phase 8 — comprehensive) ────────────────────
+    path('health/', health_check, name='health'),
+
+    # ─── Meta webhooks (public — Meta posts from an external IP) ───
     path('communications/whatsapp/webhook/',
          comm_views.whatsapp_webhook,
          name='whatsapp_webhook'),
@@ -45,7 +95,7 @@ urlpatterns = [
          comm_views.whatsapp_verify,
          name='whatsapp_verify'),
 
-    # Admin
+    # ─── Admin ─────────────────────────────────────────────────────
     path('admin/', admin.site.urls),
 ]
 

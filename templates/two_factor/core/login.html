@@ -1,0 +1,66 @@
+{% extends "two_factor/_base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Sign In" %}{% endblock %}
+
+{% block subtitle %}
+<p data-animate="fade-up" data-animate-now data-animate-delay="140"
+   class="mt-2 text-sm text-slate-500 dark:text-slate-400">
+  {% blocktrans %}Enter the 6-digit code from your authenticator app.{% endblocktrans %}
+</p>
+{% endblock %}
+
+{% block body %}
+<form method="post" novalidate
+      data-animate="fade-up" data-animate-now data-animate-delay="240">
+  {% csrf_token %}
+
+  {% include "partials/_form_errors.html" %}
+
+  {% for field in form %}
+  <div class="mb-4">
+    <label for="{{ field.id_for_label }}"
+           class="mb-1.5 block text-sm font-medium
+                  text-slate-700 dark:text-slate-300">
+      {{ field.label }}
+    </label>
+    {{ field }}
+    {% if field.help_text %}
+    <p class="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+      {{ field.help_text }}
+    </p>
+    {% endif %}
+    {% for error in field.errors %}
+    <p class="mt-1.5 text-xs text-red-600 dark:text-red-400">{{ error }}</p>
+    {% endfor %}
+  </div>
+  {% endfor %}
+
+  <button type="submit" data-press data-hover="grow"
+          class="btn btn-primary w-full py-2.5">
+    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+         stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
+         aria-hidden="true">
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+    </svg>
+    {% trans "Verify" %}
+  </button>
+</form>
+
+<div class="mt-4 flex flex-col items-center gap-2 text-xs">
+  {% if wizard.steps.prev %}
+  <a href="?wizard_goto_step={{ wizard.steps.prev }}"
+     data-no-fade
+     class="text-slate-500 transition-colors hover:text-primary-600
+            dark:text-slate-400 dark:hover:text-primary-400">
+    ← {% trans "Back" %}
+  </a>
+  {% endif %}
+  <a href="{% url 'two_factor:backup_tokens' %}"
+     data-no-fade
+     class="text-slate-500 transition-colors hover:text-primary-600
+            dark:text-slate-400 dark:hover:text-primary-400">
+    {% trans "Use a backup token instead" %}
+  </a>
+</div>
+{% endblock %}

@@ -1,0 +1,46 @@
+{% extends "two_factor/_base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Backup Tokens" %}{% endblock %}
+
+{% block subtitle %}
+<p data-animate="fade-up" data-animate-now data-animate-delay="140"
+   class="mt-2 text-sm text-slate-500 dark:text-slate-400">
+  {% trans "Store these tokens somewhere safe. Each can be used once if you lose your phone." %}
+</p>
+{% endblock %}
+
+{% block body %}
+<div data-animate="fade-up" data-animate-now data-animate-delay="200"
+     class="rounded-2xl border border-amber-200 bg-amber-50 p-4
+            dark:border-amber-800 dark:bg-amber-900/20">
+  <div class="mb-3 flex items-start gap-2">
+    <svg class="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" fill="none"
+         stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+    </svg>
+    <p class="text-xs font-medium text-amber-800 dark:text-amber-200">
+      {% trans "These tokens are shown only once." %}
+    </p>
+  </div>
+
+  <ul class="grid grid-cols-2 gap-2 text-sm">
+    {% for token in tokens %}
+    <li class="rounded-lg bg-white px-3 py-2 font-mono text-xs
+               dark:bg-slate-900/60">
+      {{ token.token }}
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+
+<div data-animate="fade-up" data-animate-now data-animate-delay="300"
+     class="mt-5 flex flex-wrap gap-2">
+  <a href="{% url 'two_factor:profile' %}"
+     data-press data-hover="grow"
+     class="btn btn-primary flex-1 py-2.5">
+    {% trans "I've saved them" %}
+  </a>
+</div>
+{% endblock %}

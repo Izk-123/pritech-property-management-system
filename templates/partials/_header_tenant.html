@@ -129,6 +129,9 @@
       </div>
       {% endif %}
 
+      {# Language switcher — Phase 8 #}
+      {% include "partials/_language_switcher.html" %}
+
       {# Theme toggle #}
       <button type="button"
               onclick="window.motion && window.motion.toggleTheme()"
@@ -174,6 +177,10 @@
 
     {# Mobile controls #}
     <div class="flex items-center gap-1.5 md:hidden">
+
+      {# Language switcher — Phase 8 #}
+      {% include "partials/_language_switcher.html" %}
+
       <button type="button"
               onclick="window.motion && window.motion.toggleTheme()"
               aria-label="{% trans 'Toggle dark mode' %}"

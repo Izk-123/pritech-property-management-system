@@ -1,39 +1,41 @@
 from django.contrib import messages
+from django.contrib.auth import logout
 from django.contrib.auth.views import LoginView
+from django.http import HttpResponse
 from django.shortcuts import redirect
 from django.urls import NoReverseMatch, reverse
+from django.utils.decorators import method_decorator
+from django_ratelimit.decorators import ratelimit
 
 from .models import AuthAuditLog
 
 
 class SchemaAwareLoginView(LoginView):
     """
-    Login view that:
-      1. Honours ?next= when safe.
-      2. On the public schema  → redirects to public_home.
-      3. On a tenant schema    → verifies the user has an active
-         membership (or is a platform admin), then redirects to
-         the front desk.
+    Login view with tenant awareness, membership check, and rate limiting.
 
-    Satisfies AU-03 (global auth, tenant-specific access) and AU-12
-    (tenant resolved from subdomain).
+    Satisfies AU-03 (tenant-specific access), AU-12 (tenant from subdomain),
+    AU-15 (rate limiting).
     """
     template_name = 'registration/login.html'
     redirect_authenticated_user = True
 
+    @method_decorator(
+        ratelimit(key='ip', rate='5/m', method='POST', block=True),
+    )
+    def post(self, request, *args, **kwargs):
+        return super().post(request, *args, **kwargs)
+
     def form_valid(self, form):
-        """
-        Run Django's normal login, then check tenant membership.
-        """
         response = super().form_valid(form)
         user = self.request.user
         tenant = getattr(self.request, 'tenant', None)
 
-        # Public schema — nothing to check
+        # Public schema — no membership check needed
         if not tenant or tenant.schema_name == 'public':
             return response
 
-        # Platform admins bypass membership check
+        # Platform admins bypass membership
         if user.is_platform_admin or user.is_superuser:
             return response
 
@@ -48,8 +50,6 @@ class SchemaAwareLoginView(LoginView):
                     'tenant_schema': tenant.schema_name,
                 },
             )
-            # Log them back out and show a clear message
-            from django.contrib.auth import logout
             logout(self.request)
             messages.error(
                 self.request,
@@ -74,3 +74,12 @@ class SchemaAwareLoginView(LoginView):
             return reverse('reservations:front_desk')
         except NoReverseMatch:
             return reverse('home')
+
+
+def ratelimited_view(request, exception=None):
+    """Returned by django-ratelimit when a rate limit is exceeded."""
+    return HttpResponse(
+        'Too many requests. Please wait a minute and try again.',
+        status=429,
+        content_type='text/plain',
+    )

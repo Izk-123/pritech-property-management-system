@@ -6,7 +6,8 @@
 #   Phase 7: Channels + Redis WebSockets + WhatsApp/email + animated admin
 #
 # Idempotent and self-healing. Auto-detects a free Daphne port, cleans stale
-# processes, flattens nested static icons, and verifies both URLconfs import.
+# processes, flattens nested static icons, verifies both URLconfs import,
+# and reconciles public-schema drift caused by regenerated migration files.
 #
 # Usage:
 #   sudo bash deploy_pritech_pms.sh              # deploy / update
@@ -133,10 +134,6 @@ env_set_if_missing() {
 
 # ============================================================================
 # Pre-flight: pick a free Daphne port
-#
-# If ${DAPHNE_PORT_PREFERRED} is already bound:
-#   - If the holder belongs to our systemd unit → fine, restart will handle
-#   - Otherwise → scan next 20 ports, use first free one
 # ============================================================================
 if [[ "${ENV_ONLY}" != "true" ]]; then
     log "Pre-flight: choosing Daphne port"
@@ -146,7 +143,6 @@ if [[ "${ENV_ONLY}" != "true" ]]; then
     }
 
     port_owner() {
-        # Print the process name of whatever holds the port, or empty
         ss -tlnp 2>/dev/null \
             | grep ":$1 " \
             | grep -oP 'users:\(\("\K[^"]+' \
@@ -159,8 +155,6 @@ if [[ "${ENV_ONLY}" != "true" ]]; then
     else
         owner="$(port_owner "${DAPHNE_PORT}")"
         if [[ "${owner}" == "daphne" ]]; then
-            # Likely our own daphne from a crashed earlier start.
-            # Step 0 below will kill it. Keep the port.
             warn "Port ${DAPHNE_PORT} held by daphne — will be cleaned up in Step 0"
         else
             warn "Port ${DAPHNE_PORT} held by '${owner:-unknown}' — scanning for a free port"
@@ -177,7 +171,6 @@ if [[ "${ENV_ONLY}" != "true" ]]; then
         fi
     fi
 
-    # Persist the chosen port to .env so any code reading DAPHNE_PORT stays in sync
     if [[ -f "${ENV_FILE}" ]]; then
         env_set DAPHNE_PORT "${DAPHNE_PORT}"
     fi
@@ -217,15 +210,10 @@ fi
 
 # ============================================================================
 # Step 0 — Cleanup stale project processes
-#
-# Kills any orphaned daphne/gunicorn process that belongs to this project
-# but isn't managed by systemd (leftover from a crashed earlier start).
-# Runs BEFORE we write/rewrite systemd units.
 # ============================================================================
 if [[ "${ENV_ONLY}" != "true" ]]; then
     log "Step 0: Cleanup stale project processes"
 
-    # Stop systemd units cleanly first — else they respawn while we kill
     for svc in "daphne-${PROJECT_NAME}" "gunicorn-${PROJECT_NAME}"; do
         systemctl stop "${svc}" 2>/dev/null || true
     done
@@ -233,21 +221,17 @@ if [[ "${ENV_ONLY}" != "true" ]]; then
     systemctl reset-failed "gunicorn-${PROJECT_NAME}" 2>/dev/null || true
     sleep 1
 
-    # Kill any process still bound to the Daphne port
     if ss -tln 2>/dev/null | grep -q ":${DAPHNE_PORT} "; then
         warn "Port ${DAPHNE_PORT} still bound — killing holder"
         fuser -k "${DAPHNE_PORT}/tcp" 2>/dev/null || true
         sleep 1
     fi
 
-    # Kill any orphaned daphne/gunicorn matching this project
     pkill -f "daphne.*${PROJECT_NAME}" 2>/dev/null || true
     pkill -f "gunicorn.*${PROJECT_DIR}" 2>/dev/null || true
     sleep 1
 
-    # Confirm port is now free
     if ss -tln 2>/dev/null | grep -q ":${DAPHNE_PORT} "; then
-        # Still bound by something non-killable → fall back further
         warn "Port ${DAPHNE_PORT} still held after cleanup — selecting another"
         FOUND_PORT=""
         for p in $(seq $((DAPHNE_PORT + 1)) $((DAPHNE_PORT + 20))); do
@@ -551,14 +535,19 @@ ok "Database ready"
 
 # ============================================================================
 # Step 5 — Migrations: verify + generate + sanity-check
+#
+# Auto-generated migrations use TIMESTAMPED names so a regenerated file can
+# never collide with an already-applied migration record in django_migrations.
 # ============================================================================
 log "Step 5: Ensure all migrations exist and are current"
+
+MIGRATION_TS="$(date +%Y%m%d_%H%M%S)"
 
 # ─── 5a. tenants ───
 TENANTS_MIGRATION="${PROJECT_DIR}/apps/shared/tenants/migrations/0001_initial.py"
 if [[ ! -f "${TENANTS_MIGRATION}" ]]; then
     warn "tenants/migrations/0001_initial.py missing — generating now"
-    python manage.py makemigrations tenants
+    python manage.py makemigrations tenants --name "auto_${MIGRATION_TS}"
     if [[ -f "${TENANTS_MIGRATION}" ]]; then
         ok "Generated apps/shared/tenants/migrations/0001_initial.py"
         warn "⚠ Commit this file to git or it regenerates every deploy."
@@ -573,7 +562,7 @@ fi
 COMM_MIGRATION="${PROJECT_DIR}/apps/communications/migrations/0001_initial.py"
 if [[ ! -f "${COMM_MIGRATION}" ]]; then
     warn "communications/migrations/0001_initial.py missing — generating now"
-    python manage.py makemigrations communications
+    python manage.py makemigrations communications --name "auto_${MIGRATION_TS}"
     if [[ -f "${COMM_MIGRATION}" ]]; then
         ok "Generated apps/communications/migrations/0001_initial.py"
         warn "⚠ Commit this file to git or it regenerates every deploy."
@@ -590,7 +579,7 @@ if ! python manage.py makemigrations --check --dry-run 2>&1 | tee /tmp/migration
     warn "Model changes without migrations detected:"
     cat /tmp/migrations-check.log | sed 's/^/    /'
     warn "Generating them now (they MUST be committed to git afterwards):"
-    python manage.py makemigrations
+    python manage.py makemigrations --name "auto_${MIGRATION_TS}"
     warn "⚠ Run 'git add */migrations/ && git commit' from your dev machine."
 else
     ok "All models have up-to-date migrations"
@@ -628,6 +617,192 @@ ok "Django check passed"
 log "Step 7: Apply migrations to shared schema (public)"
 python manage.py migrate_schemas --shared --noinput
 ok "Shared schema migrated"
+
+# ============================================================================
+# Step 7b — Schema reconciliation (SHARED_APPS only)
+#
+# The public schema only contains models from SHARED_APPS. Tenant-schema
+# models live in per-tenant schemas and are migrated separately by Step 9.
+#
+# Bug we guard against: a migration file regenerated with the same name
+# after being recorded as applied — Django sees it as done and skips it,
+# leaving the DB behind the models.
+#
+# Uses a status-file handshake rather than exit codes so it can't fail
+# silently the way a raw `manage.py shell` heredoc can.
+# ============================================================================
+log "Step 7b: Verify public schema matches shared-app models"
+
+rm -f /tmp/drift-check.log /tmp/drift-check-status
+
+set +e
+python manage.py shell > /tmp/drift-check.log 2>&1 <<'PY'
+import json
+import sys
+from decimal import Decimal
+
+from django.apps import apps
+from django.conf import settings
+from django.db import connection
+
+
+def _shared_model(model):
+    """Only check models whose app is in SHARED_APPS (public schema)."""
+    return model._meta.app_config.name in settings.SHARED_APPS
+
+
+def _default_sql(field):
+    """Return a literal SQL DEFAULT clause, or None if we can't guess one."""
+    if field.auto_now or field.auto_now_add:
+        return "'1970-01-01 00:00:00+00'"
+
+    if not field.has_default():
+        return None
+
+    try:
+        val = field.get_default()
+    except Exception:
+        return None
+
+    if val is None:
+        return "NULL"
+    if isinstance(val, bool):
+        return "TRUE" if val else "FALSE"
+    if isinstance(val, (int, float, Decimal)):
+        return str(val)
+    if isinstance(val, (list, dict)):
+        return "'" + json.dumps(val).replace("'", "''") + "'"
+    return "'" + str(val).replace("'", "''") + "'"
+
+
+fixed = []
+unfixable = []
+checked_models = 0
+checked_tables = 0
+
+with connection.cursor() as cur:
+    cur.execute("""
+        SELECT table_name FROM information_schema.tables
+        WHERE table_schema = current_schema()
+    """)
+    existing_tables = {row[0] for row in cur.fetchall()}
+
+    for model in apps.get_models():
+        if not _shared_model(model):
+            continue
+        checked_models += 1
+
+        table = model._meta.db_table
+        label = model._meta.label
+
+        if table not in existing_tables:
+            unfixable.append((label, table, '<TABLE_MISSING>'))
+            print(f"UNFIXABLE|TABLE_MISSING|{label}|{table}", flush=True)
+            continue
+
+        checked_tables += 1
+        cur.execute("""
+            SELECT column_name FROM information_schema.columns
+            WHERE table_schema = current_schema() AND table_name = %s
+        """, [table])
+        actual = {row[0] for row in cur.fetchall()}
+
+        for field in model._meta.local_fields:
+            if not field.column or field.column in actual:
+                continue
+
+            try:
+                col_type = field.db_type(connection)
+            except Exception as e:
+                unfixable.append((label, table, field.column))
+                print(f"UNFIXABLE|NO_DB_TYPE|{label}|{table}.{field.column}|{e}",
+                      flush=True)
+                continue
+
+            if field.null:
+                sql = (
+                    f'ALTER TABLE "{table}" ADD COLUMN IF NOT EXISTS '
+                    f'"{field.column}" {col_type} NULL'
+                )
+                kind = 'NULLABLE_COLUMN'
+            else:
+                default_sql = _default_sql(field)
+                if default_sql is None:
+                    unfixable.append((label, table, field.column))
+                    print(
+                        f"UNFIXABLE|REQUIRED_COLUMN|{label}|{table}.{field.column}",
+                        flush=True,
+                    )
+                    continue
+                sql = (
+                    f'ALTER TABLE "{table}" ADD COLUMN IF NOT EXISTS '
+                    f'"{field.column}" {col_type} NOT NULL DEFAULT {default_sql}'
+                )
+                kind = 'REQUIRED_COLUMN_WITH_DEFAULT'
+
+            try:
+                cur.execute(sql)
+                fixed.append((label, table, field.column))
+                print(f"FIXED|{kind}|{label}|{table}.{field.column}", flush=True)
+            except Exception as e:
+                unfixable.append((label, table, field.column))
+                print(f"FAILED|{label}|{table}.{field.column}|{e}", flush=True)
+
+print(
+    f"SUMMARY|shared_models={checked_models}|"
+    f"tables_present={checked_tables}|"
+    f"fixed={len(fixed)}|unfixable={len(unfixable)}",
+    flush=True,
+)
+
+with open('/tmp/drift-check-status', 'w') as f:
+    f.write('OK' if not unfixable else 'UNFIXABLE')
+PY
+set -e
+
+STATUS="$(cat /tmp/drift-check-status 2>/dev/null || echo 'MISSING')"
+
+case "${STATUS}" in
+    OK)
+        FIXED_N="$(grep -c '^FIXED|' /tmp/drift-check.log 2>/dev/null || true)"
+        FIXED_N="${FIXED_N:-0}"
+        SUMMARY="$(grep '^SUMMARY|' /tmp/drift-check.log 2>/dev/null | tail -1 || true)"
+
+        if [[ "${FIXED_N}" -gt 0 ]]; then
+            ok "Schema drift auto-repaired (${FIXED_N} column(s) added):"
+            while IFS='|' read -r _ kind label col; do
+                info "  + ${col}  (${kind})"
+            done < <(grep '^FIXED|' /tmp/drift-check.log)
+        else
+            ok "Public schema matches shared-app models — no drift"
+        fi
+        [[ -n "${SUMMARY}" ]] && info "  ${SUMMARY}"
+        ;;
+
+    UNFIXABLE)
+        warn "Schema drift detected that the script cannot safely repair:"
+        while IFS='|' read -r _ kind label col rest; do
+            warn "  ! ${col}  (${kind} in ${label})"
+        done < <(grep '^UNFIXABLE|' /tmp/drift-check.log)
+        warn ""
+        warn "Full log: /tmp/drift-check.log"
+        warn "Manual recovery:"
+        warn "  1. sudo -u postgres psql -d ${DB_NAME} -c \\"
+        warn "       \"SELECT id, app, name, applied FROM django_migrations \\"
+        warn "        WHERE app='<app_label>' ORDER BY id DESC LIMIT 20;\""
+        warn "  2. If the migration file exists but the table/column is missing,"
+        warn "     delete the recorded migration row and re-run:"
+        warn "       python manage.py migrate_schemas --shared"
+        die "Cannot continue with schema drift unresolved."
+        ;;
+
+    *)
+        warn "Drift check did not complete cleanly (status='${STATUS}')."
+        warn "Last 40 lines of output:"
+        tail -40 /tmp/drift-check.log 2>/dev/null | sed 's/^/    /'
+        die "Drift check failed — fix the error above before deploying."
+        ;;
+esac
 
 # ============================================================================
 # Step 8 — Public tenant
@@ -735,7 +910,6 @@ python manage.py shell <<'PY'
 import importlib
 from django.urls import reverse, NoReverseMatch
 
-# 1) Both URLconfs must import — catches missing imports like comm_views
 errors = []
 for mod in ('config.urls', 'config.urls_public'):
     try:
@@ -745,7 +919,6 @@ for mod in ('config.urls', 'config.urls_public'):
         errors.append(f'{mod}: {type(e).__name__}: {e}')
         print(f'  ✘ {mod} import failed: {type(e).__name__}: {e}')
 
-# 2) Named routes must reverse
 checks = [
     ('tenant', 'offline'),
     ('tenant', 'sync:sync'),
@@ -760,7 +933,6 @@ for scope, name in checks:
     except NoReverseMatch:
         print(f'  ⚠ {scope}:{name} not reverse-resolvable')
 
-# 3) WebSocket routing
 try:
     from apps.realtime.routing import websocket_urlpatterns
     print(f'  ✔ apps.realtime.routing has {len(websocket_urlpatterns)} WebSocket routes')
@@ -1021,7 +1193,6 @@ restart_clean() {
     systemctl start "${svc}"
 }
 
-# Clean restart Daphne — kill any orphan first
 pkill -f "daphne.*${PROJECT_NAME}" 2>/dev/null || true
 sleep 1
 if ss -tln 2>/dev/null | grep -q ":${DAPHNE_PORT} "; then

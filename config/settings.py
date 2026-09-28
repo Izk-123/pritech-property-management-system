@@ -8,9 +8,14 @@ Phase 5: multi-tenant via django-tenants (PostgreSQL schema isolation).
 Phase 6: PWA + offline-first (django-pwa, Workbox, IndexedDB sync queue).
 Phase 7: real-time (Channels + Redis) + WhatsApp/email communications
          + modernised animated admin theme (Unfold).
+Phase 8: auth hardening (Argon2, 2FA, Axes lockout, rate limiting,
+         password reset, JWT), Chichewa localization, security headers
+         (CSP), django-redis cache, backups, health checks.
+
 PostgreSQL is required in BOTH dev and prod — SQLite cannot host tenants.
 """
 
+from datetime import timedelta
 from pathlib import Path
 
 from decouple import Csv, config
@@ -100,6 +105,21 @@ SHARED_APPS = [
     'apps.core.sync',               # Phase 6 — offline sync API
     'apps.realtime',                # Phase 7 — WebSocket infrastructure
 
+    # ─── Phase 8 — auth hardening ──────────────────────────────────
+    'django_otp',
+    'django_otp.plugins.otp_totp',
+    'django_otp.plugins.otp_static',
+    'two_factor',
+    'two_factor.plugins.phonenumber',
+    'rest_framework',
+    'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
+    'axes',
+    'django_ratelimit',
+
+    # ─── Phase 8 — security headers ────────────────────────────────
+    'csp',
+
     'channels',                     # Phase 7 — ASGI channel layer
     'anymail',                      # Phase 7 — email via Mailgun/SES
 
@@ -144,12 +164,17 @@ INSTALLED_APPS = list(SHARED_APPS) + [
 
 # ─────────────────────────────────────────────────────────────────────
 # Middleware
+#
 # TenantMainMiddleware MUST be first.
+# AxesMiddleware MUST be last (it inspects responses after the full stack).
 # ─────────────────────────────────────────────────────────────────────
 MIDDLEWARE = [
     'django_tenants.middleware.main.TenantMainMiddleware',   # must be first
     'django.middleware.security.SecurityMiddleware',
 ]
+
+# Phase 8 — Content Security Policy, right after SecurityMiddleware
+MIDDLEWARE.append('csp.middleware.CSPMiddleware')
 
 if not DEBUG:
     MIDDLEWARE.append('whitenoise.middleware.WhiteNoiseMiddleware')
@@ -157,12 +182,15 @@ if not DEBUG:
 MIDDLEWARE += [
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.locale.LocaleMiddleware',
-    'apps.shared.tenants.middleware.TenantLanguageMiddleware',  
+    'apps.shared.tenants.middleware.TenantLanguageMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django_otp.middleware.OTPMiddleware',                    # Phase 8
+    'apps.shared.users.middleware.ForceTwoFactorMiddleware',  # Phase 8
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'axes.middleware.AxesMiddleware',                         # Phase 8 — must be last
 ]
 
 
@@ -211,7 +239,14 @@ DATABASES = {
 }
 
 if not DEBUG:
-    DATABASES['default']['OPTIONS']['options'] = '-c statement_timeout=30000'
+    # Phase 8 — OLTP-friendly PostgreSQL tuning
+    # jit=off    → short queries; JIT overhead outweighs gains
+    # work_mem   → larger sorts/joins before spilling to disk
+    DATABASES['default']['OPTIONS']['options'] = (
+        '-c statement_timeout=30000 '
+        '-c jit=off '
+        '-c work_mem=16MB'
+    )
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -226,10 +261,18 @@ if DEBUG:
     }
     SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 else:
+    # Phase 8 — django-redis for connection pooling + IGNORE_EXCEPTIONS
     CACHES = {
         'default': {
-            'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+            'BACKEND': 'django_redis.cache.RedisCache',
             'LOCATION': config('REDIS_URL', default='redis://127.0.0.1:6379/1'),
+            'OPTIONS': {
+                'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+                'IGNORE_EXCEPTIONS': True,
+                'CONNECTION_POOL_KWARGS': {'max_connections': 50},
+                'SOCKET_CONNECT_TIMEOUT': 5,
+                'SOCKET_TIMEOUT': 5,
+            },
             'KEY_PREFIX': 'pritech_pms',
             'TIMEOUT': 300,
         }
@@ -257,9 +300,16 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
-LOGIN_URL = 'login'
+# Phase 8 — Axes wraps the standard backend
+AUTHENTICATION_BACKENDS = [
+    'axes.backends.AxesStandaloneBackend',
+    'django.contrib.auth.backends.ModelBackend',
+]
+
+# Phase 8 — login now routes through django-two-factor-auth
+LOGIN_URL = 'two_factor:login'
 LOGIN_REDIRECT_URL = '/'
-LOGOUT_REDIRECT_URL = 'login'
+LOGOUT_REDIRECT_URL = 'two_factor:login'
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -355,6 +405,47 @@ if not DEBUG:
 
     X_FRAME_OPTIONS = 'DENY'
 
+    # Phase 8 — Content Security Policy (django-csp 4.x)
+    CONTENT_SECURITY_POLICY = {
+        'DIRECTIVES': {
+            'default-src': ["'self'"],
+            'script-src': [
+                "'self'",
+                "'unsafe-inline'",   # motion engine + inline theme script
+                'https://cdn.jsdelivr.net',
+                'https://unpkg.com',
+                'https://cdn.tailwindcss.com',
+                'https://storage.googleapis.com',
+            ],
+            'style-src': [
+                "'self'",
+                "'unsafe-inline'",
+                'https://fonts.googleapis.com',
+            ],
+            'font-src': ["'self'", 'https://fonts.gstatic.com', 'data:'],
+            'img-src': ["'self'", 'data:', 'blob:', 'https:'],
+            'connect-src': [
+                "'self'",
+                'wss://*.pritechmw.com',
+                'https://api.paychangu.com',
+                'https://graph.facebook.com',
+                'https://storage.googleapis.com',
+            ],
+            'frame-ancestors': ["'none'"],
+            'base-uri': ["'self'"],
+            'form-action': ["'self'"],
+            'manifest-src': ["'self'"],
+            'worker-src': ["'self'", 'blob:'],
+        },
+    }
+
+    # Phase 8 — Permissions Policy
+    PERMISSIONS_POLICY = {
+        'geolocation': [],
+        'microphone': [],
+        'camera': [],
+    }
+
 
 # ─────────────────────────────────────────────────────────────────────
 # Celery
@@ -428,6 +519,12 @@ CELERY_BEAT_SCHEDULE = {
     'scan-rent-due-reminders': {
         'task': 'apps.communications.tasks.scan_rent_due_reminders',
         'schedule': crontab(hour=8, minute=0),        # 08:00 daily
+    },
+
+    # ─── Phase 8 — Celery heartbeat (worker liveness) ──────────────────
+    'celery-heartbeat': {
+        'task': 'apps.shared.tenants.tasks.heartbeat',
+        'schedule': crontab(minute='*/15'),
     },
 }
 
@@ -906,3 +1003,77 @@ ANYMAIL = {
 
 if not DEBUG and ANYMAIL['MAILGUN_API_KEY']:
     EMAIL_BACKEND = 'anymail.backends.mailgun.EmailBackend'
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Phase 8 — Authentication hardening
+# ─────────────────────────────────────────────────────────────────────
+
+# ─── Password hashing — Argon2 (AU-07) ──────────────────────────────
+PASSWORD_HASHERS = [
+    'django.contrib.auth.hashers.Argon2PasswordHasher',
+    'django.contrib.auth.hashers.PBKDF2PasswordHasher',
+    'django.contrib.auth.hashers.PBKDF2SHA1PasswordHasher',
+    'django.contrib.auth.hashers.BCryptSHA256PasswordHasher',
+]
+
+# ─── Account lockout — django-axes (AU-09) ──────────────────────────
+AXES_FAILURE_LIMIT = 5
+AXES_COOLOFF_TIME = 0.5                # 30 minutes
+AXES_LOCKOUT_PARAMETERS = [['username', 'ip_address']]
+AXES_RESET_ON_SUCCESS = True
+AXES_ENABLE_ACCESS_FAILURE_LOG = True
+AXES_LOCKOUT_CALLABLE = None            # use default lockout response
+AXES_VERBOSE = False                    # don't leak which field failed
+AXES_IPWARE_PROXY_COUNT = 1             # behind Nginx
+AXES_IPWARE_META_PRECEDENCE_ORDER = [
+    'HTTP_X_FORWARDED_FOR',
+    'REMOTE_ADDR',
+]
+
+# ─── Rate limiting — django-ratelimit (AU-15) ──────────────────────
+RATELIMIT_USE_CACHE = 'default'
+RATELIMIT_VIEW = 'apps.shared.users.views.ratelimited_view'
+RATELIMIT_ENABLE = True
+# Rate limits are set per-view (see apps/shared/users/views.py)
+
+# ─── 2FA — django-two-factor-auth (AU-06) ──────────────────────────
+TWO_FACTOR_PATCH_ADMIN = True           # force 2FA on Django admin
+
+TWO_FACTOR_REMEMBER_COOKIE_AGE = 30 * 24 * 60 * 60  # 30 days
+TWO_FACTOR_REMEMBER_COOKIE_DURATION = 30 * 24 * 60 * 60
+
+# 2FA requires email
+TWO_FACTOR_LOGIN_TIMEOUT = 600          # 10 minutes to complete 2FA
+TWO_FACTOR_TOTP_ISSUER = 'Pritech PMS'  # shown in authenticator apps
+
+# ─── JWT for API clients (AU-04) ───────────────────────────────────
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '20/minute',
+        'user': '1000/day',
+        'login': '5/minute',
+    },
+}
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'UPDATE_LAST_LOGIN': True,
+    'ALGORITHM': 'HS256',
+    'SIGNING_KEY': SECRET_KEY,
+    'AUTH_HEADER_TYPES': ('Bearer',),
+}

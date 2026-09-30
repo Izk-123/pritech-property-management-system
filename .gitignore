@@ -71,4 +71,5 @@ ehthumbs.db
 Desktop.ini
 
 # ─── Local overrides ─────────────────────────────────────────────────
-*.local
+*.local*.po.bak*
+*.bak

@@ -1,487 +1,421 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n humanize %}
 
-{% block title %}
-{% if request.tenant and request.tenant.schema_name == 'public' %}
-Pritech PMS — {% trans "Property Management System" %}
-{% else %}
-{{ request.tenant.name|default:"Dashboard" }} — Pritech PMS
-{% endif %}
-{% endblock %}
+{% comment %}
+    Tenant guest-facing home page.
+
+    Shown to anonymous visitors when they land on a tenant subdomain,
+    e.g. https://lakeview.pms.pritechmw.com/
+
+    Authenticated staff never reach this template — TenantHomeView
+    redirects them to /dashboard/ before rendering. So this file has
+    no staff-dashboard markup at all; that lives in
+    templates/pages/dashboard.html.
+
+    Data injected by TenantHomeView:
+      featured_hospitality   up to 6 hotels/lodges, ranked by photos
+                             then availability
+      recent_rentals         up to 6 newest vacant apartments/houses
+      stay_count             total bookable rooms/chalets/beds
+      rent_count             total vacant rentals
+{% endcomment %}
+
+{% block title %}{{ request.tenant.name }} — {% trans "Book direct" %}{% endblock %}
 
 {% block content %}
 
-{# PUBLIC SCHEMA — marketing hero #}
-{% if request.tenant and request.tenant.schema_name == 'public' %}
-
-<section class="relative overflow-hidden px-4 pb-16 pt-14 sm:px-6 sm:pt-20 lg:pt-24">
+{# ═════════════════════════════════════════════════════════════════ #}
+{#  HERO — welcome, primary CTAs, live stat strip                    #}
+{# ═════════════════════════════════════════════════════════════════ #}
+<section class="relative overflow-hidden px-4 pb-12 pt-14 sm:px-6 sm:pt-20">
   <div class="mx-auto max-w-4xl text-center">
 
+    {# Availability badge #}
     <div data-animate="zoom-in" data-animate-now data-hover="pop"
-         class="mx-auto mb-6 inline-flex items-center gap-2 rounded-full border
-                border-primary-200 bg-primary-50 px-3.5 py-1.5 text-xs font-medium
-                text-primary-700 shadow-sm backdrop-blur
-                dark:border-primary-800 dark:bg-primary-900/30 dark:text-primary-300">
-      <span class="relative flex h-1.5 w-1.5">
-        <span class="absolute inline-flex h-full w-full animate-pulse-ring rounded-full bg-primary-400"></span>
-        <span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-primary-500"></span>
-      </span>
-      {% trans "Built for Malawi" %}
-    </div>
-
-    <h1 data-animate="blur-in" data-animate-now data-animate-duration="0.9"
-        class="text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl">
-      Pritech <span class="text-gradient animate-gradient-x">PMS</span>
-    </h1>
-
-    <p data-animate="fade-up" data-animate-now data-animate-delay="140"
-       class="mx-auto mt-5 text-lg font-medium text-slate-600 dark:text-slate-300">
-      {% trans "Property Management System" %}
-    </p>
-
-    <p data-animate="fade-up" data-animate-now data-animate-delay="220"
-       class="mx-auto mt-3 max-w-2xl text-base leading-relaxed text-slate-500
-              dark:text-slate-400 sm:text-lg">
-      {% trans "Hotels, lodges, rentals, and properties for sale — all in one platform. MRA EIS compliant. Mobile money ready. Built to survive ESCOM outages." %}
-    </p>
-
-    <div data-stagger="0.1" data-animate-immediate
-         class="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-      <a href="{% url 'signup:signup' %}"
-         data-animate="fade-up" data-press data-hover="grow"
-         class="btn btn-primary w-full px-7 py-3 text-base sm:w-auto">
-        {% trans "Start free trial" %}
-        <svg viewBox="0 0 24 24" fill="none" class="h-4 w-4" stroke="currentColor"
-             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M5 12h14M13 6l6 6-6 6" />
-        </svg>
-      </a>
-      <a href="{% url 'login' %}"
-         data-animate="fade-up" data-press data-hover="lift"
-         class="btn btn-ghost w-full border border-slate-200 px-7 py-3 text-base
-                dark:border-white/10 sm:w-auto">
-        {% trans "Sign in" %}
-      </a>
-    </div>
-  </div>
-</section>
-
-<section class="px-4 pb-20 sm:px-6 lg:px-8">
-  <div class="mx-auto max-w-5xl">
-    <div data-stagger="0.08" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-
-      <div data-animate="fade-up" data-hover="lift" class="card group">
-        <div class="mb-4 grid h-11 w-11 place-items-center rounded-xl
-                    bg-emerald-500/10 text-emerald-600 transition-transform duration-300
-                    group-hover:scale-110 dark:bg-emerald-500/15 dark:text-emerald-400">
-          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-          </svg>
-        </div>
-        <h3 class="mb-1 font-semibold">{% trans "Hospitality" %}</h3>
-        <p class="text-sm text-slate-500 dark:text-slate-400">
-          {% trans "Reservations, check-in/out, housekeeping, folios, night audit." %}
-        </p>
-      </div>
-
-      <div data-animate="fade-up" data-hover="lift" class="card group">
-        <div class="mb-4 grid h-11 w-11 place-items-center rounded-xl
-                    bg-primary-500/10 text-primary-600 transition-transform duration-300
-                    group-hover:scale-110 dark:bg-primary-500/15 dark:text-primary-400">
-          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-          </svg>
-        </div>
-        <h3 class="mb-1 font-semibold">{% trans "Property" %}</h3>
-        <p class="text-sm text-slate-500 dark:text-slate-400">
-          {% trans "Leases, rent invoicing, arrears tracking, maintenance, sales." %}
-        </p>
-      </div>
-
-      <div data-animate="fade-up" data-hover="lift" class="card group">
-        <div class="mb-4 grid h-11 w-11 place-items-center rounded-xl
-                    bg-rose-500/10 text-rose-600 transition-transform duration-300
-                    group-hover:scale-110 dark:bg-rose-500/15 dark:text-rose-400">
-          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-          </svg>
-        </div>
-        <h3 class="mb-1 font-semibold">{% trans "Compliance" %}</h3>
-        <p class="text-sm text-slate-500 dark:text-slate-400">
-          {% trans "MRA EIS, PayChangu, Tourism Levy, RBM returns." %}
-        </p>
-      </div>
-
-      <div data-animate="fade-up" data-hover="lift" class="card group">
-        <div class="mb-4 grid h-11 w-11 place-items-center rounded-xl
-                    bg-sky-500/10 text-sky-600 transition-transform duration-300
-                    group-hover:scale-110 dark:bg-sky-500/15 dark:text-sky-400">
-          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
-          </svg>
-        </div>
-        <h3 class="mb-1 font-semibold">{% trans "Mobile money" %}</h3>
-        <p class="text-sm text-slate-500 dark:text-slate-400">
-          {% trans "Airtel Money, TNM Mpamba, and cards via PayChangu." %}
-        </p>
-      </div>
-
-      <div data-animate="fade-up" data-hover="lift" class="card group">
-        <div class="mb-4 grid h-11 w-11 place-items-center rounded-xl
-                    bg-amber-500/10 text-amber-600 transition-transform duration-300
-                    group-hover:scale-110 dark:bg-amber-500/15 dark:text-amber-400">
-          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M13 10V3L4 14h7v7l9-11h-7z" />
-          </svg>
-        </div>
-        <h3 class="mb-1 font-semibold">{% trans "Offline-ready" %}</h3>
-        <p class="text-sm text-slate-500 dark:text-slate-400">
-          {% trans "Keeps working during ESCOM outages with PWA and auto-sync." %}
-        </p>
-      </div>
-
-      <div data-animate="fade-up" data-hover="lift" class="card group">
-        <div class="mb-4 grid h-11 w-11 place-items-center rounded-xl
-                    bg-teal-500/10 text-teal-600 transition-transform duration-300
-                    group-hover:scale-110 dark:bg-teal-500/15 dark:text-teal-400">
-          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-          </svg>
-        </div>
-        <h3 class="mb-1 font-semibold">{% trans "Multi-currency" %}</h3>
-        <p class="text-sm text-slate-500 dark:text-slate-400">
-          {% trans "MWK, USD, and EUR billing with FX rate locking." %}
-        </p>
-      </div>
-    </div>
-
-    <p data-animate="fade-up" data-animate-delay="400"
-       class="mt-12 text-center text-sm text-slate-500 dark:text-slate-400">
-      {% trans "Trusted by hotels, lodges, and property managers across Malawi." %}
-    </p>
-  </div>
-</section>
-
-{# TENANT SCHEMA — staff dashboard or guest hero #}
-{% else %}
-
-{% if user.is_authenticated and user.is_staff %}
-
-{# Staff quick-access dashboard #}
-<div class="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-12">
-
-  {# Greeting #}
-  <div class="mb-8">
-    <div data-animate="zoom-in" data-animate-now
-         class="mb-3 inline-flex items-center gap-2 rounded-full border
-                border-primary-200 bg-primary-50 px-3 py-1 text-xs font-semibold
-                text-primary-700 dark:border-primary-800 dark:bg-primary-900/30
+         class="mx-auto mb-6 inline-flex items-center gap-2 rounded-full
+                border border-primary-200 bg-primary-50 px-3.5 py-1.5
+                text-xs font-medium text-primary-700 shadow-sm
+                dark:border-primary-800 dark:bg-primary-900/30
                 dark:text-primary-300">
-      <span class="relative flex h-1.5 w-1.5">
-        <span class="absolute inline-flex h-full w-full animate-pulse-ring rounded-full bg-emerald-400"></span>
-        <span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+      <span class="live-dot">
+        <span class="bg-emerald-400"></span>
+        <span class="bg-emerald-500"></span>
       </span>
-      {% trans "Staff workspace" %}
-    </div>
-    <h1 data-animate="blur-in" data-animate-now data-animate-duration="0.9"
-        class="text-2xl font-extrabold tracking-tight sm:text-3xl">
-      {% if user.first_name or user.last_name %}
-      {% blocktrans with name=user.get_full_name %}
-      Welcome back, <span class="text-gradient animate-gradient-x">{{ name }}</span>
-      {% endblocktrans %}
-      {% else %}
-      {% blocktrans with name=user.email %}
-      Welcome back, <span class="text-gradient animate-gradient-x">{{ name }}</span>
-      {% endblocktrans %}
-      {% endif %}
-    </h1>
-    <p data-animate="fade-up" data-animate-now data-animate-delay="160"
-       class="mt-2 text-slate-500 dark:text-slate-400">
-      {% if request.tenant %}{{ request.tenant.name }} · {% endif %}
-      {% trans "Quick access to your daily tools." %}
-    </p>
-  </div>
-
-  {# Daily Operations #}
-  <h2 data-animate="fade-up"
-      class="mb-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-    {% trans "Daily Operations" %}
-  </h2>
-  <div data-stagger="0.07" class="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-
-    <a href="{% url 'reservations:front_desk' %}"
-       data-animate="fade-up" data-hover="lift" class="card group">
-      <div class="flex items-start gap-4">
-        <div class="grid h-11 w-11 shrink-0 place-items-center rounded-xl
-                    bg-emerald-500/10 text-emerald-600 transition-transform duration-300
-                    group-hover:scale-110 dark:bg-emerald-500/15 dark:text-emerald-400">
-          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-          </svg>
-        </div>
-        <div class="min-w-0">
-          <h3 class="font-semibold">{% trans "Front Desk" %}</h3>
-          <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-            {% trans "Arrivals, departures, in-house guests" %}
-          </p>
-        </div>
-      </div>
-    </a>
-
-    <a href="{% url 'reservations:list' %}"
-       data-animate="fade-up" data-hover="lift" class="card group">
-      <div class="flex items-start gap-4">
-        <div class="grid h-11 w-11 shrink-0 place-items-center rounded-xl
-                    bg-sky-500/10 text-sky-600 transition-transform duration-300
-                    group-hover:scale-110 dark:bg-sky-500/15 dark:text-sky-400">
-          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-          </svg>
-        </div>
-        <div class="min-w-0">
-          <h3 class="font-semibold">{% trans "Reservations" %}</h3>
-          <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-            {% trans "Search, create, edit bookings" %}
-          </p>
-        </div>
-      </div>
-    </a>
-
-    <a href="{% url 'housekeeping:tasks' %}"
-       data-animate="fade-up" data-hover="lift" class="card group">
-      <div class="flex items-start gap-4">
-        <div class="grid h-11 w-11 shrink-0 place-items-center rounded-xl
-                    bg-cyan-500/10 text-cyan-600 transition-transform duration-300
-                    group-hover:scale-110 dark:bg-cyan-500/15 dark:text-cyan-400">
-          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
-            <rect x="9" y="3" width="6" height="4" rx="1" />
-            <path d="M9 12h6M9 16h4" />
-          </svg>
-        </div>
-        <div class="min-w-0">
-          <h3 class="font-semibold">{% trans "Housekeeping" %}</h3>
-          <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-            {% trans "Room cleaning and inspections" %}
-          </p>
-        </div>
-      </div>
-    </a>
-  </div>
-
-  {# Property Management #}
-  <h2 data-animate="fade-up"
-      class="mb-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-    {% trans "Property Management" %}
-  </h2>
-  <div data-stagger="0.07" class="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-
-    <a href="{% url 'property:dashboard' %}"
-       data-animate="fade-up" data-hover="lift" class="card group">
-      <div class="flex items-start gap-4">
-        <div class="grid h-11 w-11 shrink-0 place-items-center rounded-xl
-                    bg-primary-500/10 text-primary-600 transition-transform duration-300
-                    group-hover:scale-110 dark:bg-primary-500/15 dark:text-primary-400">
-          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M3 3v18h18" />
-            <path d="M7 15l4-4 3 3 5-6" />
-          </svg>
-        </div>
-        <div class="min-w-0">
-          <h3 class="font-semibold">{% trans "Property Dashboard" %}</h3>
-          <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-            {% trans "Leases, arrears, sales pipeline" %}
-          </p>
-        </div>
-      </div>
-    </a>
-
-    <a href="{% url 'property:leases:list' %}"
-       data-animate="fade-up" data-hover="lift" class="card group">
-      <div class="flex items-start gap-4">
-        <div class="grid h-11 w-11 shrink-0 place-items-center rounded-xl
-                    bg-indigo-500/10 text-indigo-600 transition-transform duration-300
-                    group-hover:scale-110 dark:bg-indigo-500/15 dark:text-indigo-400">
-          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
-        </div>
-        <div class="min-w-0">
-          <h3 class="font-semibold">{% trans "Leases" %}</h3>
-          <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-            {% trans "Rental contracts and renewals" %}
-          </p>
-        </div>
-      </div>
-    </a>
-
-    <a href="{% url 'property:invoices:list' %}"
-       data-animate="fade-up" data-hover="lift" class="card group">
-      <div class="flex items-start gap-4">
-        <div class="grid h-11 w-11 shrink-0 place-items-center rounded-xl
-                    bg-teal-500/10 text-teal-600 transition-transform duration-300
-                    group-hover:scale-110 dark:bg-teal-500/15 dark:text-teal-400">
-          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-          </svg>
-        </div>
-        <div class="min-w-0">
-          <h3 class="font-semibold">{% trans "Rent Invoices" %}</h3>
-          <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-            {% trans "Monthly bills and payments" %}
-          </p>
-        </div>
-      </div>
-    </a>
-  </div>
-
-  {# Compliance & Finance #}
-  <h2 data-animate="fade-up"
-      class="mb-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-    {% trans "Compliance & Finance" %}
-  </h2>
-  <div data-stagger="0.07" class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-
-    <a href="{% url 'compliance:dashboard' %}"
-       data-animate="fade-up" data-hover="lift" class="card group">
-      <div class="flex items-start gap-4">
-        <div class="grid h-11 w-11 shrink-0 place-items-center rounded-xl
-                    bg-rose-500/10 text-rose-600 transition-transform duration-300
-                    group-hover:scale-110 dark:bg-rose-500/15 dark:text-rose-400">
-          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-        </div>
-        <div class="min-w-0">
-          <h3 class="font-semibold">{% trans "Compliance" %}</h3>
-          <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-            {% trans "MRA EIS, PayChangu, levy, forex" %}
-          </p>
-        </div>
-      </div>
-    </a>
-
-    <a href="{% url 'compliance:tourism_levy:report' %}"
-       data-animate="fade-up" data-hover="lift" class="card group">
-      <div class="flex items-start gap-4">
-        <div class="grid h-11 w-11 shrink-0 place-items-center rounded-xl
-                    bg-amber-500/10 text-amber-600 transition-transform duration-300
-                    group-hover:scale-110 dark:bg-amber-500/15 dark:text-amber-400">
-          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-        </div>
-        <div class="min-w-0">
-          <h3 class="font-semibold">{% trans "Tourism Levy" %}</h3>
-          <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-            {% trans "Monthly remittance report" %}
-          </p>
-        </div>
-      </div>
-    </a>
-
-    <a href="/admin/"
-       data-animate="fade-up" data-hover="lift" class="card group">
-      <div class="flex items-start gap-4">
-        <div class="grid h-11 w-11 shrink-0 place-items-center rounded-xl
-                    bg-slate-500/10 text-slate-600 transition-transform duration-300
-                    group-hover:scale-110 dark:bg-slate-500/20 dark:text-slate-300">
-          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="3" />
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.09a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-          </svg>
-        </div>
-        <div class="min-w-0">
-          <h3 class="font-semibold">{% trans "Admin Panel" %}</h3>
-          <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-            {% trans "Full management interface" %}
-          </p>
-        </div>
-      </div>
-    </a>
-  </div>
-
-  <div data-animate="fade-up" data-animate-delay="400"
-       class="mt-10 border-t border-slate-200 pt-6 dark:border-white/5">
-    <a href="{% url 'properties:list' %}" data-hover="nudge"
-       class="inline-flex items-center gap-1.5 text-sm font-medium
-              text-primary-600 transition-colors hover:text-primary-500
-              dark:text-primary-400 dark:hover:text-primary-300">
-      {% trans "View public property listings" %}
-      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-           stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M5 12h14M13 6l6 6-6 6" />
-      </svg>
-    </a>
-  </div>
-</div>
-
-{% else %}
-
-{# Tenant-scoped guest-facing hero #}
-<section class="relative overflow-hidden px-4 pb-16 pt-14 sm:px-6 sm:pt-20 lg:pt-24">
-  <div class="mx-auto max-w-3xl text-center">
-
-    <div data-animate="zoom-in" data-animate-now
-         class="mx-auto mb-6 inline-flex items-center gap-2 rounded-full border
-                border-slate-200 bg-white/70 px-3.5 py-1.5 text-xs font-medium
-                text-slate-600 shadow-sm backdrop-blur
-                dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
-      <span class="relative flex h-1.5 w-1.5">
-        <span class="absolute inline-flex h-full w-full animate-pulse-ring rounded-full bg-emerald-400"></span>
-        <span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
-      </span>
-      {% trans "Now taking bookings" %}
+      {% trans "Booking direct — no middleman fees" %}
     </div>
 
+    {# Headline — tenant name with animated gradient #}
     <h1 data-animate="blur-in" data-animate-now data-animate-duration="0.9"
-        class="text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-5xl">
-      {{ request.tenant.name|default:"Welcome" }}
+        class="text-4xl font-extrabold leading-[1.05] tracking-tight
+               sm:text-5xl lg:text-6xl">
+      {% blocktrans with name=request.tenant.name %}
+      Welcome to <span class="text-gradient animate-gradient-x">{{ name }}</span>
+      {% endblocktrans %}
     </h1>
 
     <p data-animate="fade-up" data-animate-now data-animate-delay="180"
-       class="mx-auto mt-5 max-w-xl text-base leading-relaxed text-slate-500
-              dark:text-slate-400 sm:text-lg">
-      {% trans "Browse available rooms, chalets, apartments, and rental properties." %}
+       class="mx-auto mt-5 max-w-2xl text-lg text-slate-600 dark:text-slate-300">
+      {% trans "Rooms, chalets, and rental homes across Malawi." %}
     </p>
 
+    {# Primary CTAs — split between stays and rentals #}
     <div data-stagger="0.1" data-animate-immediate
          class="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
       <a href="{% url 'properties:list' %}"
          data-animate="fade-up" data-press data-hover="grow"
          class="btn btn-primary w-full px-7 py-3 text-base sm:w-auto">
-        {% trans "Browse properties" %}
-        <svg viewBox="0 0 24 24" fill="none" class="h-4 w-4" stroke="currentColor"
-             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        {% trans "Find a room" %}
+        <svg viewBox="0 0 24 24" fill="none" class="h-4 w-4"
+             stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M5 12h14M13 6l6 6-6 6" />
         </svg>
       </a>
-      <a href="{% url 'login' %}"
+      <a href="{% url 'properties:rent_list' %}"
          data-animate="fade-up" data-press data-hover="lift"
-         class="btn btn-ghost w-full border border-slate-200 px-7 py-3 text-base
-                dark:border-white/10 sm:w-auto">
-        {% trans "Staff sign in" %}
+         class="btn border border-slate-200 bg-white/70 px-7 py-3 text-base
+                hover:bg-white dark:border-white/10 dark:bg-white/5
+                dark:hover:bg-white/10 sm:w-auto">
+        {% trans "Rent a home" %}
+      </a>
+    </div>
+
+    {# Live stat strip — hidden entirely when the tenant has no listings yet #}
+    {% if stay_count or rent_count %}
+    <div data-stagger="0.08" class="mt-12 grid grid-cols-2 gap-3 sm:grid-cols-3">
+
+      {% if stay_count %}
+      <div data-animate="fade-up" class="card text-center">
+        <p class="text-3xl font-bold text-primary-600 dark:text-primary-400">
+          {{ stay_count }}
+        </p>
+        <p class="mt-1 text-xs uppercase tracking-wider text-slate-500">
+          {% trans "Rooms available" %}
+        </p>
+      </div>
+      {% endif %}
+
+      {% if rent_count %}
+      <div data-animate="fade-up" class="card text-center">
+        <p class="text-3xl font-bold text-emerald-600 dark:text-emerald-400">
+          {{ rent_count }}
+        </p>
+        <p class="mt-1 text-xs uppercase tracking-wider text-slate-500">
+          {% trans "Vacant rentals" %}
+        </p>
+      </div>
+      {% endif %}
+
+      {# Third stat keeps the grid balanced — the currency is a real signal #}
+      <div data-animate="fade-up"
+           class="card col-span-2 text-center sm:col-span-1">
+        <p class="text-3xl font-bold text-amber-600 dark:text-amber-400">
+          MWK
+        </p>
+        <p class="mt-1 text-xs uppercase tracking-wider text-slate-500">
+          {% trans "Local pricing" %}
+        </p>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</section>
+
+
+{# ═════════════════════════════════════════════════════════════════ #}
+{#  FEATURED HOSPITALITY — hotels and lodges with rooms available   #}
+{# ═════════════════════════════════════════════════════════════════ #}
+{% if featured_hospitality %}
+<section class="px-4 pb-16 sm:px-6 lg:px-8">
+  <div class="mx-auto max-w-6xl">
+
+    <div class="mb-6 flex items-end justify-between">
+      <div>
+        <h2 data-animate="fade-up"
+            class="text-2xl font-bold tracking-tight">
+          {% trans "Places to stay" %}
+        </h2>
+        <p data-animate="fade-up" data-animate-delay="60"
+           class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          {% trans "Our most-booked rooms and lodges" %}
+        </p>
+      </div>
+      <a href="{% url 'properties:list' %}"
+         data-animate="fade-left" data-hover="nudge"
+         class="hidden items-center gap-1 text-sm font-medium text-primary-600
+                hover:underline sm:inline-flex dark:text-primary-400">
+        {% trans "View all" %}
+        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor"
+             viewBox="0 0 24 24" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M5 12h14M13 6l6 6-6 6" />
+        </svg>
+      </a>
+    </div>
+
+    <div data-stagger="0.08"
+         class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      {% for property in featured_hospitality %}
+      <a href="{% url 'properties:detail' property.pk %}"
+         data-animate="fade-up" data-hover="lift"
+         class="card group overflow-hidden !p-0">
+
+        {# Cover photo, or a gradient placeholder if none uploaded yet #}
+        {% with cover=property.images.first %}
+        <div class="aspect-video overflow-hidden
+                    bg-gradient-to-br from-primary-100 to-primary-200
+                    dark:from-primary-900 dark:to-primary-800">
+          {% if cover %}
+          <img src="{{ cover.image.url }}"
+               alt="{{ property.name }}"
+               loading="lazy"
+               class="h-full w-full object-cover transition-transform
+                      duration-500 group-hover:scale-105">
+          {% else %}
+          <div class="grid h-full w-full place-items-center">
+            <svg class="h-12 w-12 text-primary-400 dark:text-primary-600"
+                 fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                    stroke-width="1.5"
+                    d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6" />
+            </svg>
+          </div>
+          {% endif %}
+        </div>
+        {% endwith %}
+
+        <div class="p-4">
+          <div class="flex items-start justify-between gap-2">
+            <div class="min-w-0">
+              <h3 class="truncate font-semibold transition-colors
+                         group-hover:text-primary-600
+                         dark:group-hover:text-primary-400">
+                {{ property.name }}
+              </h3>
+              <p class="mt-0.5 truncate text-xs text-slate-500
+                        dark:text-slate-400">
+                {{ property.district }}, {{ property.get_region_display }}
+              </p>
+            </div>
+            {% if property.available_count %}
+            <span class="chip chip-green shrink-0">
+              {{ property.available_count }} {% trans "left" %}
+            </span>
+            {% endif %}
+          </div>
+
+          <div class="mt-3 flex items-center justify-between">
+            <span class="chip chip-primary">
+              {{ property.get_property_type_display }}
+            </span>
+            {% if property.min_rate %}
+            <span class="text-sm font-semibold">
+              {% trans "From" %} MWK {{ property.min_rate|floatformat:0|intcomma }}
+            </span>
+            {% endif %}
+          </div>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+
+  </div>
+</section>
+{% endif %}
+
+
+{# ═════════════════════════════════════════════════════════════════ #}
+{#  RECENT VACANT RENTALS — newest apartments and houses            #}
+{# ═════════════════════════════════════════════════════════════════ #}
+{% if recent_rentals %}
+<section class="px-4 pb-16 sm:px-6 lg:px-8">
+  <div class="mx-auto max-w-6xl">
+
+    <div class="mb-6 flex items-end justify-between">
+      <div>
+        <h2 data-animate="fade-up"
+            class="text-2xl font-bold tracking-tight">
+          {% trans "Recently available rentals" %}
+        </h2>
+        <p data-animate="fade-up" data-animate-delay="60"
+           class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          {% trans "Homes and apartments now vacant" %}
+        </p>
+      </div>
+      <a href="{% url 'properties:rent_list' %}"
+         data-animate="fade-left" data-hover="nudge"
+         class="hidden items-center gap-1 text-sm font-medium text-primary-600
+                hover:underline sm:inline-flex dark:text-primary-400">
+        {% trans "View all" %}
+        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor"
+             viewBox="0 0 24 24" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M5 12h14M13 6l6 6-6 6" />
+        </svg>
+      </a>
+    </div>
+
+    <div data-stagger="0.08"
+         class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      {% for unit in recent_rentals %}
+      <div data-animate="fade-up" data-hover="lift"
+           class="card group overflow-hidden !p-0">
+
+        {# Cover photo, or a neutral placeholder #}
+        {% with cover=unit.images.first %}
+        <div class="aspect-video overflow-hidden
+                    bg-gradient-to-br from-slate-100 to-slate-200
+                    dark:from-slate-900 dark:to-slate-800">
+          {% if cover %}
+          <img src="{{ cover.image.url }}"
+               alt="{{ unit.identifier }}"
+               loading="lazy"
+               class="h-full w-full object-cover transition-transform
+                      duration-500 group-hover:scale-105">
+          {% else %}
+          <div class="grid h-full w-full place-items-center">
+            <svg class="h-10 w-10 text-slate-300 dark:text-slate-600"
+                 fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                    stroke-width="1.5"
+                    d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6" />
+            </svg>
+          </div>
+          {% endif %}
+        </div>
+        {% endwith %}
+
+        <div class="p-4">
+          <div class="flex items-start justify-between gap-2">
+            <div class="min-w-0">
+              <h3 class="truncate font-semibold">{{ unit.identifier }}</h3>
+              <p class="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">
+                {{ unit.property.name }} · {{ unit.property.district }}
+              </p>
+            </div>
+            <span class="chip chip-green shrink-0">
+              {% trans "Vacant" %}
+            </span>
+          </div>
+
+          {# Beds and guests — the two specs renters ask about first #}
+          <div class="mt-2 flex items-center gap-3 text-xs
+                      text-slate-500 dark:text-slate-400">
+            <span>
+              <strong class="text-slate-700 dark:text-slate-300">
+                {{ unit.bed_count }}
+              </strong>
+              {% trans "bed" %}{% if unit.bed_count != 1 %}s{% endif %}
+            </span>
+            <span aria-hidden="true">·</span>
+            <span>
+              <strong class="text-slate-700 dark:text-slate-300">
+                {{ unit.capacity_adults }}
+              </strong>
+              {% trans "guests" %}
+            </span>
+          </div>
+
+          {# Monthly rent #}
+          <div class="mt-3 border-t border-slate-100 pt-3 dark:border-slate-700">
+            <p class="text-lg font-bold text-primary-600
+                      dark:text-primary-400">
+              MWK {{ unit.base_rate_mwk|floatformat:0|intcomma }}
+              <span class="text-xs font-normal text-slate-500 dark:text-slate-400">
+                / {% trans "month" %}
+              </span>
+            </p>
+          </div>
+
+          {# WhatsApp enquiry — the primary conversion action #}
+          {% if unit.property.phone %}
+          {% blocktrans asvar wa_text with id=unit.identifier %}Hi, is {{ id }} still available?{% endblocktrans %}
+          <a href="https://wa.me/{{ unit.property.phone|cut:' ' }}?text={{ wa_text|urlencode }}"
+             target="_blank" rel="noopener"
+             data-press data-hover="grow"
+             class="mt-3 inline-flex w-full items-center justify-center gap-2
+                    rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold
+                    text-white shadow-lg shadow-emerald-600/25 transition-colors
+                    hover:bg-emerald-500">
+            <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
+            </svg>
+            {% trans "Enquire on WhatsApp" %}
+          </a>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+  </div>
+</section>
+{% endif %}
+
+
+{# ═════════════════════════════════════════════════════════════════ #}
+{#  EMPTY STATE — shown only when the tenant has no public listings #}
+{# ═════════════════════════════════════════════════════════════════ #}
+{% if not featured_hospitality and not recent_rentals %}
+<section class="px-4 pb-16 sm:px-6 lg:px-8">
+  <div class="mx-auto max-w-2xl">
+    <div data-animate="zoom-in" class="card text-center">
+      <h2 class="text-lg font-semibold">
+        {% trans "Listings coming soon" %}
+      </h2>
+      <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">
+        {% trans "We're adding rooms and rentals to this site. Check back shortly, or contact us directly." %}
+      </p>
+      {% if request.tenant.contact_phone %}
+      <a href="tel:{{ request.tenant.contact_phone }}"
+         data-press data-hover="grow"
+         class="btn btn-primary mt-4 inline-flex">
+        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+             aria-hidden="true">
+          <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+        </svg>
+        {{ request.tenant.contact_phone }}
+      </a>
+      {% endif %}
+    </div>
+  </div>
+</section>
+{% endif %}
+
+
+{# ═════════════════════════════════════════════════════════════════ #}
+{#  WHATSAPP CTA — closing call-to-action at the bottom             #}
+{# ═════════════════════════════════════════════════════════════════ #}
+{% if request.tenant.contact_phone %}
+<section class="px-4 pb-20 sm:px-6">
+  <div class="mx-auto max-w-3xl">
+    <div data-animate="fade-up"
+         class="card border-emerald-200 bg-gradient-to-br
+                from-emerald-50 to-emerald-100/50 text-center
+                dark:border-emerald-800 dark:from-emerald-950/40
+                dark:to-emerald-900/20">
+      <h2 class="text-xl font-bold">
+        {% trans "Questions? Message us on WhatsApp" %}
+      </h2>
+      <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">
+        {% trans "Fastest way to reach us — we reply within minutes." %}
+      </p>
+      <a href="https://wa.me/{{ request.tenant.contact_phone|cut:' ' }}"
+         target="_blank" rel="noopener"
+         data-press data-hover="grow"
+         class="mt-5 inline-flex items-center gap-2 rounded-xl
+                bg-emerald-600 px-6 py-3 font-semibold text-white
+                shadow-lg shadow-emerald-600/25 transition-colors
+                hover:bg-emerald-500">
+        <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
+        </svg>
+        {% trans "Chat on WhatsApp" %}
       </a>
     </div>
   </div>
 </section>
-
-{% endif %}
 {% endif %}
 
 {% endblock %}

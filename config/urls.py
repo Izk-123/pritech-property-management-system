@@ -2,10 +2,15 @@
 """
 Tenant-schema URL configuration.
 
-Every tenant subdomain resolves here. Includes the business modules
-plus tenant-aware auth, password reset, and a health check.
-"""
+Every tenant subdomain resolves here — the business modules, tenant-
+aware auth, password reset, and the guest-facing home page.
 
+Changed for Phase 9:
+  • `/` now routes to TenantHomeView (guest-facing marketing page)
+    instead of a static TemplateView.
+  • `/dashboard/` is the new staff landing page (redirect target for
+    authenticated staff who hit `/`).
+"""
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
@@ -13,20 +18,29 @@ from django.contrib.auth import views as auth_views
 from django.urls import path, include
 from django.views.generic import TemplateView
 
+from apps.core.properties.views import TenantHomeView
 from apps.shared.tenants.views_health import health_check
 from apps.shared.users.views import SchemaAwareLoginView
 
 
 urlpatterns = [
-    path('', TemplateView.as_view(template_name='pages/home.html'), name='home'),
+    # ─── Home / Dashboard ──────────────────────────────────────────
+    # `/` shows the guest marketing page to anonymous visitors.
+    # Authenticated staff are redirected to `/dashboard/` by
+    # TenantHomeView.get(). Both live in the tenant URLconf because
+    # each tenant has its own home page.
+    path('', TenantHomeView.as_view(), name='home'),
+    path('dashboard/',
+         TemplateView.as_view(template_name='pages/dashboard.html'),
+         name='dashboard'),
 
     # ─── PWA manifest and service worker ───────────────────────────
     path('', include('pwa.urls')),
 
-    # ─── i18n — provides `set_language` for the language switcher ──
+    # ─── i18n — `set_language` for the header language switcher ────
     path('i18n/', include('django.conf.urls.i18n')),
 
-    # ─── Offline fallback page ─────────────────────────────────────
+    # ─── Offline fallback ──────────────────────────────────────────
     path('offline/', TemplateView.as_view(template_name='pages/offline.html'),
          name='offline'),
 
@@ -36,21 +50,16 @@ urlpatterns = [
     path('documents/', include('apps.core.documents.urls')),
 
     # ─── Auth ──────────────────────────────────────────────────────
-    # Phase 8 — django-two-factor-auth owns /account/login/ and all 2FA
-    # setup/recovery paths. We include a thin wrapper module
-    # (config/urls_two_factor.py) that declares app_name = 'two_factor'
-    # so the namespace resolves. The upstream two_factor.urls module
-    # doesn't declare app_name, which is why a plain include() of that
-    # module fails, and why the 2-tuple form misbehaves (Django expects
-    # a pattern list, not a module path, in the first tuple element).
+    # Two-factor URLs live in a thin wrapper module because upstream
+    # django-two-factor-auth doesn't declare app_name at module level.
     path('', include('config.urls_two_factor')),
 
-    # Legacy alias: /login/ still routes through the tenant-membership-
-    # aware SchemaAwareLoginView.
+    # Legacy alias: /login/ routes through SchemaAwareLoginView, which
+    # adds tenant-membership checks on top of the 2FA login form.
     path('login/', SchemaAwareLoginView.as_view(), name='login'),
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),
 
-    # ─── Password reset (Phase 8 — AU-08) ──────────────────────────
+    # ─── Password reset ────────────────────────────────────────────
     path(
         'password-reset/',
         auth_views.PasswordResetView.as_view(
@@ -84,7 +93,7 @@ urlpatterns = [
         name='password_reset_complete',
     ),
 
-    # ─── Health check (Phase 8 — per-tenant) ───────────────────────
+    # ─── Health check ──────────────────────────────────────────────
     path('health/', health_check, name='health'),
 
     # ─── Hospitality ───────────────────────────────────────────────

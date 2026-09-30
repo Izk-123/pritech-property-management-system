@@ -1,5 +1,7 @@
+# apps/core/properties/models.py
 from django.db import models
 from django.core.validators import MinValueValidator
+from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
 from apps.core.models import OptimizedImageMixin, TimeStampedModel
 
@@ -64,16 +66,44 @@ class Property(TimeStampedModel):
         max_length=10, choices=Status.choices, default=Status.ACTIVE,
     )
 
+    # ─── Phase 9 — public listing controls ────────────────────────
+    is_public = models.BooleanField(
+        default=True,
+        help_text='Show this property on the public listing page',
+    )
+    public_slug = models.SlugField(
+        max_length=255, blank=True, db_index=True,
+        help_text='URL-friendly name. Auto-generated if left blank.',
+    )
+
     class Meta:
         verbose_name_plural = 'Properties'
         ordering = ['name']
         indexes = [
             models.Index(fields=['property_type', 'status']),
             models.Index(fields=['district', 'region']),
+            models.Index(fields=['is_public', 'status']),
         ]
 
     def __str__(self):
         return f'{self.name} ({self.get_property_type_display()})'
+
+    def save(self, *args, **kwargs):
+        """Auto-generate a unique slug from the name if one isn't set."""
+        if not self.public_slug:
+            base = slugify(self.name) or 'property'
+            slug = base
+            n = 2
+            while True:
+                qs = Property.objects.filter(public_slug=slug)
+                if self.pk:
+                    qs = qs.exclude(pk=self.pk)
+                if not qs.exists():
+                    break
+                slug = f'{base}-{n}'
+                n += 1
+            self.public_slug = slug
+        super().save(*args, **kwargs)
 
 
 class Unit(TimeStampedModel):
@@ -119,6 +149,12 @@ class Unit(TimeStampedModel):
     )
     is_active = models.BooleanField(default=True)
 
+    # ─── Phase 9 — public listing controls ────────────────────────
+    is_public = models.BooleanField(
+        default=True,
+        help_text='Show this unit on the public listing page',
+    )
+
     class Meta:
         verbose_name_plural = 'Units'
         ordering = ['property', 'identifier']
@@ -126,6 +162,7 @@ class Unit(TimeStampedModel):
         indexes = [
             models.Index(fields=['property', 'unit_type', 'status']),
             models.Index(fields=['status']),
+            models.Index(fields=['is_public', 'status', 'unit_type']),
         ]
         constraints = [
             models.CheckConstraint(
@@ -183,26 +220,47 @@ class StaffPropertyAssignment(models.Model):
 
     def __str__(self):
         return f'{self.user.email} → {self.property.name}'
-    
-class PropertyImage(OptimizedImageMixin, models.Model):
-    """Image attached to a Property. Auto-optimised on save."""
+
+
+class PropertyImage(OptimizedImageMixin, TimeStampedModel):
+    """
+    Image attached to either a Property or a Unit. Auto-optimised on save.
+
+    At least one of `property` or `unit` should be set. The Meta ordering
+    puts explicitly-ordered images first, then cover images, then newest.
+    """
     property = models.ForeignKey(
         Property,
         on_delete=models.CASCADE,
         related_name='images',
+        null=True, blank=True,
+    )
+    unit = models.ForeignKey(
+        Unit,
+        on_delete=models.CASCADE,
+        related_name='images',
+        null=True, blank=True,
     )
     image = models.ImageField(upload_to='properties/%Y/%m/')
+    caption = models.CharField(max_length=255, blank=True)
+    is_cover = models.BooleanField(default=False)
+    order = models.PositiveIntegerField(default=0)
 
     class Meta:
         verbose_name = _('property image')
         verbose_name_plural = _('property images')
-        ordering = ['-id']
+        ordering = ['order', '-is_cover', '-created_at']
         indexes = [
             models.Index(fields=['property']),
+            models.Index(fields=['unit']),
         ]
 
     def __str__(self):
-        return f'Image for {self.property.name}'
+        if self.caption:
+            return self.caption
+        target = self.property or self.unit
+        return f'Photo for {target}' if target else 'Untitled photo'
+
 
 from auditlog.registry import auditlog
 auditlog.register(Property)

@@ -22,9 +22,24 @@
     </p>
   </div>
 
+  {# Section tabs — Hotels & Lodges / Rentals #}
+  <div data-animate="fade-up" data-animate-now data-animate-delay="120"
+       class="mb-6 flex gap-2">
+    <a href="{% url 'properties:list' %}"
+       class="btn btn-primary">
+      {% trans "Hotels & Lodges" %}
+    </a>
+    <a href="{% url 'properties:rent_list' %}"
+       class="btn border border-slate-200 bg-slate-100 text-slate-700
+              hover:bg-slate-200 dark:border-white/10 dark:bg-white/5
+              dark:text-slate-200 dark:hover:bg-white/10">
+      {% trans "Rentals" %}
+    </a>
+  </div>
+
   {# Search & filters #}
   <form method="get"
-        data-animate="fade-up" data-animate-now data-animate-delay="140"
+        data-animate="fade-up" data-animate-now data-animate-delay="160"
         class="card mb-6 p-3 sm:p-4">
 
     <div class="relative mb-3">
@@ -94,16 +109,25 @@
               hover:border-primary-300 dark:border-white/10 dark:bg-slate-800/70
               dark:hover:border-primary-700">
 
-      <div class="aspect-video flex items-center justify-center
-                  bg-gradient-to-br from-primary-100 to-primary-200
-                  dark:from-primary-900/60 dark:to-primary-800/60">
-        <svg class="h-12 w-12 text-primary-400 transition-transform duration-500
-                    group-hover:scale-110 dark:text-primary-600"
-             fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6" />
-        </svg>
-      </div>
+      {% with cover=property.images.first %}
+        {% if cover %}
+        <img src="{{ cover.image.url }}" alt="{{ property.name }}"
+             class="aspect-video w-full object-cover transition-transform duration-500
+                    group-hover:scale-105"
+             loading="lazy">
+        {% else %}
+        <div class="aspect-video flex items-center justify-center
+                    bg-gradient-to-br from-primary-100 to-primary-200
+                    dark:from-primary-900/60 dark:to-primary-800/60">
+          <svg class="h-12 w-12 text-primary-400 transition-transform duration-500
+                      group-hover:scale-110 dark:text-primary-600"
+               fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                  d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6" />
+          </svg>
+        </div>
+        {% endif %}
+      {% endwith %}
 
       <div class="p-4">
         <h2 class="text-base font-semibold text-slate-900 transition-colors
@@ -175,7 +199,7 @@
       {% trans "No properties found" %}
     </h3>
     <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
-      {% if current_filters.q or current_filters.type %}
+      {% if current_filters.q or current_filters.type or current_filters.region or current_filters.district %}
         {% trans "Try adjusting your search or filters." %}
       {% else %}
         {% trans "Check back soon — properties are being added." %}

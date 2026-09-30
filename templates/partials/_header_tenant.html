@@ -6,8 +6,8 @@
 
   <div class="mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
 
-    {# Brand #}
-    <a href="{% url 'home' %}"
+    {# Brand — links to dashboard for staff, home for guests #}
+    <a href="{% if user.is_authenticated and user.is_staff %}{% url 'dashboard' %}{% else %}{% url 'home' %}{% endif %}"
        data-animate="fade-right" data-animate-now data-hover="nudge"
        class="group flex shrink-0 items-center gap-2.5 rounded-xl">
       <span class="grid h-8 w-8 place-items-center rounded-lg
@@ -41,6 +41,10 @@
       {% if user.is_authenticated and user.is_staff %}
       <span aria-hidden="true"
             class="mx-1 h-5 w-px bg-slate-300 dark:bg-slate-600"></span>
+
+      <a href="{% url 'dashboard' %}"
+         data-animate="fade-down" data-animate-now data-animate-delay="20"
+         data-hover="lift" class="nav-link">{% trans "Dashboard" %}</a>
 
       <a href="{% url 'reservations:front_desk' %}"
          data-animate="fade-down" data-animate-now data-animate-delay="40"
@@ -227,6 +231,11 @@
       </a>
 
       {% if user.is_authenticated and user.is_staff %}
+      <div class="mt-3 border-t border-slate-200 pt-3 dark:border-white/5">
+        <p class="drawer-section">{% trans "Workspace" %}</p>
+        <a href="{% url 'dashboard' %}" class="drawer-item">{% trans "Dashboard" %}</a>
+      </div>
+
       <div class="mt-3 border-t border-slate-200 pt-3 dark:border-white/5">
         <p class="drawer-section">{% trans "Hospitality" %}</p>
         <a href="{% url 'reservations:front_desk' %}" class="drawer-item">{% trans "Front Desk" %}</a>

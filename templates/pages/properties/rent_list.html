@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% load i18n humanize %}
+
+{% block title %}{% trans "Vacant Rentals" %} — Pritech PMS{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+
+  {# Header #}
+  <header class="mb-6">
+    <h1 data-animate="fade-up" data-animate-now
+        class="text-2xl font-bold tracking-tight sm:text-3xl">
+      {% trans "Available Rentals" %}
+    </h1>
+    <p data-animate="fade-up" data-animate-now data-animate-delay="80"
+       class="mt-2 text-sm text-slate-500 dark:text-slate-400">
+      {% trans "Homes and apartments currently vacant in Malawi." %}
+    </p>
+  </header>
+
+  {# Section tabs #}
+  <div data-animate="fade-up" data-animate-now data-animate-delay="120"
+       class="mb-6 flex gap-2">
+    <a href="{% url 'properties:list' %}"
+       class="btn border border-slate-200 bg-slate-100 text-slate-700
+              hover:bg-slate-200 dark:border-white/10 dark:bg-white/5
+              dark:text-slate-200 dark:hover:bg-white/10">
+      {% trans "Hotels & Lodges" %}
+    </a>
+    <a href="{% url 'properties:rent_list' %}" class="btn btn-primary">
+      {% trans "Rentals" %}
+    </a>
+  </div>
+
+  {# District filter #}
+  {% if districts %}
+  <form method="get"
+        data-animate="fade-up" data-animate-now data-animate-delay="160"
+        class="card mb-6 flex flex-wrap gap-2 p-3 sm:p-4">
+    <select name="district" class="field flex-1 min-w-[12rem]">
+      <option value="">{% trans "All districts" %}</option>
+      {% for d in districts %}
+      <option value="{{ d }}" {% if current_district == d %}selected{% endif %}>{{ d }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" data-press data-hover="grow" class="btn btn-primary">
+      {% trans "Filter" %}
+    </button>
+    {% if current_district %}
+    <a href="{% url 'properties:rent_list' %}" data-press data-hover="lift"
+       class="btn border border-slate-200 bg-slate-100 text-slate-700
+              hover:bg-slate-200 dark:border-white/10 dark:bg-white/5
+              dark:text-slate-200 dark:hover:bg-white/10">
+      {% trans "Clear" %}
+    </a>
+    {% endif %}
+  </form>
+  {% endif %}
+
+  {% if units %}
+  <div data-stagger="0.05" class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+    {% for unit in units %}
+    <div data-animate="fade-up" data-hover="lift"
+         class="card overflow-hidden !p-0">
+      {% with cover=unit.images.first %}
+        {% if cover %}
+        <img src="{{ cover.image.url }}" alt="{{ unit.identifier }}"
+             class="aspect-video w-full object-cover" loading="lazy">
+        {% else %}
+        <div class="aspect-video flex items-center justify-center
+                    bg-gradient-to-br from-primary-100 to-primary-200
+                    dark:from-primary-900/60 dark:to-primary-800/60">
+          <svg class="h-12 w-12 text-primary-400 dark:text-primary-600"
+               fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                  d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6" />
+          </svg>
+        </div>
+        {% endif %}
+      {% endwith %}
+
+      <div class="p-4">
+        <h2 class="font-semibold">{{ unit.identifier }}</h2>
+        <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+          {{ unit.property.name }} · {{ unit.property.district }}
+        </p>
+
+        {% with amenities=unit.amenities.all|slice:":3" %}
+        {% if amenities %}
+        <div class="mt-2 flex flex-wrap gap-1">
+          {% for amenity in amenities %}
+          <span class="chip chip-slate">{{ amenity.name }}</span>
+          {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        <p class="mt-3 text-lg font-bold text-primary-600 dark:text-primary-400">
+          MWK {{ unit.base_rate_mwk|floatformat:0|intcomma }}
+          <span class="text-xs font-normal text-slate-500 dark:text-slate-400">
+            / {% trans "month" %}
+          </span>
+        </p>
+
+        {% if unit.property.phone %}
+        {% blocktrans asvar wa_text with id=unit.identifier %}Hi, is this rental still available? {{ id }}{% endblocktrans %}
+        <a href="https://wa.me/{{ unit.property.phone|cut:' ' }}?text={{ wa_text|urlencode }}"
+           target="_blank" rel="noopener"
+           data-press data-hover="grow"
+           class="mt-3 inline-flex w-full items-center justify-center gap-2
+                  rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold
+                  text-white shadow-lg shadow-emerald-600/25 transition-colors
+                  hover:bg-emerald-500">
+          <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
+          </svg>
+          {% trans "Enquire on WhatsApp" %}
+        </a>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% if is_paginated %}
+  <nav data-animate="fade-up" class="mt-8 flex items-center justify-center gap-2">
+    {% if page_obj.has_previous %}
+    <a href="?{% querystring page=page_obj.previous_page_number %}"
+       data-press data-hover="lift"
+       class="rounded-lg border border-slate-200 bg-white/80 px-3 py-2 text-sm
+              hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10">
+      ← {% trans "Previous" %}
+    </a>
+    {% endif %}
+
+    <span class="px-3 py-2 text-sm text-slate-600 dark:text-slate-400">
+      {% blocktrans with num=page_obj.number total=page_obj.paginator.num_pages %}
+      Page {{ num }} of {{ total }}
+      {% endblocktrans %}
+    </span>
+
+    {% if page_obj.has_next %}
+    <a href="?{% querystring page=page_obj.next_page_number %}"
+       data-press data-hover="lift"
+       class="rounded-lg border border-slate-200 bg-white/80 px-3 py-2 text-sm
+              hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10">
+      {% trans "Next" %} →
+    </a>
+    {% endif %}
+  </nav>
+  {% endif %}
+
+  {% else %}
+  <div data-animate="zoom-in" class="card py-16 text-center">
+    <svg class="mx-auto mb-4 h-16 w-16 text-slate-300 dark:text-slate-600"
+         fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+            d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6" />
+    </svg>
+    <h3 class="text-lg font-semibold text-slate-700 dark:text-slate-300">
+      {% trans "No rentals available right now" %}
+    </h3>
+    <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+      {% trans "Please check back soon." %}
+    </p>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

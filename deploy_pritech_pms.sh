@@ -15,6 +15,16 @@
 # stale processes, flattens nested static icons, reconciles public-schema
 # drift, compiles translations, and verifies the auth stack.
 #
+# Phase 9.1 additions:
+#   • Step 2 now hard-fails if apps.shared.users.adapters cannot import
+#     (it is referenced by SOCIALACCOUNT_ADAPTER — not optional).
+#   • Step 2 now verifies allauth wiring in settings (AccountMiddleware,
+#     INSTALLED_APPS, AUTHENTICATION_BACKENDS, SITE_ID, adapter class)
+#     WITHOUT calling django.setup(), so the failure is caught before
+#     Django's app registry can raise ImproperlyConfigured.
+#   • Step 5 recognises allauth-specific failures and prints the exact
+#     line of settings.py to change.
+#
 # Usage:
 #   sudo bash deploy_pritech_pms.sh              # deploy / update
 #   sudo bash deploy_pritech_pms.sh --fresh      # wipe DB and start clean
@@ -349,13 +359,106 @@ if [[ "${ENV_ONLY}" != "true" ]]; then
         ok "App importable: ${app}"
     done
 
-    # ── Phase 8/9 modules ───────────────────────────────────────────────
+    # ── Phase 8 modules — warn only (soft dependencies) ─────────────────
     for app in apps.shared.tenants.views_health apps.shared.tenants.tasks \
-               apps.shared.users.middleware apps.shared.users.adapters; do
+               apps.shared.users.middleware; do
         if ! python -c "import ${app}" 2>/dev/null; then
             warn "Module not importable: ${app} — some features disabled."
         fi
     done
+
+    # ── Phase 9.1 — REQUIRED modules (fail hard) ────────────────────────
+    # apps.shared.users.adapters is referenced directly by
+    # SOCIALACCOUNT_ADAPTER in config/settings.py. A missing module here
+    # is not a soft degradation — allauth will ImportError the moment
+    # anyone touches /accounts/login/ or /accounts/google/login/.
+    if ! python -c "import apps.shared.users.adapters" 2>/dev/null; then
+        die "Phase 9.1 module 'apps.shared.users.adapters' not importable. \
+It is required by SOCIALACCOUNT_ADAPTER in config/settings.py."
+    fi
+    if ! python -c "from apps.shared.users.adapters import PritechSocialAccountAdapter" 2>/dev/null; then
+        die "apps.shared.users.adapters does not export PritechSocialAccountAdapter."
+    fi
+    ok "Phase 9.1 social adapter importable"
+
+    # ── Phase 9.1 — verify allauth wiring in settings ───────────────────
+    # django-allauth 65.x raises ImproperlyConfigured at AppConfig.ready()
+    # if AccountMiddleware is missing. We check it here — before any
+    # migrations, before touching services — so the operator gets a clear
+    # message rather than a traceback from inside Django's app registry.
+    #
+    # IMPORTANT: This reads settings WITHOUT calling django.setup(),
+    # because setup() itself is what crashes on the missing middleware.
+    log "Step 2b: Verify Phase 9.1 allauth settings wiring"
+    python - <<'PY' || die "Phase 9.1 settings wiring check failed — see above."
+import os
+import sys
+
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+
+# Read the settings module without triggering app loading. Accessing
+# django.conf.settings is lazy — it does NOT call django.setup().
+from django.conf import settings
+
+errors = []
+
+# ── 1. allauth AccountMiddleware must be registered ─────────────────
+if 'allauth.account.middleware.AccountMiddleware' not in settings.MIDDLEWARE:
+    errors.append(
+        "MIDDLEWARE is missing 'allauth.account.middleware.AccountMiddleware'.\n"
+        "       Add it immediately AFTER "
+        "'django.contrib.auth.middleware.AuthenticationMiddleware' in config/settings.py."
+    )
+
+# ── 2. allauth apps must be in INSTALLED_APPS ───────────────────────
+required_apps = {
+    'allauth',
+    'allauth.account',
+    'allauth.socialaccount',
+    'allauth.socialaccount.providers.google',
+}
+missing = required_apps - set(settings.INSTALLED_APPS)
+if missing:
+    errors.append(f"INSTALLED_APPS missing: {sorted(missing)}")
+
+# ── 3. allauth auth backend must be registered ──────────────────────
+if not any('allauth' in b for b in settings.AUTHENTICATION_BACKENDS):
+    errors.append(
+        "AUTHENTICATION_BACKENDS has no allauth backend — add "
+        "'allauth.account.auth_backends.AuthenticationBackend'."
+    )
+
+# ── 4. SITE_ID must be set (django.contrib.sites) ───────────────────
+if not getattr(settings, 'SITE_ID', None):
+    errors.append(
+        "SITE_ID is not set. Add 'django.contrib.sites' to SHARED_APPS "
+        "and set SITE_ID = 1."
+    )
+
+# ── 5. SOCIALACCOUNT_ADAPTER must resolve to a real class ───────────
+adapter_path = getattr(settings, 'SOCIALACCOUNT_ADAPTER', '')
+if not adapter_path:
+    errors.append("SOCIALACCOUNT_ADAPTER is not configured.")
+else:
+    try:
+        module_path, _, class_name = adapter_path.rpartition('.')
+        mod = __import__(module_path, fromlist=[class_name])
+        if not hasattr(mod, class_name):
+            errors.append(f"{adapter_path} exists but has no attribute {class_name!r}.")
+    except Exception as exc:
+        errors.append(f"Cannot import SOCIALACCOUNT_ADAPTER ({adapter_path}): {exc}")
+
+if errors:
+    print('', file=sys.stderr)
+    print('  Phase 9.1 wiring problems:', file=sys.stderr)
+    for e in errors:
+        print(f'     ✘ {e}', file=sys.stderr)
+    print('', file=sys.stderr)
+    sys.exit(1)
+
+print('    Phase 9.1 wiring OK')
+PY
+    ok "Phase 9.1 allauth wiring verified"
 fi
 
 # ============================================================================
@@ -594,15 +697,50 @@ if ! python manage.py check > /tmp/django-check.log 2>&1; then
     tail -30 /tmp/django-check.log | sed 's/^/    /'
     warn ""
 
-    if grep -q "Your URL pattern 'two_factor'" /tmp/django-check.log; then
+    # ── Phase 9.1 — specific allauth failure modes ──────────────────────
+    if grep -q "allauth.account.middleware.AccountMiddleware must be added to settings.MIDDLEWARE" \
+            /tmp/django-check.log; then
+        warn "Detected: django-allauth requires AccountMiddleware."
+        warn ""
+        warn "FIX: open config/settings.py, find the MIDDLEWARE list, and add"
+        warn "this line immediately AFTER django.contrib.auth.middleware.AuthenticationMiddleware:"
+        warn ""
+        warn "    'allauth.account.middleware.AccountMiddleware',"
+        warn ""
+        warn "Then re-run this deploy script."
+
+    elif grep -q "SOCIALACCOUNT_ADAPTER" /tmp/django-check.log \
+         || grep -q "apps\.shared\.users\.adapters" /tmp/django-check.log; then
+        warn "Detected: SOCIALACCOUNT_ADAPTER could not be resolved."
+        warn ""
+        warn "FIX: ensure apps/shared/users/adapters.py exists and exports the class"
+        warn "named in settings.SOCIALACCOUNT_ADAPTER (PritechSocialAccountAdapter)."
+
+    elif grep -q "No module named 'allauth.socialaccount.providers.google'" \
+            /tmp/django-check.log; then
+        warn "Detected: allauth Google provider not installed."
+        warn ""
+        warn "FIX: activate the venv and run:"
+        warn "    pip install 'django-allauth[socialaccount]'"
+
+    elif grep -q "No module named 'allauth'" /tmp/django-check.log; then
+        warn "Detected: django-allauth itself is not installed."
+        warn ""
+        warn "FIX: activate the venv and run:"
+        warn "    pip install -r requirements.txt"
+
+    # ── Pre-existing Phase 8 checks ─────────────────────────────────────
+    elif grep -q "Your URL pattern 'two_factor'" /tmp/django-check.log; then
         warn "Detected: two_factor URL include is broken."
         warn "config/urls_two_factor.py should unwrap the 2-tuple that"
         warn "django-two-factor-auth exposes. See the wrapper pattern."
+
     else
         warn "Common causes:"
         warn "  • A required package is missing — pip install -r requirements.txt"
         warn "  • An app is missing from SHARED_APPS"
         warn "  • A middleware class name is wrong"
+        warn "  • A required middleware is missing (e.g. allauth AccountMiddleware)"
     fi
 
     warn "Full log: /tmp/django-check.log"
@@ -1164,6 +1302,10 @@ try:
         print(f'  ✔ allauth backend registered')
     else:
         print(f'  ⚠ allauth backend NOT in AUTHENTICATION_BACKENDS')
+    if 'allauth.account.middleware.AccountMiddleware' in s.MIDDLEWARE:
+        print(f'  ✔ allauth AccountMiddleware registered')
+    else:
+        print(f'  ⚠ allauth AccountMiddleware NOT in MIDDLEWARE')
     if s.PASSWORD_HASHERS and 'Argon2' in s.PASSWORD_HASHERS[0]:
         print(f'  ✔ Argon2 is the default password hasher')
     else:

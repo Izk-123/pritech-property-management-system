@@ -176,15 +176,16 @@ INSTALLED_APPS = list(SHARED_APPS) + [
 # Middleware
 #
 # Order matters:
-#   1. TenantMainMiddleware  — must be first, resolves request.tenant
-#   2. ClientIPMiddleware    — restores REMOTE_ADDR from X-Real-IP
-#   3. Security/CSP/WhiteNoise
+#   1. TenantMainMiddleware       — must be first, resolves request.tenant
+#   2. ClientIPMiddleware         — restores REMOTE_ADDR from X-Real-IP
+#   3. Security / CSP / WhiteNoise
 #   4. Session, Locale, TenantLanguage
 #   5. Common, CSRF, Authentication
-#   6. RequireTenantSetupMiddleware — after auth, before OTP
-#   7. OTP + ForceTwoFactor  — Phase 8
-#   8. Messages, XFrameOptions
-#   9. AxesMiddleware        — must be last
+#   6. allauth AccountMiddleware  — Phase 9.1, requires request.user
+#   7. RequireTenantSetupMiddleware — after auth, before OTP
+#   8. OTP + ForceTwoFactor       — Phase 8
+#   9. Messages, XFrameOptions
+#  10. AxesMiddleware             — must be last
 # ─────────────────────────────────────────────────────────────────────
 MIDDLEWARE = [
     'django_tenants.middleware.main.TenantMainMiddleware',   # must be first
@@ -205,6 +206,13 @@ MIDDLEWARE += [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+
+    # Phase 9.1 — django-allauth requires this class to be present or
+    # its AppConfig.ready() raises ImproperlyConfigured. It must sit
+    # AFTER AuthenticationMiddleware (it reads request.user) and
+    # BEFORE any middleware that consumes allauth's request state
+    # (RequireTenantSetupMiddleware, OTP, ForceTwoFactor).
+    'allauth.account.middleware.AccountMiddleware',
 
     # Phase 9.1 — route fresh Google users to /signup/complete/
     'apps.shared.users.middleware.RequireTenantSetupMiddleware',

@@ -1,19 +1,79 @@
 """
-Social account adapter for Pritech PMS.
+Adapters for allauth.
 
-Google returns a single `name` claim. This adapter splits it into
-first_name / last_name and populates the extended User fields that
-allauth doesn't know about.
+Two adapters:
 
-It also sets a session flag when a brand-new Google user is created
-without a tenant — the RequireTenantSetupMiddleware picks this up
-and redirects to /signup/complete/.
+  PritechAccountAdapter       — email/password login flow. Enforces
+                                tenant membership (moved here from
+                                the old SchemaAwareLoginView).
+
+  PritechSocialAccountAdapter — Google sign-in. Splits the `name`
+                                claim and routes fresh users to
+                                /signup/complete/.
+
+Why the account adapter does the tenant check
+---------------------------------------------
+allauth's login view owns the login flow end-to-end (that's how it
+can chain MFA without us reimplementing the whole wizard). If we
+subclass the view just to add a membership check, we'd lose that.
+Instead we override ``login()`` on the adapter — a hook called right
+before ``django.contrib.auth.login()`` — and raise
+``ImmediateHttpResponse`` to abort the login cleanly.
 """
 import logging
 
+from allauth.account.adapter import DefaultAccountAdapter
+from allauth.exceptions import ImmediateHttpResponse
 from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
+from django.contrib import messages
+from django.shortcuts import redirect
 
 logger = logging.getLogger(__name__)
+
+
+class PritechAccountAdapter(DefaultAccountAdapter):
+    """
+    Email/password login adapter.
+
+    Enforces the same tenant-membership rule the old
+    SchemaAwareLoginView enforced: a user cannot log into a tenant
+    subdomain unless they have an active UserTenantMembership there
+    (or are a platform admin / superuser).
+    """
+
+    def login(self, request, user):
+        tenant = getattr(request, 'tenant', None)
+
+        # Public schema — no membership check
+        if not tenant or tenant.schema_name == 'public':
+            return super().login(request, user)
+
+        # Platform staff bypass
+        if user.is_platform_admin or user.is_superuser:
+            return super().login(request, user)
+
+        # Tenant schema — require an active membership
+        if not user.has_membership(tenant):
+            from apps.shared.users.models import AuthAuditLog
+            AuthAuditLog.objects.create(
+                user=user,
+                tenant=tenant,
+                event_type=AuthAuditLog.EventType.PERMISSION_DENIED,
+                details={
+                    'reason': 'no_membership_for_tenant',
+                    'tenant_schema': tenant.schema_name,
+                },
+            )
+            messages.error(
+                request,
+                f'Your account does not have access to {tenant.name}. '
+                f'Contact your administrator.',
+            )
+            # Abort the login. allauth catches this and returns the
+            # response — the user stays anonymous.
+            raise ImmediateHttpResponse(redirect('account_login'))
+
+        return super().login(request, user)
 
 
 class PritechSocialAccountAdapter(DefaultSocialAccountAdapter):

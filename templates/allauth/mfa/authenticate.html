@@ -1,0 +1,57 @@
+{% extends "allauth/layouts/entrance.html" %}
+{% load i18n form_tags %}
+
+{% block head_title %}{% trans "Two-Factor Authentication" %}{% endblock %}
+{% block heading %}{% trans "Verify it's you" %}{% endblock %}
+{% block subtitle %}
+{% trans "Enter the 6-digit code from your authenticator app." %}
+{% endblock %}
+
+{% block brand_icon %}
+<svg viewBox="0 0 24 24" fill="none" class="h-6 w-6" stroke="currentColor"
+     stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
+     aria-hidden="true">
+  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+  <path d="M9 12l2 2 4-4" />
+</svg>
+{% endblock %}
+
+{% block body %}
+<form method="post" novalidate class="space-y-4">
+  {% csrf_token %}
+
+  {% include "partials/_form_errors.html" %}
+
+  <div>
+    <label for="{{ form.code.id_for_label }}"
+           class="mb-1.5 block text-sm font-medium
+                  text-slate-700 dark:text-slate-300">
+      {% trans "Authentication code" %}
+    </label>
+    {{ form.code|add_class:"field text-center text-lg font-mono tracking-widest" }}
+    {% for error in form.code.errors %}
+    <p class="mt-1.5 text-xs text-red-600 dark:text-red-400">{{ error }}</p>
+    {% endfor %}
+  </div>
+
+  <button type="submit" data-press data-hover="grow"
+          class="btn btn-primary w-full py-2.5">
+    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+         stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+    </svg>
+    {% trans "Verify" %}
+  </button>
+</form>
+{% endblock %}
+
+{% block footer_extra %}
+<div class="mt-4 flex flex-col items-center gap-2 text-xs">
+  <a href="{% url 'mfa_index' %}"
+     data-no-fade
+     class="text-slate-500 transition-colors hover:text-primary-600
+            dark:text-slate-400 dark:hover:text-primary-400">
+    {% trans "Use a recovery code instead" %}
+  </a>
+</div>
+{% endblock %}

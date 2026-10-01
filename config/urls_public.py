@@ -3,18 +3,19 @@
 Public-schema URL configuration.
 
 Handles marketing, signup, platform admin, tenant-aware authentication,
-2FA, allauth (email + Google Sign-In), password reset, meta webhooks,
-and the comprehensive health check.
+allauth (email + Google + MFA), password reset, meta webhooks, and the
+comprehensive health check.
+
+Phase 9.2: two_factor.urls is gone. allauth owns /accounts/2fa/.
 """
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
 from django.contrib.auth import views as auth_views
 from django.urls import path, include
-from django.views.generic import TemplateView
+from django.views.generic import RedirectView, TemplateView
 
 from apps.shared.tenants.views_health import health_check
-from apps.shared.users.views import SchemaAwareLoginView
 from apps.communications import views as comm_views
 
 
@@ -34,32 +35,23 @@ urlpatterns = [
          name='offline'),
 
     # ─── Signup ────────────────────────────────────────────────────
-    # The signup app itself is still our custom views — signup.html
-    # / signup_complete.html — so the tenant-provisioning logic runs.
-    # allauth is used for the Google OAuth handshake (see /accounts/
-    # below), which redirects back into our completion view.
+    # Custom views — signup.html / signup_complete.html — so the
+    # tenant-provisioning logic runs. allauth handles the Google
+    # OAuth handshake and redirects back into our completion view.
     path('signup/', include('apps.shared.tenants.urls_signup')),
 
     # ─── Platform admin (tenant management) ────────────────────────
     path('platform/', include('apps.shared.tenants.urls_platform')),
 
-    # ─── Auth ──────────────────────────────────────────────────────
-    # Phase 9.1 — allauth owns /accounts/ (login, signup, Google
-    # callback, password reset, account management). Its own login
-    # form posts to allauth's views, and Google Sign-In lands on
-    # /accounts/google/login/callback/.
-    #
-    # Our legacy /login/ view still exists so any bookmarked links
-    # or email templates pointing at /login/ keep working. It routes
-    # through SchemaAwareLoginView, which enforces tenant membership.
+    # ─── Auth (Phase 9.1 + 9.2) ────────────────────────────────────
+    # allauth owns /accounts/ — login, signup, Google OAuth callback,
+    # password reset, account management, MFA under /accounts/2fa/.
     path('accounts/', include('allauth.urls')),
 
-    # Two-factor URLs live in a thin wrapper module because upstream
-    # django-two-factor-auth doesn't declare app_name at module level.
-    path('', include('config.urls_two_factor')),
-
     # Legacy aliases
-    path('login/', SchemaAwareLoginView.as_view(), name='login'),
+    path('login/', RedirectView.as_view(
+        pattern_name='account_login', permanent=False, query_string=True,
+    ), name='login'),
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),
 
     # ─── Password reset (Phase 8 — AU-08) ──────────────────────────

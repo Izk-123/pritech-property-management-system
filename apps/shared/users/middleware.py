@@ -1,7 +1,7 @@
 """
 Authentication and request middleware for Pritech PMS.
 
-Three classes:
+Four classes/functions:
 
   ClientIPMiddleware           — restores REMOTE_ADDR from Nginx's
                                  X-Real-IP so rate limiting, Axes,
@@ -11,11 +11,18 @@ Three classes:
   RequireTenantSetupMiddleware — redirects a Google-authenticated user
                                  with no tenant to /signup/complete/.
 
-  ForceTwoFactorMiddleware     — forces platform admins and superusers
-                                 to enrol in 2FA (Phase 8).
+  ForceTwoFactorMiddleware     — Phase 9.2. Forces platform admins and
+                                 superusers to enrol in MFA. Uses
+                                 allauth.mfa state — django-otp is no
+                                 longer present.
+
+  ratelimited_view             — django-ratelimit's 429 response view.
+                                 (Moved here from views.py, which was
+                                 deleted with the two_factor migration.)
 """
 import logging
 
+from django.http import HttpResponse
 from django.shortcuts import redirect
 
 logger = logging.getLogger(__name__)
@@ -29,24 +36,11 @@ class ClientIPMiddleware:
     """
     Copy Nginx's X-Real-IP into request.META['REMOTE_ADDR'].
 
-    Why this exists
-    ---------------
     Nginx proxies to Gunicorn over a Unix socket. In that setup the
     TCP peer Django sees has no IP — REMOTE_ADDR is empty. Any
     library that reads REMOTE_ADDR for rate limiting, lockout, or
     audit logging therefore fails or logs nothing useful. This
     middleware fixes the root cause for every consumer at once.
-
-    Preference order
-    ----------------
-    * X-Real-IP         — set by Nginx to $remote_addr, unspoofable
-    * (leave as-is)     — in local dev without a proxy, REMOTE_ADDR
-                          already holds the loopback address
-
-    Placement
-    ---------
-    Immediately after TenantMainMiddleware so everything downstream
-    sees the corrected value.
     """
 
     def __init__(self, get_response):
@@ -63,8 +57,6 @@ class ClientIPMiddleware:
 # Tenant setup guard — Phase 9.1
 # ─────────────────────────────────────────────────────────────────────
 
-# Paths that must stay reachable even when a user has no tenant yet.
-# Signup itself, allauth's OAuth callback, static assets, health.
 _TENANT_SETUP_EXEMPT_PREFIXES = (
     '/signup/',
     '/accounts/',
@@ -84,16 +76,6 @@ class RequireTenantSetupMiddleware:
     If the user is authenticated but belongs to no tenant, send them
     to /signup/complete/ until they finish provisioning.
 
-    Typical flow for a fresh Google sign-in:
-
-      1. allauth creates the User, signs them in.
-      2. Our social adapter sets session['pending_tenant_setup'] = True.
-      3. This middleware sees an authenticated user with no
-         UserTenantMembership rows and redirects to the completion
-         form.
-      4. After the form creates a Tenant + membership, the flag is
-         cleared and normal navigation resumes.
-
     Skips platform admins and superusers entirely — they manage
     tenants, they don't belong to them.
     """
@@ -111,51 +93,61 @@ class RequireTenantSetupMiddleware:
         if not user or not user.is_authenticated:
             return False
 
-        # Platform staff never need tenant setup
         if user.is_platform_admin or user.is_superuser:
             return False
 
-        # Whitelisted paths always pass through (signup, allauth, etc.)
         for prefix in _TENANT_SETUP_EXEMPT_PREFIXES:
             if request.path.startswith(prefix):
                 return False
 
-        # Any active membership means they're already set up
         return not user.tenant_memberships.exists()
 
 
 # ─────────────────────────────────────────────────────────────────────
-# 2FA enforcement — Phase 8
+# MFA enforcement — Phase 9.2 (allauth.mfa)
 # ─────────────────────────────────────────────────────────────────────
 
 class ForceTwoFactorMiddleware:
     """
-    Force platform admins and superusers to enrol in 2FA.
+    Force platform admins and superusers to enrol in MFA.
 
-    Runs after OTPMiddleware. If the user is authenticated as a
-    platform admin but has no confirmed OTP device, redirect them
-    to the 2FA setup page.
+    Runs after allauth's AccountMiddleware. If the user is
+    authenticated as a platform admin but has no MFA authenticator
+    enabled, redirect them to the TOTP activation page.
 
-    Public schema only — tenant admins can enrol optionally, so
-    this doesn't interrupt guest-facing tenant pages.
+    Public schema only — tenant admins can enrol optionally, so this
+    doesn't interrupt guest-facing tenant pages.
+
+    Uses allauth.mfa's `Authenticator` model directly. Any row means
+    the user has at least one MFA method set up (TOTP or recovery
+    codes).
     """
 
-    EXEMPT_URLS = {
-        '/account/two_factor/setup/',
-        '/account/two_factor/backup/tokens/',
-        '/account/logout/',
+    # Paths the user must be able to reach even without MFA set up.
+    EXEMPT_PREFIXES = (
+        '/accounts/2fa/',               # allauth MFA views
+        '/accounts/logout/',
+        '/accounts/password/',          # password change / reset
+        '/accounts/confirm-email/',     # email verification
+        '/accounts/email/',             # email management
+        '/accounts/inactive/',
+        '/accounts/reauthenticate/',
         '/admin/logout/',
-    }
+        '/health/',
+        '/static/',
+        '/media/',
+        '/i18n/',
+    )
 
     def __init__(self, get_response):
         self.get_response = get_response
 
     def __call__(self, request):
-        if self._needs_2fa_setup(request):
-            return redirect('two_factor:setup')
+        if self._needs_mfa_setup(request):
+            return redirect('mfa_activate_totp')
         return self.get_response(request)
 
-    def _needs_2fa_setup(self, request):
+    def _needs_mfa_setup(self, request):
         user = getattr(request, 'user', None)
         if not user or not user.is_authenticated:
             return False
@@ -164,21 +156,38 @@ class ForceTwoFactorMiddleware:
         if not (user.is_platform_admin or user.is_superuser):
             return False
 
-        # Allow the setup URLs themselves
-        if request.path in self.EXEMPT_URLS:
-            return False
+        # Allow the MFA setup URLs themselves
+        for prefix in self.EXEMPT_PREFIXES:
+            if request.path.startswith(prefix):
+                return False
 
         # Public schema only — tenant admins can enrol optionally
         tenant = getattr(request, 'tenant', None)
         if not tenant or tenant.schema_name != 'public':
             return False
 
-        # Has a confirmed TOTP or static device?
+        # Has any authenticator enabled?
         try:
-            from django_otp import devices_for_user
-            for device in devices_for_user(user, confirmed=True):
+            from allauth.mfa.models import Authenticator
+            if Authenticator.objects.filter(user=user).exists():
                 return False
         except Exception:
-            pass
+            # If the app isn't loaded yet (e.g. during a migration),
+            # don't force a redirect that could loop.
+            logger.exception('MFA check failed — allowing request')
+            return False
 
         return True
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Rate-limit view (moved from apps.shared.users.views)
+# ─────────────────────────────────────────────────────────────────────
+
+def ratelimited_view(request, exception=None):
+    """Returned by django-ratelimit when a rate limit is exceeded."""
+    return HttpResponse(
+        'Too many requests. Please wait a minute and try again.',
+        status=429,
+        content_type='text/plain',
+    )

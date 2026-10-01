@@ -1,0 +1,41 @@
+{% extends "allauth/layouts/entrance.html" %}
+{% load i18n %}
+
+{% block head_title %}{% trans "New Recovery Codes" %}{% endblock %}
+{% block heading %}{% trans "Save your recovery codes" %}{% endblock %}
+{% block subtitle %}
+{% trans "These codes are shown only once. Store them somewhere safe." %}
+{% endblock %}
+
+{% block body %}
+{% if codes %}
+<div class="rounded-2xl border border-amber-200 bg-amber-50 p-4
+            dark:border-amber-800 dark:bg-amber-900/20">
+  <div class="mb-3 flex items-start gap-2">
+    <svg class="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" fill="none"
+         stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+    </svg>
+    <p class="text-xs font-medium text-amber-800 dark:text-amber-200">
+      {% trans "Copy these codes now — you won't see them again." %}
+    </p>
+  </div>
+
+  <ul class="grid grid-cols-2 gap-2 text-sm">
+    {% for code in codes %}
+    <li class="rounded-lg bg-white px-3 py-2 font-mono text-xs text-center
+               dark:bg-slate-900/60">
+      {{ code }}
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+<a href="{% url 'mfa_index' %}"
+   data-press data-hover="grow"
+   class="btn btn-primary w-full py-2.5 mt-4">
+  {% trans "I've saved them" %}
+</a>
+{% endblock %}

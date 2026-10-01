@@ -1,0 +1,49 @@
+{% extends "allauth/layouts/entrance.html" %}
+{% load i18n %}
+
+{% block head_title %}{% trans "Recovery Codes" %}{% endblock %}
+{% block heading %}{% trans "Recovery Codes" %}{% endblock %}
+{% block subtitle %}
+{% trans "Each code can be used once if you lose access to your authenticator." %}
+{% endblock %}
+
+{% block body %}
+{% if unused_codes %}
+<div class="rounded-2xl border border-amber-200 bg-amber-50 p-4
+            dark:border-amber-800 dark:bg-amber-900/20">
+  <p class="mb-3 text-xs font-medium text-amber-800 dark:text-amber-200">
+    {% trans "Unused codes — keep them somewhere safe." %}
+  </p>
+  <ul class="grid grid-cols-2 gap-2 text-sm">
+    {% for code in unused_codes %}
+    <li class="rounded-lg bg-white px-3 py-2 font-mono text-xs text-center
+               dark:bg-slate-900/60">
+      {{ code }}
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% else %}
+<div class="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-center
+            dark:border-white/10 dark:bg-white/5">
+  <p class="text-sm text-slate-500 dark:text-slate-400">
+    {% trans "You have no unused recovery codes." %}
+  </p>
+</div>
+{% endif %}
+
+<div class="flex flex-col gap-2 sm:flex-row">
+  <a href="{% url 'mfa_generate_recovery_codes' %}"
+     data-press data-hover="grow"
+     class="btn btn-primary flex-1 py-2.5">
+    {% trans "Generate new codes" %}
+  </a>
+  <a href="{% url 'mfa_index' %}"
+     data-press data-hover="lift"
+     class="btn flex-1 border border-slate-200 bg-slate-100 py-2.5 text-slate-700
+            hover:bg-slate-200 dark:border-white/10 dark:bg-white/5
+            dark:text-slate-200 dark:hover:bg-white/10">
+    {% trans "Back" %}
+  </a>
+</div>
+{% endblock %}

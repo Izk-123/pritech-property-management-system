@@ -8,11 +8,15 @@ Phase 5: multi-tenant via django-tenants (PostgreSQL schema isolation).
 Phase 6: PWA + offline-first (django-pwa, Workbox, IndexedDB sync queue).
 Phase 7: real-time (Channels + Redis) + WhatsApp/email communications
          + modernised animated admin theme (Unfold).
-Phase 8: auth hardening (Argon2, 2FA, Axes lockout, rate limiting,
+Phase 8: auth hardening (Argon2, Axes lockout, rate limiting,
          password reset, JWT), Chichewa localization, security headers
          (CSP), django-redis cache, backups, health checks.
 Phase 9: public listings, vacant rentals, tenant home + staff dashboard.
-Phase 9.1: Google Sign-In via django-allauth + Malawi phone validation.
+Phase 9.1: Google Sign-In via django-allauth.
+Phase 9.2: MFA via allauth.mfa (TOTP + recovery codes).
+           Replaces django-two-factor-auth / django-otp, whose
+           conflict with allauth's AccountMiddleware caused the
+           400 Bad Request (ManagementForm) at /account/two_factor/setup/.
 
 PostgreSQL is required in BOTH dev and prod — SQLite cannot host tenants.
 """
@@ -81,7 +85,7 @@ CSRF_COOKIE_DOMAIN = config('CSRF_COOKIE_DOMAIN', default=None)
 # ─────────────────────────────────────────────────────────────────────
 # Applications
 # SHARED_APPS  → public schema (tenant registry, users, admin, celery,
-#                sync, realtime, pwa, channels, anymail, allauth)
+#                sync, realtime, pwa, channels, anymail, allauth + MFA)
 # TENANT_APPS  → per-tenant schema (business data)
 # ─────────────────────────────────────────────────────────────────────
 SHARED_APPS = [
@@ -98,7 +102,7 @@ SHARED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'django.contrib.humanize',      # intcomma, naturaltime (public templates)
+    'django.contrib.humanize',
     'django.contrib.sites',         # required by allauth
 
     'auditlog',
@@ -109,12 +113,7 @@ SHARED_APPS = [
     'apps.core.sync',               # Phase 6 — offline sync API
     'apps.realtime',                # Phase 7 — WebSocket infrastructure
 
-    # ─── Phase 8 — auth hardening ──────────────────────────────────
-    'django_otp',
-    'django_otp.plugins.otp_totp',
-    'django_otp.plugins.otp_static',
-    'two_factor',
-    'two_factor.plugins.phonenumber',
+    # ─── Phase 8 — API auth ────────────────────────────────────────
     'rest_framework',
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
@@ -124,11 +123,13 @@ SHARED_APPS = [
     # ─── Phase 8 — security headers ────────────────────────────────
     'csp',
 
-    # ─── Phase 9.1 — allauth (email + Google sign-in) ──────────────
+    # ─── Phase 9.1 — allauth (email + Google) ──────────────────────
+    # ─── Phase 9.2 — built-in MFA (TOTP + recovery codes) ──────────
     'allauth',
     'allauth.account',
     'allauth.socialaccount',
     'allauth.socialaccount.providers.google',
+    'allauth.mfa',
 
     'channels',                     # Phase 7 — ASGI channel layer
     'anymail',                      # Phase 7 — email via Mailgun/SES
@@ -176,16 +177,16 @@ INSTALLED_APPS = list(SHARED_APPS) + [
 # Middleware
 #
 # Order matters:
-#   1. TenantMainMiddleware       — must be first, resolves request.tenant
-#   2. ClientIPMiddleware         — restores REMOTE_ADDR from X-Real-IP
+#   1. TenantMainMiddleware          — must be first, resolves request.tenant
+#   2. ClientIPMiddleware            — restores REMOTE_ADDR from X-Real-IP
 #   3. Security / CSP / WhiteNoise
 #   4. Session, Locale, TenantLanguage
 #   5. Common, CSRF, Authentication
-#   6. allauth AccountMiddleware  — Phase 9.1, requires request.user
-#   7. RequireTenantSetupMiddleware — after auth, before OTP
-#   8. OTP + ForceTwoFactor       — Phase 8
+#   6. allauth AccountMiddleware     — Phase 9.1, requires request.user
+#   7. RequireTenantSetupMiddleware  — after auth, before MFA
+#   8. ForceTwoFactorMiddleware      — Phase 9.2, redirects to MFA setup
 #   9. Messages, XFrameOptions
-#  10. AxesMiddleware             — must be last
+#  10. AxesMiddleware                — must be last
 # ─────────────────────────────────────────────────────────────────────
 MIDDLEWARE = [
     'django_tenants.middleware.main.TenantMainMiddleware',   # must be first
@@ -193,7 +194,6 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
 ]
 
-# Phase 8 — Content Security Policy, right after SecurityMiddleware
 MIDDLEWARE.append('csp.middleware.CSPMiddleware')
 
 if not DEBUG:
@@ -207,18 +207,17 @@ MIDDLEWARE += [
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
 
-    # Phase 9.1 — django-allauth requires this class to be present or
-    # its AppConfig.ready() raises ImproperlyConfigured. It must sit
-    # AFTER AuthenticationMiddleware (it reads request.user) and
-    # BEFORE any middleware that consumes allauth's request state
-    # (RequireTenantSetupMiddleware, OTP, ForceTwoFactor).
+    # Phase 9.1 — allauth requires this class or its AppConfig.ready()
+    # raises ImproperlyConfigured. Must sit AFTER AuthenticationMiddleware
+    # (it reads request.user) and BEFORE any middleware that consumes
+    # allauth's request state.
     'allauth.account.middleware.AccountMiddleware',
 
     # Phase 9.1 — route fresh Google users to /signup/complete/
     'apps.shared.users.middleware.RequireTenantSetupMiddleware',
 
-    'django_otp.middleware.OTPMiddleware',                    # Phase 8
-    # 'apps.shared.users.middleware.ForceTwoFactorMiddleware',  # Phase 8
+    # Phase 9.2 — force platform admins / superusers to enrol in MFA.
+    'apps.shared.users.middleware.ForceTwoFactorMiddleware',
 
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -229,9 +228,7 @@ MIDDLEWARE += [
 WSGI_APPLICATION = 'config.wsgi.application'
 ASGI_APPLICATION = 'config.asgi.application'
 
-# django.contrib.sites — required by allauth. In a multi-tenant setup
-# this lives in the public schema (SHARED_APPS), so a single Site
-# record serves every tenant.
+# django.contrib.sites — required by allauth.
 SITE_ID = 1
 
 
@@ -257,7 +254,7 @@ TEMPLATES = [
 
 
 # ─────────────────────────────────────────────────────────────────────
-# Database — PostgreSQL in BOTH dev and prod (django-tenants requirement)
+# Database
 # ─────────────────────────────────────────────────────────────────────
 DATABASES = {
     'default': {
@@ -276,9 +273,6 @@ DATABASES = {
 }
 
 if not DEBUG:
-    # Phase 8 — OLTP-friendly PostgreSQL tuning
-    # jit=off    → short queries; JIT overhead outweighs gains
-    # work_mem   → larger sorts/joins before spilling to disk
     DATABASES['default']['OPTIONS']['options'] = (
         '-c statement_timeout=30000 '
         '-c jit=off '
@@ -298,7 +292,6 @@ if DEBUG:
     }
     SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 else:
-    # Phase 8 — django-redis for connection pooling + IGNORE_EXCEPTIONS
     CACHES = {
         'default': {
             'BACKEND': 'django_redis.cache.RedisCache',
@@ -337,21 +330,19 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
-# Phase 8 — Axes wraps the standard backend.
-# Phase 9.1 — allauth's backend handles social sign-in.
 AUTHENTICATION_BACKENDS = [
     'axes.backends.AxesStandaloneBackend',
     'django.contrib.auth.backends.ModelBackend',
     'allauth.account.auth_backends.AuthenticationBackend',
 ]
 
-# Phase 8 — login routes through django-two-factor-auth.
-# Phase 9.1 — allauth provides the Google Sign-In path, but the
-# email/password login form still flows through SchemaAwareLoginView
-# so tenant-membership checks stay in one place.
-LOGIN_URL = 'two_factor:login'
+# allauth owns the login flow end-to-end (that's how MFA chains
+# without us reimplementing the wizard). The tenant-membership check
+# moved to PritechAccountAdapter.login() — see
+# apps/shared/users/adapters.py.
+LOGIN_URL = 'account_login'
 LOGIN_REDIRECT_URL = '/'
-LOGOUT_REDIRECT_URL = 'two_factor:login'
+LOGOUT_REDIRECT_URL = 'account_login'
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -447,13 +438,12 @@ if not DEBUG:
 
     X_FRAME_OPTIONS = 'DENY'
 
-    # Phase 8 — Content Security Policy (django-csp 4.x)
     CONTENT_SECURITY_POLICY = {
         'DIRECTIVES': {
             'default-src': ["'self'"],
             'script-src': [
                 "'self'",
-                "'unsafe-inline'",   # motion engine + inline theme script
+                "'unsafe-inline'",
                 'https://cdn.jsdelivr.net',
                 'https://unpkg.com',
                 'https://cdn.tailwindcss.com',
@@ -481,7 +471,6 @@ if not DEBUG:
         },
     }
 
-    # Phase 8 — Permissions Policy
     PERMISSIONS_POLICY = {
         'geolocation': [],
         'microphone': [],
@@ -511,13 +500,10 @@ CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
 
 CELERY_BEAT_SCHEDULE = {
-    # ─── Phase 5 — Multi-tenant night audit ────────────────────────────
     'run-night-audit-all-tenants': {
         'task': 'apps.hospitality.reservations.tasks.run_night_audit_for_all_tenants',
         'schedule': crontab(hour=2, minute=0),
     },
-
-    # ─── Phase 3 — Property module ─────────────────────────────────────
     'generate-monthly-rent-invoices': {
         'task': 'apps.property.rent_invoicing.tasks.generate_monthly_rent_invoices',
         'schedule': crontab(day_of_month=1, hour=6, minute=0),
@@ -530,8 +516,6 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'apps.property.rent_invoicing.tasks.flag_overdue_invoices',
         'schedule': crontab(hour=7, minute=30),
     },
-
-    # ─── Phase 4 — Compliance ──────────────────────────────────────────
     'fetch-forex-rates': {
         'task': 'apps.compliance.forex.tasks.fetch_forex_rates',
         'schedule': crontab(minute=0, hour='*/6'),
@@ -552,8 +536,6 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'apps.compliance.fcy.tasks.generate_monthly_rbm_returns',
         'schedule': crontab(day_of_month=1, hour=7, minute=0),
     },
-
-    # ─── Phase 7 — Communications ──────────────────────────────────────
     'scan-checkin-reminders': {
         'task': 'apps.communications.tasks.scan_checkin_reminders',
         'schedule': crontab(hour=9, minute=0),
@@ -562,8 +544,6 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'apps.communications.tasks.scan_rent_due_reminders',
         'schedule': crontab(hour=8, minute=0),
     },
-
-    # ─── Phase 8 — Celery heartbeat (worker liveness) ──────────────────
     'celery-heartbeat': {
         'task': 'apps.shared.tenants.tasks.heartbeat',
         'schedule': crontab(minute='*/15'),
@@ -572,8 +552,7 @@ CELERY_BEAT_SCHEDULE = {
 
 
 # ─────────────────────────────────────────────────────────────────────
-# Channels — Phase 7 WebSockets
-# Redis channel layer on database 2 (broker uses 0, cache uses 1).
+# Channels
 # ─────────────────────────────────────────────────────────────────────
 CHANNEL_LAYERS = {
     'default': {
@@ -801,6 +780,7 @@ LOGGING = {
         'apps.communications': {'level': 'INFO', 'handlers': ['console'], 'propagate': False},
         'celery': {'level': 'INFO', 'handlers': ['console'], 'propagate': False},
         'apps': {'level': 'INFO', 'handlers': ['console'], 'propagate': False},
+        'allauth': {'level': 'INFO', 'handlers': ['console'], 'propagate': False},
     },
 }
 
@@ -844,6 +824,7 @@ if not DEBUG:
     LOGGING['loggers']['apps.realtime']['handlers']    = ['console', 'channels_file']
     LOGGING['loggers']['celery']['handlers']           = ['console', 'celery_file']
     LOGGING['loggers']['apps']['handlers']             = ['console', 'file']
+    LOGGING['loggers']['allauth']['handlers']          = ['console', 'file']
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -886,7 +867,7 @@ EIS_TIN = config('EIS_TIN', default='')
 
 
 # ─────────────────────────────────────────────────────────────────────
-# Phase 6 — PWA (Progressive Web App)
+# Phase 6 — PWA
 # ─────────────────────────────────────────────────────────────────────
 PWA_APP_NAME = 'Pritech PMS'
 PWA_APP_DESCRIPTION = 'Property management for Malawi hotels, lodges, and rentals.'
@@ -950,7 +931,7 @@ if not DEBUG and ANYMAIL['MAILGUN_API_KEY']:
 
 
 # ─────────────────────────────────────────────────────────────────────
-# Phase 8 — Authentication hardening
+# Phase 8 — Authentication hardening (non-MFA)
 # ─────────────────────────────────────────────────────────────────────
 
 # ─── Password hashing — Argon2 (AU-07) ──────────────────────────────
@@ -978,19 +959,9 @@ AXES_IPWARE_META_PRECEDENCE_ORDER = [
 
 # ─── Rate limiting — django-ratelimit (AU-15) ──────────────────────
 RATELIMIT_USE_CACHE = 'default'
-RATELIMIT_VIEW = 'apps.shared.users.views.ratelimited_view'
+RATELIMIT_VIEW = 'apps.shared.users.middleware.ratelimited_view'
 RATELIMIT_ENABLE = True
-# Nginx proxies to Gunicorn over a Unix socket, so REMOTE_ADDR is
-# empty. ClientIPMiddleware restores REMOTE_ADDR from X-Real-IP; this
-# setting is a second layer in case the middleware is ever removed.
 RATELIMIT_IP_META_KEY = 'HTTP_X_REAL_IP'
-
-# ─── 2FA — django-two-factor-auth (AU-06) ──────────────────────────
-TWO_FACTOR_PATCH_ADMIN = True
-TWO_FACTOR_REMEMBER_COOKIE_AGE = 30 * 24 * 60 * 60
-TWO_FACTOR_REMEMBER_COOKIE_DURATION = 30 * 24 * 60 * 60
-TWO_FACTOR_LOGIN_TIMEOUT = 600
-TWO_FACTOR_TOTP_ISSUER = 'Pritech PMS'
 
 # ─── JWT for API clients (AU-04) ───────────────────────────────────
 REST_FRAMEWORK = {
@@ -1025,22 +996,19 @@ SIMPLE_JWT = {
 
 
 # ─────────────────────────────────────────────────────────────────────
-# Phase 9.1 — Authentication via allauth + Google Sign-In
+# Phase 9.1 — allauth (email + Google) + Phase 9.2 — MFA
 #
 # Design decisions:
-#   • Email/password login still routes through SchemaAwareLoginView
-#     (see apps/shared/users/views.py) so tenant-membership checks
-#     remain in one place.
-#   • Google Sign-In bypasses the password form entirely. allauth
-#     creates the User, our adapter splits the `name` claim into
-#     first_name / last_name, and the user is redirected to
-#     /signup/complete/ to finish setting up their tenant.
-#   • ACCOUNT_EMAIL_VERIFICATION is 'optional' — Google already
-#     verifies email. Email-signup users can log in immediately;
-#     they receive a confirmation link for soft verification.
-#   • Phone verification is format-only at signup (no SMS cost).
-#     OTP is sent later, only when the tenant is ready to make a
-#     payment or receive booking alerts.
+#   • Email/password login runs through allauth's login view. The
+#     tenant-membership check moved to PritechAccountAdapter.login()
+#     (see apps/shared/users/adapters.py).
+#   • Google Sign-In unchanged — allauth creates the User; our social
+#     adapter splits the `name` claim and routes to /signup/complete/.
+#   • ACCOUNT_EMAIL_VERIFICATION is 'optional'. Google verifies the
+#     email; email-signup users receive a soft-confirm link.
+#   • Phone verification remains format-only at signup.
+#   • Phase 9.2: MFA via allauth.mfa — TOTP + recovery codes. This
+#     replaces django-two-factor-auth / django-otp entirely.
 # ─────────────────────────────────────────────────────────────────────
 
 # ─── Allauth core ──────────────────────────────────────────────────
@@ -1055,10 +1023,11 @@ ACCOUNT_EMAIL_CONFIRMATION_EXPIRE_DAYS = 3
 ACCOUNT_LOGIN_ON_EMAIL_CONFIRMATION = True
 ACCOUNT_SESSION_REMEMBER = True
 
-# Allauth login/logout entry points. Google sign-in and account
-# management live under /accounts/.
 ACCOUNT_LOGOUT_ON_GET = True
 ACCOUNT_LOGOUT_REDIRECT_URL = '/'
+
+# Custom account adapter enforces tenant-membership on login.
+ACCOUNT_ADAPTER = 'apps.shared.users.adapters.PritechAccountAdapter'
 
 # ─── Social account (Google) ──────────────────────────────────────
 SOCIALACCOUNT_AUTO_SIGNUP = True
@@ -1068,8 +1037,6 @@ SOCIALACCOUNT_LOGIN_ON_GET = True
 SOCIALACCOUNT_QUERY_EMAIL = True
 SOCIALACCOUNT_STORE_TOKENS = False
 
-# If a Google email matches an existing email-signup account, link
-# the two instead of creating a duplicate user.
 SOCIALACCOUNT_EMAIL_AUTHENTICATION = True
 SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT = True
 
@@ -1089,14 +1056,30 @@ SOCIALACCOUNT_PROVIDERS = {
     },
 }
 
-# Our adapter splits Google's single `name` claim into first/last.
 SOCIALACCOUNT_ADAPTER = 'apps.shared.users.adapters.PritechSocialAccountAdapter'
 
 
+# ─── Phase 9.2 — MFA via allauth.mfa ───────────────────────────────
+# Supported second factors: TOTP apps and single-use recovery codes.
+# WebAuthn / passkeys are opt-in later (add 'webauthn' to the list and
+# the `fido2` extra in requirements.txt).
+MFA_SUPPORTED_TYPES = ['totp', 'recovery_codes']
+
+# TOTP issuer shown in the authenticator app.
+MFA_TOTP_ISSUER = 'Pritech PMS'
+MFA_TOTP_PERIOD = 30
+MFA_TOTP_DIGITS = 6
+MFA_TOTP_TOLERANCE = 1
+
+# Recovery codes.
+MFA_RECOVERY_CODE_COUNT = 10
+MFA_RECOVERY_CODE_DIGITS = 8
+
+# Allauth template pack — 'allauth' → templates/allauth/account/*.html
+# (default; made explicit to prevent drift if allauth changes its default)
+TEMPLATE_PACK = 'allauth'
+
 # ─────────────────────────────────────────────────────────────────────
 # Phase 9.1 — Optional Veriphone lookup for phone validation
-#
-# Free tier: 1,000 lookups/month. If the key is blank, validation is
-# format-only (always passes for a well-formed Malawi mobile number).
 # ─────────────────────────────────────────────────────────────────────
 VERIPHONE_API_KEY = config('VERIPHONE_API_KEY', default='')

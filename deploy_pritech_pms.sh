@@ -4,27 +4,18 @@
 #   Phase 5: multi-tenant via django-tenants
 #   Phase 6: PWA + offline-first
 #   Phase 7: Channels + Redis WebSockets + WhatsApp/email + animated admin
-#   Phase 8: auth hardening (Argon2, 2FA, Axes, rate limits, JWT), CSP,
+#   Phase 8: auth hardening (Argon2, Axes, rate limits, JWT), CSP,
 #            Chichewa localization, django-redis cache, health checks,
 #            backups, DR docs
 #   Phase 9: public listings + vacant rentals + tenant home + staff dashboard
-#   Phase 9.1: Google Sign-In via allauth + phone validation
+#   Phase 9.1: Google Sign-In via allauth
+#   Phase 9.2: MFA via allauth.mfa (TOTP + recovery codes).
+#              Replaces django-two-factor-auth / django-otp.
 #
 # Idempotent and self-healing. Fails fast on URLconf/middleware errors
 # BEFORE attempting migrations. Auto-detects a free Daphne port, cleans
 # stale processes, flattens nested static icons, reconciles public-schema
 # drift, compiles translations, and verifies the auth stack.
-#
-# Phase 9.1 additions:
-#   • Step 2b verifies allauth wiring in settings (AccountMiddleware,
-#     INSTALLED_APPS, AUTHENTICATION_BACKENDS, SITE_ID, adapter file on
-#     disk) WITHOUT calling django.setup() and WITHOUT importing the
-#     adapter module — importing allauth pulls in Django models, which
-#     raises "Apps aren't loaded yet" before setup() has run.
-#   • Step 2c bootstraps Django via django.setup() and then imports the
-#     social adapter — the actual, authoritative import check.
-#   • Step 5 recognises allauth-specific failures and prints the exact
-#     line of settings.py to change.
 #
 # Usage:
 #   sudo bash deploy_pritech_pms.sh              # deploy / update
@@ -88,7 +79,7 @@ die()  { printf '\033[1;31m  ✘ %s\033[0m\n' "$*" >&2; exit 1; }
 banner() {
     printf '\n\033[1;35m══════════════════════════════════════════════════════════\033[0m\n'
     printf '\033[1;35m  %s\033[0m\n' "$*"
-    printf '\033[1;35m══════════════════════════════════════════════════════════\033[0m\n'
+    printf '\033[1;35══════════════════════════════════════════════════════════\033[0m\n'
 }
 
 # ─── Sanity checks ──────────────────────────────────────────────────────────
@@ -147,6 +138,16 @@ env_set_if_missing() {
     local key="$1"
     local value="$2"
     env_has "${key}" || env_set "${key}" "${value}"
+}
+
+env_set_if_empty() {
+    local key="$1"
+    local value="$2"
+    if [[ -z "$(env_get "${key}")" ]]; then
+        env_set "${key}" "${value}"
+        return 0
+    fi
+    return 1
 }
 
 # ============================================================================
@@ -321,9 +322,9 @@ if [[ "${ENV_ONLY}" != "true" ]]; then
     done
     ok "All core packages importable"
 
-    # ── Phase 8 auth hardening ──────────────────────────────────────────
+    # ── Phase 8 auth hardening (MFA handled separately below) ───────────
     for pkg in \
-        django_otp two_factor axes django_ratelimit csp \
+        axes django_ratelimit csp \
         django_redis rest_framework rest_framework_simplejwt argon2
     do
         if ! python -c "import ${pkg}" 2>/dev/null; then
@@ -332,15 +333,31 @@ if [[ "${ENV_ONLY}" != "true" ]]; then
     done
     ok "All Phase 8 auth/CSP/cache packages importable"
 
-    # ── Phase 9.1 — allauth ─────────────────────────────────────────────
-    for pkg in allauth; do
-        if ! python -c "import ${pkg}" 2>/dev/null; then
-            die "Phase 9.1 package '${pkg}' not installed. Check requirements.txt."
-        fi
-    done
+    # ── Phase 9.1/9.2 — allauth + MFA ───────────────────────────────────
+    if ! python -c "import allauth" 2>/dev/null; then
+        die "Phase 9.1 package 'allauth' not installed. Check requirements.txt."
+    fi
     python -c "import allauth.socialaccount.providers.google" 2>/dev/null \
         || die "allauth Google provider not installed. Check requirements.txt."
-    ok "Phase 9.1 allauth packages importable"
+    python -c "import allauth.mfa" 2>/dev/null \
+        || die "allauth MFA extra not installed. Use 'django-allauth[socialaccount,mfa]' in requirements.txt."
+    ok "Phase 9.1/9.2 allauth packages importable"
+
+    # ── Legacy 2FA packages must be ABSENT from INSTALLED_APPS ──────────
+    # They can still be pip-installed from the residual venv; we only
+    # need to be sure they aren't on the Django app path.
+    if python -c "
+import os, sys
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+from django.conf import settings
+for a in ('django_otp', 'two_factor'):
+    if a in settings.INSTALLED_APPS:
+        sys.exit(1)
+" 2>/dev/null; then
+        ok "Legacy two_factor / django_otp not in INSTALLED_APPS"
+    else
+        die "Legacy MFA app is still registered in INSTALLED_APPS. Remove django_otp, otp_totp, otp_static, two_factor, two_factor.plugins.phonenumber from SHARED_APPS."
+    fi
 
     # ── Compliance packages — optional, warn only ───────────────────────
     for pkg in paychangu; do
@@ -368,22 +385,20 @@ if [[ "${ENV_ONLY}" != "true" ]]; then
         fi
     done
 
-    # ── Phase 9.1 — verify allauth wiring BEFORE any django.setup() ─────
+    # ── Phase 9.1/9.2 — verify allauth wiring BEFORE any django.setup() ─
     # django-allauth 65.x raises ImproperlyConfigured at AppConfig.ready()
     # if AccountMiddleware is missing. We check the settings here — WITHOUT
-    # calling django.setup() and WITHOUT importing the adapter module —
-    # so the operator gets a one-line fix instead of a raw traceback.
-    #
-    # Accessing django.conf.settings is lazy — it does NOT call setup().
-    log "Step 2b: Verify Phase 9.1 allauth settings wiring"
-    python - <<'PY' || die "Phase 9.1 settings wiring check failed — see above."
+    # calling django.setup() and WITHOUT importing adapter modules — so the
+    # operator gets a one-line fix instead of a raw traceback.
+    log "Step 2b: Verify Phase 9.1/9.2 allauth wiring"
+    python - <<'PY' || die "Phase 9.1/9.2 settings wiring check failed — see above."
 import os
 import sys
 from pathlib import Path
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 
-# Lazy settings — no app loading yet.
+# Lazy settings — no app loading.
 from django.conf import settings
 
 errors = []
@@ -402,76 +417,74 @@ required_apps = {
     'allauth.account',
     'allauth.socialaccount',
     'allauth.socialaccount.providers.google',
+    'allauth.mfa',
 }
 missing = required_apps - set(settings.INSTALLED_APPS)
 if missing:
     errors.append(f"INSTALLED_APPS missing: {sorted(missing)}")
 
-# ── 3. allauth auth backend must be registered ──────────────────────
+# ── 3. Legacy two_factor apps must NOT be in INSTALLED_APPS ─────────
+legacy = {'django_otp', 'two_factor', 'django_otp.plugins.otp_totp',
+          'django_otp.plugins.otp_static', 'two_factor.plugins.phonenumber'}
+present = legacy & set(settings.INSTALLED_APPS)
+if present:
+    errors.append(f"Legacy MFA apps still installed: {sorted(present)}")
+
+# ── 4. allauth auth backend must be registered ──────────────────────
 if not any('allauth' in b for b in settings.AUTHENTICATION_BACKENDS):
     errors.append(
         "AUTHENTICATION_BACKENDS has no allauth backend — add "
         "'allauth.account.auth_backends.AuthenticationBackend'."
     )
 
-# ── 4. SITE_ID must be set (django.contrib.sites) ───────────────────
+# ── 5. SITE_ID must be set (django.contrib.sites) ───────────────────
 if not getattr(settings, 'SITE_ID', None):
     errors.append(
         "SITE_ID is not set. Add 'django.contrib.sites' to SHARED_APPS "
         "and set SITE_ID = 1."
     )
 
-# ── 5. SOCIALACCOUNT_ADAPTER module file must exist on disk ─────────
-# We deliberately do NOT import the module here: importing it pulls in
-# allauth, which imports Django models, which raises "Apps aren't loaded
-# yet" because we haven't called django.setup() (and must not — that
-# would trigger the very AppConfig.ready() error we're checking for).
-#
-# So this check verifies file existence only. The actual import — and
-# the class-attribute check — happens in Step 2c after django.setup().
-adapter_path = getattr(settings, 'SOCIALACCOUNT_ADAPTER', '')
-if not adapter_path:
-    errors.append("SOCIALACCOUNT_ADAPTER is not configured.")
-else:
-    module_path, _, class_name = adapter_path.rpartition('.')
+# ── 6. LOGIN_URL should point at allauth ────────────────────────────
+if getattr(settings, 'LOGIN_URL', '') != 'account_login':
+    errors.append(
+        f"LOGIN_URL is {getattr(settings, 'LOGIN_URL', '<unset>')!r}; "
+        "it should be 'account_login' now that allauth owns the login flow."
+    )
+
+# ── 7. Adapter files must exist on disk (existence only — no import) ─
+for setting_name in ('ACCOUNT_ADAPTER', 'SOCIALACCOUNT_ADAPTER'):
+    path = getattr(settings, setting_name, '')
+    if not path:
+        errors.append(f"{setting_name} is not configured.")
+        continue
+    module_path, _, class_name = path.rpartition('.')
     if not module_path:
+        errors.append(f"{setting_name}={path!r} is not a dotted path.")
+        continue
+    rel_parts = module_path.split('.')
+    base = Path(settings.BASE_DIR)
+    as_module  = base.joinpath(*rel_parts).with_suffix('.py')
+    as_pkg     = base.joinpath(*rel_parts, '__init__.py')
+    if not as_module.exists() and not as_pkg.exists():
         errors.append(
-            f"SOCIALACCOUNT_ADAPTER={adapter_path!r} is not a dotted path."
+            f"{setting_name} points at {path!r}, but neither "
+            f"{as_module} nor {as_pkg} exists on disk."
         )
-    else:
-        rel_parts = module_path.split('.')
-        base_dir = Path(settings.BASE_DIR)
-        as_module  = base_dir.joinpath(*rel_parts).with_suffix('.py')
-        as_package = base_dir.joinpath(*rel_parts, '__init__.py')
-        if not as_module.exists() and not as_package.exists():
-            errors.append(
-                f"SOCIALACCOUNT_ADAPTER points at {adapter_path!r}, but "
-                f"neither {as_module} nor {as_package} exists on disk."
-            )
 
 if errors:
     print('', file=sys.stderr)
-    print('  Phase 9.1 wiring problems:', file=sys.stderr)
+    print('  Phase 9.1/9.2 wiring problems:', file=sys.stderr)
     for e in errors:
         print(f'     ✘ {e}', file=sys.stderr)
     print('', file=sys.stderr)
     sys.exit(1)
 
-print('    Phase 9.1 wiring OK')
+print('    Phase 9.1/9.2 wiring OK')
 PY
-    ok "Phase 9.1 allauth wiring verified"
+    ok "Phase 9.1/9.2 allauth wiring verified"
 
-    # ── Phase 9.1 — REQUIRED modules (fail hard) ────────────────────────
-    # apps.shared.users.adapters imports allauth's socialaccount adapter,
-    # which transitively imports Django models. That import will raise
-    # ImproperlyConfigured unless DJANGO_SETTINGS_MODULE is set and
-    # django.setup() has been called — so we bootstrap Django here rather
-    # than relying on a bare `python -c "import …"`.
-    #
-    # This runs AFTER Step 2b so that any missing-middleware error is
-    # reported with a clean message rather than a raw traceback from
-    # inside django.setup().
-    log "Step 2c: Verify Phase 9.1 social adapter imports"
+    # ── Phase 9.1/9.2 — REQUIRED modules (django.setup then import) ─────
+    log "Step 2c: Verify Phase 9.1/9.2 adapters import"
     if ! python - <<'PY' 2>&1
 import os
 import sys
@@ -485,22 +498,31 @@ except Exception as exc:
     print(f"django.setup() failed: {type(exc).__name__}: {exc}", file=sys.stderr)
     sys.exit(2)
 
+failures = []
 try:
-    from apps.shared.users.adapters import PritechSocialAccountAdapter  # noqa: F401
-except Exception as exc:
-    print(
-        f"Cannot import PritechSocialAccountAdapter "
-        f"({type(exc).__name__}: {exc})",
-        file=sys.stderr,
+    from apps.shared.users.adapters import (  # noqa: F401
+        PritechAccountAdapter,
+        PritechSocialAccountAdapter,
     )
+except Exception as exc:
+    failures.append(f"adapters import: {type(exc).__name__}: {exc}")
+
+try:
+    from apps.shared.users.middleware import ForceTwoFactorMiddleware  # noqa: F401
+except Exception as exc:
+    failures.append(f"ForceTwoFactorMiddleware import: {type(exc).__name__}: {exc}")
+
+if failures:
+    for f in failures:
+        print(f"  {f}", file=sys.stderr)
     sys.exit(3)
 
-print("Adapter OK")
+print("Adapters OK")
 PY
     then
-        die "Phase 9.1 module 'apps.shared.users.adapters' not importable — see error above."
+        die "Phase 9.1/9.2 adapters not importable — see error above."
     fi
-    ok "Phase 9.1 social adapter importable"
+    ok "Phase 9.1/9.2 adapters importable"
 fi
 
 # ============================================================================
@@ -587,7 +609,6 @@ WHATSAPP_API_VERSION=v21.0
 
 # ─── Phase 8 — auth hardening ─────────────────────────────────────────
 AXES_ENABLED=True
-TWO_FACTOR_ENABLED=True
 
 # ─── Phase 8 — backups ────────────────────────────────────────────────
 BACKUP_DIR=/var/backups/pritech
@@ -657,14 +678,12 @@ else
     env_set_if_missing WHATSAPP_WEBHOOK_VERIFY_TOKEN ""
     env_set_if_missing WHATSAPP_API_VERSION          "v21.0"
     env_set_if_missing AXES_ENABLED       "True"
-    env_set_if_missing TWO_FACTOR_ENABLED "True"
     env_set_if_missing BACKUP_DIR            "/var/backups/pritech"
     env_set_if_missing BACKUP_RETENTION_DAYS "30"
 
-    # ── Phase 9.1 — Google + Veriphone ──────────────────────────────────
-    env_set_if_missing GOOGLE_CLIENT_ID     ""
-    env_set_if_missing GOOGLE_CLIENT_SECRET ""
-    env_set_if_missing VERIPHONE_API_KEY    ""
+    if env_set_if_empty GOOGLE_CLIENT_ID ""; then :; fi
+    if env_set_if_empty GOOGLE_CLIENT_SECRET ""; then :; fi
+    env_set_if_missing VERIPHONE_API_KEY ""
 
     if grep -qE '^DEFAULT_FROM_EMAIL=.*<.*>' "${ENV_FILE}" \
        && ! grep -qE '^DEFAULT_FROM_EMAIL="' "${ENV_FILE}"; then
@@ -729,7 +748,7 @@ sudo -u postgres psql -d "${DB_NAME}" -c "ALTER SCHEMA public OWNER TO ${DB_USER
 ok "Database ready"
 
 # ============================================================================
-# Step 5 — Django configuration check (fail fast BEFORE migrations)
+# Step 5 — Django configuration check
 # ============================================================================
 log "Step 5: Verify Django configuration loads"
 
@@ -739,7 +758,6 @@ if ! python manage.py check > /tmp/django-check.log 2>&1; then
     tail -30 /tmp/django-check.log | sed 's/^/    /'
     warn ""
 
-    # ── Phase 9.1 — specific allauth failure modes ──────────────────────
     if grep -q "allauth.account.middleware.AccountMiddleware must be added to settings.MIDDLEWARE" \
             /tmp/django-check.log; then
         warn "Detected: django-allauth requires AccountMiddleware."
@@ -751,38 +769,31 @@ if ! python manage.py check > /tmp/django-check.log 2>&1; then
         warn ""
         warn "Then re-run this deploy script."
 
-    elif grep -q "SOCIALACCOUNT_ADAPTER" /tmp/django-check.log \
+    elif grep -q "SOCIALACCOUNT_ADAPTER\|ACCOUNT_ADAPTER" /tmp/django-check.log \
          || grep -q "apps\.shared\.users\.adapters" /tmp/django-check.log; then
-        warn "Detected: SOCIALACCOUNT_ADAPTER could not be resolved."
+        warn "Detected: an allauth adapter could not be resolved."
         warn ""
-        warn "FIX: ensure apps/shared/users/adapters.py exists and exports the class"
-        warn "named in settings.SOCIALACCOUNT_ADAPTER (PritechSocialAccountAdapter)."
+        warn "FIX: ensure apps/shared/users/adapters.py exists and exports"
+        warn "PritechAccountAdapter and PritechSocialAccountAdapter."
 
     elif grep -q "No module named 'allauth.socialaccount.providers.google'" \
             /tmp/django-check.log; then
         warn "Detected: allauth Google provider not installed."
-        warn ""
-        warn "FIX: activate the venv and run:"
-        warn "    pip install 'django-allauth[socialaccount]'"
+        warn "FIX: pip install 'django-allauth[socialaccount,mfa]'"
+
+    elif grep -q "No module named 'allauth.mfa'" /tmp/django-check.log; then
+        warn "Detected: allauth MFA extra not installed."
+        warn "FIX: pip install 'django-allauth[socialaccount,mfa]'"
 
     elif grep -q "No module named 'allauth'" /tmp/django-check.log; then
         warn "Detected: django-allauth itself is not installed."
-        warn ""
-        warn "FIX: activate the venv and run:"
-        warn "    pip install -r requirements.txt"
-
-    # ── Pre-existing Phase 8 checks ─────────────────────────────────────
-    elif grep -q "Your URL pattern 'two_factor'" /tmp/django-check.log; then
-        warn "Detected: two_factor URL include is broken."
-        warn "config/urls_two_factor.py should unwrap the 2-tuple that"
-        warn "django-two-factor-auth exposes. See the wrapper pattern."
+        warn "FIX: pip install -r requirements.txt"
 
     else
         warn "Common causes:"
         warn "  • A required package is missing — pip install -r requirements.txt"
         warn "  • An app is missing from SHARED_APPS"
         warn "  • A middleware class name is wrong"
-        warn "  • A required middleware is missing (e.g. allauth AccountMiddleware)"
     fi
 
     warn "Full log: /tmp/django-check.log"
@@ -797,7 +808,6 @@ log "Step 5a: Ensure all migrations exist and are current"
 
 MIGRATION_TS="$(date +%Y%m%d_%H%M%S)"
 
-# ─── 5a.1 tenants ───
 TENANTS_MIGRATION="${PROJECT_DIR}/apps/shared/tenants/migrations/0001_initial.py"
 if [[ ! -f "${TENANTS_MIGRATION}" ]]; then
     warn "tenants/migrations/0001_initial.py missing — generating now"
@@ -808,7 +818,6 @@ else
     ok "tenants migration present"
 fi
 
-# ─── 5a.2 shared_users ───
 SHARED_USERS_MIG_DIR="${PROJECT_DIR}/apps/shared/users/migrations"
 if [[ -d "${SHARED_USERS_MIG_DIR}" ]] \
    && compgen -G "${SHARED_USERS_MIG_DIR}/[0-9]*.py" > /dev/null; then
@@ -820,7 +829,6 @@ else
     python manage.py makemigrations shared_users --name "auto_${MIGRATION_TS}" || true
 fi
 
-# ─── 5a.3 communications ───
 COMM_MIGRATION="${PROJECT_DIR}/apps/communications/migrations/0001_initial.py"
 if [[ ! -f "${COMM_MIGRATION}" ]]; then
     warn "communications/migrations/0001_initial.py missing — generating now"
@@ -829,7 +837,6 @@ else
     ok "communications migration present"
 fi
 
-# ─── 5a.4 General check ───
 log "Step 5a.4: Running makemigrations --check --dry-run"
 set +e
 MAKEMIGRATIONS_OUT=$(python manage.py makemigrations --check --dry-run 2>&1)
@@ -848,7 +855,6 @@ else
     warn "⚠⚠⚠  These files must be committed or they regenerate on every deploy."
 fi
 
-# ─── 5a.5 Flatten nested static icons ───
 log "Step 5a.5: Fix nested static icons if present"
 if [[ -d "${PROJECT_DIR}/static/icons/icons" ]]; then
     warn "Flattening static/icons/icons/ → static/icons/"
@@ -861,7 +867,6 @@ else
     ok "Icon directory structure is correct"
 fi
 
-# ─── 5a.6 Migration inventory ───
 log "Step 5a.6: Migration files in the repo"
 find "${PROJECT_DIR}/apps" -path "*/migrations/*.py" \
     ! -name "__init__.py" -printf "    %P\n" | sort
@@ -1055,10 +1060,7 @@ PY
 ok "Public tenant ready"
 
 # ============================================================================
-# Step 8b — Ensure allauth Site record exists (Phase 9.1)
-#
-# django.contrib.sites requires one Site row. allauth uses it for
-# default redirect URLs and email context. Idempotent.
+# Step 8b — Ensure allauth Site record exists
 # ============================================================================
 log "Step 8b: Ensure allauth Site record exists"
 
@@ -1078,7 +1080,6 @@ ok "allauth Site record ready"
 
 # ============================================================================
 # Step 9 — Apply migrations to every tenant schema
-# (retry loop handles 'already exists' errors from regenerated migrations)
 # ============================================================================
 log "Step 9: Apply migrations to all tenant schemas"
 
@@ -1195,7 +1196,8 @@ if ! command -v msgfmt >/dev/null 2>&1; then
     warn "msgfmt (gettext) not installed — Chichewa UI will fall back to English."
 else
     set +e
-    COMPILE_OUT=$(python manage.py compilemessages 2>&1)
+    COMPILE_OUT=$(python manage.py compilemessages \
+        --ignore="venv/*" --ignore="*/venv/*" --ignore="*.venv/*" 2>&1)
     COMPILE_RC=$?
     set -e
 
@@ -1212,9 +1214,6 @@ else
     else
         warn "compilemessages failed (exit ${COMPILE_RC})"
         echo "${COMPILE_OUT}" | tail -15 | sed 's/^/    /'
-        if echo "${COMPILE_OUT}" | grep -q "duplicate message definition"; then
-            warn "Duplicate msgid — dedupe the .po then re-run compilemessages."
-        fi
         warn "Continuing — app runs fine, Chichewa strings fall back to English."
     fi
 fi
@@ -1277,7 +1276,6 @@ for tpl in "${PHASE9_TEMPLATES[@]}"; do
 done
 [[ "${MISSING9}" -eq 0 ]] && ok "All Phase 9 templates present"
 
-# ─── Verify BOTH URLconfs import cleanly ───
 log "Step 10b: Verify URL patterns AND both URLconf imports"
 python manage.py shell <<'PY'
 import importlib
@@ -1317,9 +1315,8 @@ for scope, name in checks:
         print(f'  ⚠ {scope}:{name} not reverse-resolvable')
 
 # Public-schema checks
-for name in ('two_factor:login', 'two_factor:setup',
-             'public_home', 'account_login', 'account_signup',
-             'socialaccount_login'):
+for name in ('account_login', 'account_signup',
+             'mfa_index', 'mfa_activate_totp'):
     try:
         url = reverse(name)
         print(f'  ✔ public:{name} → {url}')
@@ -1348,6 +1345,10 @@ try:
         print(f'  ✔ allauth AccountMiddleware registered')
     else:
         print(f'  ⚠ allauth AccountMiddleware NOT in MIDDLEWARE')
+    if 'allauth.mfa' in s.INSTALLED_APPS:
+        print(f'  ✔ allauth.mfa registered')
+    else:
+        print(f'  ⚠ allauth.mfa NOT in INSTALLED_APPS')
     if s.PASSWORD_HASHERS and 'Argon2' in s.PASSWORD_HASHERS[0]:
         print(f'  ✔ Argon2 is the default password hasher')
     else:
@@ -1356,6 +1357,10 @@ try:
         print(f'  ✔ SITE_ID = 1')
     else:
         print(f'  ⚠ SITE_ID missing or not 1')
+    if getattr(s, 'LOGIN_URL', '') == 'account_login':
+        print(f'  ✔ LOGIN_URL = account_login')
+    else:
+        print(f'  ⚠ LOGIN_URL is not account_login')
 except Exception as e:
     print(f'  ⚠ Could not inspect settings: {e}')
 
@@ -1691,7 +1696,6 @@ C14=$(check "ws-endpoint"     "https://${DOMAIN}/ws/notifications/")
 log "  -- Phase 8: auth + health --"
 C16=$(check "health"          "https://${DOMAIN}/health/")
 C17=$(check "password-reset"  "https://${DOMAIN}/password-reset/")
-C19=$(check "2fa-login"       "https://${DOMAIN}/account/login/")
 
 log "  -- Phase 9: listings --"
 C21=$(check "properties-list" "https://pritech.${DOMAIN}/properties/")
@@ -1702,6 +1706,10 @@ log "  -- Phase 9.1: allauth / Google --"
 C24=$(check "allauth-login"     "https://${DOMAIN}/accounts/login/")
 C25=$(check "allauth-signup"    "https://${DOMAIN}/accounts/signup/")
 C26=$(check "google-login"      "https://${DOMAIN}/accounts/google/login/")
+
+log "  -- Phase 9.2: allauth MFA --"
+C27=$(check "mfa-index"         "https://${DOMAIN}/accounts/2fa/")
+C28=$(check "mfa-activate-totp" "https://${DOMAIN}/accounts/2fa/totp/activate/")
 
 HEALTH_BODY=$(curl -sS -k --max-time 10 "https://${DOMAIN}/health/" 2>/dev/null || echo '{}')
 if echo "${HEALTH_BODY}" | grep -q '"status": "ok"'; then
@@ -1744,15 +1752,17 @@ if [[ "${FAILED}" -gt 0 ]]; then
     warn "${FAILED} service(s) not active — see warnings above."
 fi
 
-echo "  ─── Google Sign-In: one-time setup ──────────────────────────────"
-echo "  1. Configure OAuth client at https://console.cloud.google.com/apis/credentials"
-echo "     Authorized redirect URI:"
-echo "       https://${DOMAIN}/accounts/google/login/callback/"
-echo "       https://*.${DOMAIN}/accounts/google/login/callback/"
-echo "  2. Add to .env:"
-echo "       GOOGLE_CLIENT_ID=..."
-echo "       GOOGLE_CLIENT_SECRET=..."
-echo "  3. Restart: sudo systemctl restart gunicorn-${PROJECT_NAME} daphne-${PROJECT_NAME}"
+echo "  ─── Google Sign-In status ────────────────────────────────────────"
+echo "  Client ID     : $(env_get GOOGLE_CLIENT_ID | cut -c1-40)…"
+if [[ -n "$(env_get GOOGLE_CLIENT_SECRET)" ]]; then
+    echo "  Client Secret : configured ✔"
+else
+    echo "  Client Secret : MISSING ✘ — /accounts/google/login/ will fail"
+fi
+echo ""
+echo "  Authorized redirect URIs (configure in Google Cloud Console):"
+echo "    https://${DOMAIN}/accounts/google/login/callback/"
+echo "    https://*.${DOMAIN}/accounts/google/login/callback/"
 echo ""
 echo "  Superuser (if newly created): admin@pritechmw.com / ChangeMe123!"
 echo "  ⚠ CHANGE THE SUPERUSER PASSWORD IMMEDIATELY"

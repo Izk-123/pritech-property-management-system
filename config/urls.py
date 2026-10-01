@@ -8,27 +8,24 @@ aware auth, password reset, and the guest-facing home page.
 Phase 9:   `/` routes to TenantHomeView (guest home).
            `/dashboard/` is the staff landing page.
 Phase 9.1: `/accounts/` is mounted here too so allauth works on
-           tenant subdomains — staff can sign in with Google or
-           manage their account without bouncing to the apex.
+           tenant subdomains.
+Phase 9.2: MFA (TOTP + recovery) lives under `/accounts/2fa/`,
+           owned by allauth.mfa. The old
+           `two_factor.urls` include is gone.
 """
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
 from django.contrib.auth import views as auth_views
 from django.urls import path, include
-from django.views.generic import TemplateView
+from django.views.generic import RedirectView, TemplateView
 
 from apps.core.properties.views import TenantHomeView
 from apps.shared.tenants.views_health import health_check
-from apps.shared.users.views import SchemaAwareLoginView
 
 
 urlpatterns = [
     # ─── Home / Dashboard ──────────────────────────────────────────
-    # `/` shows the guest marketing page to anonymous visitors.
-    # Authenticated staff are redirected to `/dashboard/` by
-    # TenantHomeView.get(). Both live in the tenant URLconf because
-    # each tenant has its own home page.
     path('', TenantHomeView.as_view(), name='home'),
     path('dashboard/',
          TemplateView.as_view(template_name='pages/dashboard.html'),
@@ -49,20 +46,17 @@ urlpatterns = [
     path('people/', include('apps.core.people.urls')),
     path('documents/', include('apps.core.documents.urls')),
 
-    # ─── Auth ──────────────────────────────────────────────────────
-    # Phase 9.1 — allauth on tenant subdomains. Google Sign-In,
-    # account management, and password reset all work under /accounts/.
-    # This is where a staff member on a tenant subdomain lands when
-    # they click "Sign in with Google".
+    # ─── Auth (Phase 9.1 + 9.2) ────────────────────────────────────
+    # allauth owns /accounts/ — login, signup, Google OAuth callback,
+    # password reset, account management, and MFA under /accounts/2fa/.
     path('accounts/', include('allauth.urls')),
 
-    # Two-factor URLs live in a thin wrapper module because upstream
-    # django-two-factor-auth doesn't declare app_name at module level.
-    path('', include('config.urls_two_factor')),
-
-    # Legacy alias: /login/ routes through SchemaAwareLoginView, which
-    # adds tenant-membership checks on top of the 2FA login form.
-    path('login/', SchemaAwareLoginView.as_view(), name='login'),
+    # Legacy alias — anything pointing at /login/ now redirects to
+    # allauth's login view. Kept so old bookmarks and email templates
+    # don't 404.
+    path('login/', RedirectView.as_view(
+        pattern_name='account_login', permanent=False, query_string=True,
+    ), name='login'),
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),
 
     # ─── Password reset ────────────────────────────────────────────

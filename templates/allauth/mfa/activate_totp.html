@@ -1,0 +1,48 @@
+{% extends "allauth/layouts/entrance.html" %}
+{% load i18n form_tags %}
+
+{% block head_title %}{% trans "Enable Two-Factor Authentication" %}{% endblock %}
+{% block heading %}{% trans "Enable 2FA" %}{% endblock %}
+{% block subtitle %}
+{% trans "Scan the QR code with Google Authenticator, Authy, or 1Password." %}
+{% endblock %}
+
+{% block body %}
+<form method="post" novalidate class="space-y-4">
+  {% csrf_token %}
+
+  {% include "partials/_form_errors.html" %}
+
+  {# QR code #}
+  <div class="rounded-2xl border border-slate-200 bg-white p-4 text-center
+              dark:border-white/10 dark:bg-slate-900/50">
+    <img src="{{ totp_svg_data_uri }}" alt="{% trans 'QR code' %}"
+         class="mx-auto h-44 w-44 rounded-lg" />
+    <p class="mt-3 text-xs text-slate-500 dark:text-slate-400">
+      {% trans "Can't scan? Enter this key manually:" %}
+    </p>
+    <code class="mt-1 block break-all rounded-lg bg-slate-100 px-3 py-2
+                 font-mono text-sm dark:bg-slate-800">
+      {{ form.secret.value|default:secret }}
+    </code>
+  </div>
+
+  {# Verification code #}
+  <div>
+    <label for="{{ form.code.id_for_label }}"
+           class="mb-1.5 block text-sm font-medium
+                  text-slate-700 dark:text-slate-300">
+      {% trans "Enter the 6-digit code" %}
+    </label>
+    {{ form.code|add_class:"field text-center text-lg font-mono tracking-widest" }}
+    {% for error in form.code.errors %}
+    <p class="mt-1.5 text-xs text-red-600 dark:text-red-400">{{ error }}</p>
+    {% endfor %}
+  </div>
+
+  <button type="submit" data-press data-hover="grow"
+          class="btn btn-primary w-full py-2.5">
+    {% trans "Enable 2FA" %}
+  </button>
+</form>
+{% endblock %}

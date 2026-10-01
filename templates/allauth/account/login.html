@@ -1,0 +1,165 @@
+{% extends "allauth/layouts/entrance.html" %}
+{% load i18n socialaccount form_tags %}
+
+{% block head_title %}{% trans "Sign In" %}{% endblock %}
+{% block heading %}{% trans "Staff Sign In" %}{% endblock %}
+{% block subtitle %}{% trans "Access the front desk and housekeeping tools." %}{% endblock %}
+
+{% block body %}
+
+  {# ── Offline warning ──────────────────────────────────────── #}
+  <div id="login-offline-warning"
+       class="hidden rounded-xl border border-amber-200 bg-amber-50
+              p-3 text-xs text-amber-800
+              dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+    <p class="mb-1 font-semibold">{% trans "You are offline" %}</p>
+    <p>{% trans "Sign-in requires an internet connection the first time." %}</p>
+  </div>
+
+  {# ── Google Sign-In ──────────────────────────────────────── #}
+  {% get_providers as socialaccount_providers %}
+  {% if socialaccount_providers %}
+  <a href="{% provider_login_url 'google' process='login' %}"
+     data-press data-hover="lift"
+     class="group flex w-full items-center justify-center gap-3 rounded-xl
+            border border-slate-300 bg-white px-4 py-2.5 text-sm
+            font-semibold text-slate-700 shadow-sm transition-colors
+            hover:bg-slate-50 active:bg-slate-100
+            dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200
+            dark:hover:bg-slate-700 dark:active:bg-slate-600">
+    <svg class="h-5 w-5 shrink-0 transition-transform duration-300
+                group-hover:scale-110"
+         viewBox="0 0 24 24" aria-hidden="true">
+      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+    </svg>
+    {% trans "Continue with Google" %}
+  </a>
+
+  <div class="relative">
+    <div class="absolute inset-0 flex items-center" aria-hidden="true">
+      <div class="w-full border-t border-slate-200 dark:border-slate-700"></div>
+    </div>
+    <div class="relative flex justify-center text-xs">
+      <span class="bg-white px-3 text-slate-400
+                   dark:bg-slate-800 dark:text-slate-500">
+        {% trans "or sign in with email" %}
+      </span>
+    </div>
+  </div>
+  {% endif %}
+
+  {# ── Email + password form ───────────────────────────────── #}
+  <form method="post" action="{% url 'account_login' %}"
+        novalidate class="space-y-4">
+    {% csrf_token %}
+
+    {% include "partials/_form_errors.html" %}
+
+    {% if redirect_field_value %}
+      <input type="hidden" name="{{ redirect_field_name }}" value="{{ redirect_field_value }}">
+    {% endif %}
+
+    {# Email #}
+    <div>
+      <label for="{{ form.login.id_for_label }}"
+             class="mb-1.5 block text-sm font-medium
+                    text-slate-700 dark:text-slate-300">
+        {% trans "Email address" %}
+      </label>
+      {{ form.login|add_class:"field" }}
+      {% for error in form.login.errors %}
+      <p class="mt-1.5 text-xs text-red-600 dark:text-red-400">{{ error }}</p>
+      {% endfor %}
+    </div>
+
+    {# Password with toggle #}
+    <div>
+      <div class="mb-1.5 flex items-center justify-between">
+        <label for="{{ form.password.id_for_label }}"
+               class="text-sm font-medium text-slate-700 dark:text-slate-300">
+          {% trans "Password" %}
+        </label>
+        <a href="{% url 'account_reset_password' %}"
+           data-no-fade
+           class="text-xs font-medium text-primary-600 transition-colors
+                  hover:text-primary-500 dark:text-primary-400
+                  dark:hover:text-primary-300">
+          {% trans "Forgot?" %}
+        </a>
+      </div>
+
+      <div class="relative" data-password-wrap>
+        {{ form.password|add_class:"field" }}
+        <button type="button"
+                data-password-toggle="#{{ form.password.id_for_label }}"
+                aria-pressed="false"
+                aria-label="{% trans 'Show password' %}"
+                class="absolute inset-y-0 right-0 grid w-10 place-items-center
+                       rounded-r-lg text-slate-400 transition-colors
+                       hover:text-slate-600
+                       focus-visible:outline-none focus-visible:text-primary-600
+                       dark:hover:text-slate-200 dark:focus-visible:text-primary-400">
+          <svg data-password-show-icon class="h-4 w-4" fill="none"
+               stroke="currentColor" viewBox="0 0 24 24"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+               aria-hidden="true">
+            <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z" />
+            <circle cx="12" cy="12" r="3" />
+          </svg>
+          <svg data-password-hide-icon class="hidden h-4 w-4" fill="none"
+               stroke="currentColor" viewBox="0 0 24 24"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+               aria-hidden="true">
+            <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" />
+            <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" />
+            <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" />
+            <path d="m2 2 20 20" />
+          </svg>
+        </button>
+      </div>
+      {% for error in form.password.errors %}
+      <p class="mt-1.5 text-xs text-red-600 dark:text-red-400">{{ error }}</p>
+      {% endfor %}
+    </div>
+
+    <button type="submit" data-press data-hover="grow"
+            class="btn btn-primary w-full py-2.5">
+      {% trans "Sign In" %}
+      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+           aria-hidden="true">
+        <path d="M5 12h14M13 6l6 6-6 6" />
+      </svg>
+    </button>
+  </form>
+
+{% endblock %}
+
+{% block footer_extra %}
+<div class="mt-6 text-center text-xs text-slate-500 dark:text-slate-400">
+  {% if request.tenant and request.tenant.schema_name == 'public' %}
+    <p>
+      {% trans "New here?" %}
+      <a href="{% url 'signup:signup' %}"
+         class="font-medium text-primary-600 transition-colors
+                hover:text-primary-500 dark:text-primary-400">
+        {% trans "Create a workspace" %}
+      </a>
+    </p>
+  {% else %}
+    <p>{% trans "Contact your administrator if you need access." %}</p>
+  {% endif %}
+</div>
+
+<script>
+  (function () {
+    if (!navigator.onLine) {
+      var w = document.getElementById('login-offline-warning');
+      if (w) w.classList.remove('hidden');
+    }
+  })();
+</script>
+{% endblock %}

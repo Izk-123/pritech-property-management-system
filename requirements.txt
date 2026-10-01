@@ -24,16 +24,15 @@ django-cors-headers
 requests
 
 # ─── Auth & security ────────────────────────────────────────────────
-django-otp
-django-two-factor-auth[phonenumbers]
-qrcode
 django-axes
 django-ratelimit
 argon2-cffi
 django-csp
 
 # Phase 9.1 — Google Sign-In + account management
-django-allauth[socialaccount]
+# Phase 9.2 — built-in MFA (TOTP + recovery codes).
+#              Replaces django-two-factor-auth / django-otp / qrcode.
+django-allauth[socialaccount,mfa]
 
 # ─── Background tasks ───────────────────────────────────────────────
 celery

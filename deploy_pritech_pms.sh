@@ -17,12 +17,12 @@
 #
 # Phase 9.1 additions:
 #   • Step 2b verifies allauth wiring in settings (AccountMiddleware,
-#     INSTALLED_APPS, AUTHENTICATION_BACKENDS, SITE_ID, adapter class)
-#     WITHOUT calling django.setup(), so a missing-middleware error is
-#     reported as a clean one-line fix rather than a raw traceback.
+#     INSTALLED_APPS, AUTHENTICATION_BACKENDS, SITE_ID, adapter file on
+#     disk) WITHOUT calling django.setup() and WITHOUT importing the
+#     adapter module — importing allauth pulls in Django models, which
+#     raises "Apps aren't loaded yet" before setup() has run.
 #   • Step 2c bootstraps Django via django.setup() and then imports the
-#     social adapter — because allauth's adapter module transitively
-#     imports Django models and cannot be imported without app loading.
+#     social adapter — the actual, authoritative import check.
 #   • Step 5 recognises allauth-specific failures and prints the exact
 #     line of settings.py to change.
 #
@@ -371,19 +371,19 @@ if [[ "${ENV_ONLY}" != "true" ]]; then
     # ── Phase 9.1 — verify allauth wiring BEFORE any django.setup() ─────
     # django-allauth 65.x raises ImproperlyConfigured at AppConfig.ready()
     # if AccountMiddleware is missing. We check the settings here — WITHOUT
-    # calling django.setup() — so the operator gets a one-line fix instead
-    # of a raw traceback from inside Django's app registry.
+    # calling django.setup() and WITHOUT importing the adapter module —
+    # so the operator gets a one-line fix instead of a raw traceback.
     #
-    # IMPORTANT: This reads settings via django.conf.settings (lazy, no
-    # app loading) — it does NOT call setup().
+    # Accessing django.conf.settings is lazy — it does NOT call setup().
     log "Step 2b: Verify Phase 9.1 allauth settings wiring"
     python - <<'PY' || die "Phase 9.1 settings wiring check failed — see above."
 import os
 import sys
+from pathlib import Path
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 
-# Accessing django.conf.settings is lazy — it does NOT call django.setup().
+# Lazy settings — no app loading yet.
 from django.conf import settings
 
 errors = []
@@ -421,18 +421,33 @@ if not getattr(settings, 'SITE_ID', None):
         "and set SITE_ID = 1."
     )
 
-# ── 5. SOCIALACCOUNT_ADAPTER must resolve to a real class ───────────
+# ── 5. SOCIALACCOUNT_ADAPTER module file must exist on disk ─────────
+# We deliberately do NOT import the module here: importing it pulls in
+# allauth, which imports Django models, which raises "Apps aren't loaded
+# yet" because we haven't called django.setup() (and must not — that
+# would trigger the very AppConfig.ready() error we're checking for).
+#
+# So this check verifies file existence only. The actual import — and
+# the class-attribute check — happens in Step 2c after django.setup().
 adapter_path = getattr(settings, 'SOCIALACCOUNT_ADAPTER', '')
 if not adapter_path:
     errors.append("SOCIALACCOUNT_ADAPTER is not configured.")
 else:
-    try:
-        module_path, _, class_name = adapter_path.rpartition('.')
-        mod = __import__(module_path, fromlist=[class_name])
-        if not hasattr(mod, class_name):
-            errors.append(f"{adapter_path} exists but has no attribute {class_name!r}.")
-    except Exception as exc:
-        errors.append(f"Cannot import SOCIALACCOUNT_ADAPTER ({adapter_path}): {exc}")
+    module_path, _, class_name = adapter_path.rpartition('.')
+    if not module_path:
+        errors.append(
+            f"SOCIALACCOUNT_ADAPTER={adapter_path!r} is not a dotted path."
+        )
+    else:
+        rel_parts = module_path.split('.')
+        base_dir = Path(settings.BASE_DIR)
+        as_module  = base_dir.joinpath(*rel_parts).with_suffix('.py')
+        as_package = base_dir.joinpath(*rel_parts, '__init__.py')
+        if not as_module.exists() and not as_package.exists():
+            errors.append(
+                f"SOCIALACCOUNT_ADAPTER points at {adapter_path!r}, but "
+                f"neither {as_module} nor {as_package} exists on disk."
+            )
 
 if errors:
     print('', file=sys.stderr)

@@ -3,9 +3,9 @@
 Public-schema URL configuration.
 
 Handles marketing, signup, platform admin, tenant-aware authentication,
-2FA, password reset, meta webhooks, and the comprehensive health check.
+2FA, allauth (email + Google Sign-In), password reset, meta webhooks,
+and the comprehensive health check.
 """
-
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
@@ -13,7 +13,6 @@ from django.contrib.auth import views as auth_views
 from django.urls import path, include
 from django.views.generic import TemplateView
 
-from apps.shared.tenants import views_signup
 from apps.shared.tenants.views_health import health_check
 from apps.shared.users.views import SchemaAwareLoginView
 from apps.communications import views as comm_views
@@ -35,23 +34,31 @@ urlpatterns = [
          name='offline'),
 
     # ─── Signup ────────────────────────────────────────────────────
+    # The signup app itself is still our custom views — signup.html
+    # / signup_complete.html — so the tenant-provisioning logic runs.
+    # allauth is used for the Google OAuth handshake (see /accounts/
+    # below), which redirects back into our completion view.
     path('signup/', include('apps.shared.tenants.urls_signup')),
 
     # ─── Platform admin (tenant management) ────────────────────────
     path('platform/', include('apps.shared.tenants.urls_platform')),
 
     # ─── Auth ──────────────────────────────────────────────────────
-    # Phase 8 — django-two-factor-auth owns /account/login/ and all 2FA
-    # setup/recovery paths. We include a thin wrapper module
-    # (config/urls_two_factor.py) that declares app_name = 'two_factor'
-    # so the namespace resolves. The upstream two_factor.urls module
-    # doesn't declare app_name, which is why a plain include() of that
-    # module fails, and why the 2-tuple form misbehaves (Django expects
-    # a pattern list, not a module path, in the first tuple element).
+    # Phase 9.1 — allauth owns /accounts/ (login, signup, Google
+    # callback, password reset, account management). Its own login
+    # form posts to allauth's views, and Google Sign-In lands on
+    # /accounts/google/login/callback/.
+    #
+    # Our legacy /login/ view still exists so any bookmarked links
+    # or email templates pointing at /login/ keep working. It routes
+    # through SchemaAwareLoginView, which enforces tenant membership.
+    path('accounts/', include('allauth.urls')),
+
+    # Two-factor URLs live in a thin wrapper module because upstream
+    # django-two-factor-auth doesn't declare app_name at module level.
     path('', include('config.urls_two_factor')),
 
-    # Legacy alias: /login/ still routes through the tenant-membership-
-    # aware SchemaAwareLoginView.
+    # Legacy aliases
     path('login/', SchemaAwareLoginView.as_view(), name='login'),
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),
 

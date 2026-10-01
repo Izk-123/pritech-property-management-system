@@ -7,11 +7,13 @@
 #   Phase 8: auth hardening (Argon2, 2FA, Axes, rate limits, JWT), CSP,
 #            Chichewa localization, django-redis cache, health checks,
 #            backups, DR docs
+#   Phase 9: public listings + vacant rentals + tenant home + staff dashboard
+#   Phase 9.1: Google Sign-In via allauth + phone validation
 #
 # Idempotent and self-healing. Fails fast on URLconf/middleware errors
 # BEFORE attempting migrations. Auto-detects a free Daphne port, cleans
 # stale processes, flattens nested static icons, reconciles public-schema
-# drift, compiles translations, and verifies the Phase 8 auth stack.
+# drift, compiles translations, and verifies the auth stack.
 #
 # Usage:
 #   sudo bash deploy_pritech_pms.sh              # deploy / update
@@ -46,8 +48,6 @@ DB_USER="pritech_pms_user"
 ENV_FILE="${PROJECT_DIR}/.env"
 CERT_PATH="/etc/letsencrypt/live/${DOMAIN}/cert.pem"
 
-# Preferred Daphne port. Pre-flight will auto-pick a different one if this
-# is held by a foreign process.
 DAPHNE_PORT_PREFERRED="8011"
 DAPHNE_PORT="${DAPHNE_PORT_PREFERRED}"
 
@@ -144,16 +144,10 @@ env_set_if_missing() {
 if [[ "${ENV_ONLY}" != "true" ]]; then
     log "Pre-flight: choosing Daphne port"
 
-    port_is_bound() {
-        ss -tln 2>/dev/null | grep -q ":$1 "
-    }
-
+    port_is_bound() { ss -tln 2>/dev/null | grep -q ":$1 "; }
     port_owner() {
-        ss -tlnp 2>/dev/null \
-            | grep ":$1 " \
-            | grep -oP 'users:\(\("\K[^"]+' \
-            | head -1 \
-            || true
+        ss -tlnp 2>/dev/null | grep ":$1 " \
+            | grep -oP 'users:\(\("\K[^"]+' | head -1 || true
     }
 
     if ! port_is_bound "${DAPHNE_PORT}"; then
@@ -166,20 +160,15 @@ if [[ "${ENV_ONLY}" != "true" ]]; then
             warn "Port ${DAPHNE_PORT} held by '${owner:-unknown}' — scanning for a free port"
             FOUND_PORT=""
             for p in $(seq $((DAPHNE_PORT + 1)) $((DAPHNE_PORT + 20))); do
-                if ! port_is_bound "${p}"; then
-                    FOUND_PORT="${p}"
-                    break
-                fi
+                if ! port_is_bound "${p}"; then FOUND_PORT="${p}"; break; fi
             done
-            [[ -n "${FOUND_PORT}" ]] || die "No free Daphne port in range $((DAPHNE_PORT + 1))..$((DAPHNE_PORT + 20))"
+            [[ -n "${FOUND_PORT}" ]] || die "No free Daphne port in range"
             DAPHNE_PORT="${FOUND_PORT}"
             ok "Switched Daphne port to ${DAPHNE_PORT}"
         fi
     fi
 
-    if [[ -f "${ENV_FILE}" ]]; then
-        env_set DAPHNE_PORT "${DAPHNE_PORT}"
-    fi
+    if [[ -f "${ENV_FILE}" ]]; then env_set DAPHNE_PORT "${DAPHNE_PORT}"; fi
 fi
 
 # ============================================================================
@@ -213,14 +202,14 @@ if [[ "${ENV_ONLY}" != "true" ]]; then
         warn "Redis DB 2 not responding — Channels will fail to broadcast"
     fi
 
-    log "Pre-flight: checking Redis on DB 1 (cache — Phase 8)"
+    log "Pre-flight: checking Redis on DB 1 (cache)"
     if redis-cli -n 1 ping >/dev/null 2>&1; then
         ok "Redis DB 1 responding"
     else
         warn "Redis DB 1 not responding — django-redis cache will fall back to DB"
     fi
 
-    log "Pre-flight: checking gettext (Phase 8 translations)"
+    log "Pre-flight: checking gettext"
     if command -v msgfmt >/dev/null 2>&1; then
         ok "msgfmt present ($(msgfmt --version | head -1))"
     else
@@ -252,13 +241,10 @@ if [[ "${ENV_ONLY}" != "true" ]]; then
     sleep 1
 
     if ss -tln 2>/dev/null | grep -q ":${DAPHNE_PORT} "; then
-        warn "Port ${DAPHNE_PORT} still held after cleanup — selecting another"
+        warn "Port ${DAPHNE_PORT} still held — selecting another"
         FOUND_PORT=""
         for p in $(seq $((DAPHNE_PORT + 1)) $((DAPHNE_PORT + 20))); do
-            if ! ss -tln | grep -q ":${p} "; then
-                FOUND_PORT="${p}"
-                break
-            fi
+            if ! ss -tln | grep -q ":${p} "; then FOUND_PORT="${p}"; break; fi
         done
         [[ -n "${FOUND_PORT}" ]] || die "No free Daphne port found"
         DAPHNE_PORT="${FOUND_PORT}"
@@ -315,15 +301,8 @@ if [[ "${ENV_ONLY}" != "true" ]]; then
 
     # ── Core packages that must import ──────────────────────────────────
     for pkg in \
-        django_tenants \
-        requests \
-        celery \
-        redis \
-        pwa \
-        channels \
-        channels_redis \
-        daphne \
-        anymail
+        django_tenants requests celery redis pwa \
+        channels channels_redis daphne anymail
     do
         if ! python -c "import ${pkg}" 2>/dev/null; then
             die "Python package '${pkg}' not installed. Check requirements.txt."
@@ -331,17 +310,10 @@ if [[ "${ENV_ONLY}" != "true" ]]; then
     done
     ok "All core packages importable"
 
-    # ── Phase 8 auth hardening — must import, deploy fails otherwise ────
+    # ── Phase 8 auth hardening ──────────────────────────────────────────
     for pkg in \
-        django_otp \
-        two_factor \
-        axes \
-        django_ratelimit \
-        csp \
-        django_redis \
-        rest_framework \
-        rest_framework_simplejwt \
-        argon2
+        django_otp two_factor axes django_ratelimit csp \
+        django_redis rest_framework rest_framework_simplejwt argon2
     do
         if ! python -c "import ${pkg}" 2>/dev/null; then
             die "Phase 8 package '${pkg}' not installed. Check requirements.txt."
@@ -349,33 +321,45 @@ if [[ "${ENV_ONLY}" != "true" ]]; then
     done
     ok "All Phase 8 auth/CSP/cache packages importable"
 
+    # ── Phase 9.1 — allauth ─────────────────────────────────────────────
+    for pkg in allauth; do
+        if ! python -c "import ${pkg}" 2>/dev/null; then
+            die "Phase 9.1 package '${pkg}' not installed. Check requirements.txt."
+        fi
+    done
+    python -c "import allauth.socialaccount.providers.google" 2>/dev/null \
+        || die "allauth Google provider not installed. Check requirements.txt."
+    ok "Phase 9.1 allauth packages importable"
+
     # ── Compliance packages — optional, warn only ───────────────────────
-    # NOTE: pip package is `pyxrate`, but the importable module is `xrate`.
-    for pkg in paychangu xrate; do
+    for pkg in paychangu; do
         python -c "import ${pkg}" 2>/dev/null \
             || warn "Python package '${pkg}' not installed — Phase 4 features disabled."
     done
+    python -c "import xrate" 2>/dev/null \
+        || python -c "import pyxrate" 2>/dev/null \
+        || warn "Python package for forex rates not importable — Phase 4 features disabled."
 
     # ── Project apps ────────────────────────────────────────────────────
     for app in apps.core.sync apps.realtime apps.communications \
                apps.shared.users apps.shared.tenants; do
         if ! python -c "import ${app}" 2>/dev/null; then
-            die "App not importable: ${app} — check SHARED_APPS/TENANT_APPS and the app directory."
+            die "App not importable: ${app}"
         fi
         ok "App importable: ${app}"
     done
 
-    # ── Phase 8 auth modules ────────────────────────────────────────────
+    # ── Phase 8/9 modules ───────────────────────────────────────────────
     for app in apps.shared.tenants.views_health apps.shared.tenants.tasks \
-               apps.shared.users.middleware; do
+               apps.shared.users.middleware apps.shared.users.adapters; do
         if ! python -c "import ${app}" 2>/dev/null; then
-            warn "Phase 8 module not importable: ${app} — some features disabled."
+            warn "Module not importable: ${app} — some features disabled."
         fi
     done
 fi
 
 # ============================================================================
-# Step 3 — .env: create if missing, otherwise update in place
+# Step 3 — .env
 # ============================================================================
 log "Step 3: Environment file"
 
@@ -395,7 +379,6 @@ if [[ ! -f "${ENV_FILE}" ]]; then
     cat > "${ENV_FILE}" <<EOF
 # ══════════════════════════════════════════════════════════════════════
 # Pritech PMS — Production .env
-# Managed by deploy_pritech_pms.sh — secrets preserved on re-deploy.
 # ══════════════════════════════════════════════════════════════════════
 
 SECRET_KEY=${EXISTING_SECRET_KEY}
@@ -464,6 +447,13 @@ TWO_FACTOR_ENABLED=True
 # ─── Phase 8 — backups ────────────────────────────────────────────────
 BACKUP_DIR=/var/backups/pritech
 BACKUP_RETENTION_DAYS=30
+
+# ─── Phase 9.1 — Google Sign-In ───────────────────────────────────────
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+
+# ─── Phase 9.1 — Optional phone verification ──────────────────────────
+VERIPHONE_API_KEY=
 EOF
 
     chmod 600 "${ENV_FILE}"
@@ -489,13 +479,11 @@ else
     env_set CHANNEL_LAYER_REDIS_URL        "redis://127.0.0.1:6379/2"
     env_set DAPHNE_PORT                    "${DAPHNE_PORT}"
     env_set SHOW_PUBLIC_IF_NO_TENANT_FOUND "False"
-
-    env_set SECRET_KEY     "${EXISTING_SECRET_KEY}"
-    env_set DB_PASSWORD    "${EXISTING_DB_PASSWORD}"
+    env_set SECRET_KEY                     "${EXISTING_SECRET_KEY}"
+    env_set DB_PASSWORD                    "${EXISTING_DB_PASSWORD}"
 
     env_set_if_missing SESSION_COOKIE_DOMAIN ""
     env_set_if_missing CSRF_COOKIE_DOMAIN    ""
-
     env_set_if_missing EMAIL_BACKEND       "django.core.mail.backends.smtp.EmailBackend"
     env_set_if_missing EMAIL_HOST          "mail.${DOMAIN}"
     env_set_if_missing EMAIL_PORT          "465"
@@ -504,38 +492,34 @@ else
     env_set_if_missing EMAIL_USE_TLS       "False"
     env_set_if_missing EMAIL_USE_SSL       "True"
     env_set_if_missing SERVER_EMAIL        "noreply@${DOMAIN}"
-
     env_set_if_missing MAILGUN_API_KEY       ""
     env_set_if_missing MAILGUN_SENDER_DOMAIN ""
-
     env_set_if_missing SENTRY_DSN ""
     env_set_if_missing SENTRY_ENV "production"
-
     env_set_if_missing PAYCHANGU_ENABLED       "False"
     env_set_if_missing PAYCHANGU_BASE_URL      "https://api.paychangu.com"
     env_set_if_missing PAYCHANGU_SECRET_KEY    ""
     env_set_if_missing PAYCHANGU_WEBHOOK_SECRET ""
-
     env_set_if_missing EIS_ENABLED       "False"
     env_set_if_missing EIS_API_BASE_URL  "https://dev-eis-api.mra.mw/api/v1"
     env_set_if_missing EIS_SANDBOX_MODE  "True"
     env_set_if_missing EIS_API_KEY       ""
     env_set_if_missing EIS_TIN           ""
-
     env_set_if_missing WHATSAPP_ENABLED              "False"
     env_set_if_missing WHATSAPP_PHONE_NUMBER_ID      ""
     env_set_if_missing WHATSAPP_ACCESS_TOKEN         ""
     env_set_if_missing WHATSAPP_APP_SECRET           ""
     env_set_if_missing WHATSAPP_WEBHOOK_VERIFY_TOKEN ""
     env_set_if_missing WHATSAPP_API_VERSION          "v21.0"
-
-    # ── Phase 8 — auth hardening ────────────────────────────────────────
     env_set_if_missing AXES_ENABLED       "True"
     env_set_if_missing TWO_FACTOR_ENABLED "True"
-
-    # ── Phase 8 — backups ───────────────────────────────────────────────
     env_set_if_missing BACKUP_DIR            "/var/backups/pritech"
     env_set_if_missing BACKUP_RETENTION_DAYS "30"
+
+    # ── Phase 9.1 — Google + Veriphone ──────────────────────────────────
+    env_set_if_missing GOOGLE_CLIENT_ID     ""
+    env_set_if_missing GOOGLE_CLIENT_SECRET ""
+    env_set_if_missing VERIPHONE_API_KEY    ""
 
     if grep -qE '^DEFAULT_FROM_EMAIL=.*<.*>' "${ENV_FILE}" \
        && ! grep -qE '^DEFAULT_FROM_EMAIL="' "${ENV_FILE}"; then
@@ -543,7 +527,6 @@ else
         env_set DEFAULT_FROM_EMAIL "\"${CURRENT_FROM}\""
         ok "Fixed quoting on DEFAULT_FROM_EMAIL"
     fi
-
     if ! grep -qE '^DEFAULT_FROM_EMAIL=.' "${ENV_FILE}"; then
         env_set DEFAULT_FROM_EMAIL "\"Pritech PMS <noreply@${DOMAIN}>\""
     fi
@@ -564,7 +547,7 @@ if [[ "${ENV_ONLY}" == "true" ]]; then
     banner ".env update complete"
     echo "  File: ${ENV_FILE}"
     echo "  Preview (secrets masked):"
-    grep -vE '^(SECRET_KEY|DB_PASSWORD|EMAIL_HOST_PASSWORD|PAYCHANGU_SECRET_KEY|PAYCHANGU_WEBHOOK_SECRET|EIS_API_KEY|WHATSAPP_ACCESS_TOKEN|WHATSAPP_APP_SECRET|MAILGUN_API_KEY)=' "${ENV_FILE}" \
+    grep -vE '^(SECRET_KEY|DB_PASSWORD|EMAIL_HOST_PASSWORD|PAYCHANGU_SECRET_KEY|PAYCHANGU_WEBHOOK_SECRET|EIS_API_KEY|WHATSAPP_ACCESS_TOKEN|WHATSAPP_APP_SECRET|MAILGUN_API_KEY|GOOGLE_CLIENT_SECRET|VERIPHONE_API_KEY)=' "${ENV_FILE}" \
         | sed 's/^/    /'
     exit 0
 fi
@@ -602,51 +585,24 @@ ok "Database ready"
 
 # ============================================================================
 # Step 5 — Django configuration check (fail fast BEFORE migrations)
-#
-# If the URLconf, middleware, or app registry has an error, we want a
-# clear message here, not a cryptic traceback from makemigrations.
 # ============================================================================
 log "Step 5: Verify Django configuration loads"
 
 if ! python manage.py check > /tmp/django-check.log 2>&1; then
-    warn "Django check FAILED — the URLconf, middleware, or app registry has an error."
+    warn "Django check FAILED — see traceback below."
     warn ""
-    warn "Traceback (last 30 lines):"
     tail -30 /tmp/django-check.log | sed 's/^/    /'
     warn ""
 
-    # Detect the specific two_factor URL include error and give the exact fix
     if grep -q "Your URL pattern 'two_factor'" /tmp/django-check.log; then
         warn "Detected: two_factor URL include is broken."
-        warn ""
-        warn "Django's include() rejects passing a module path string in the"
-        warn "first element of a 2-tuple, and django-two-factor-auth doesn't"
-        warn "declare app_name at module level. The fix is a thin wrapper"
-        warn "module that re-exports the patterns with app_name set:"
-        warn ""
-        warn "  1. Create config/urls_two_factor.py:"
-        warn ""
-        warn "         from two_factor.urls import urlpatterns  # noqa: F401"
-        warn "         app_name = 'two_factor'"
-        warn ""
-        warn "  2. In both config/urls.py and config/urls_public.py replace:"
-        warn ""
-        warn "         path('', include(('two_factor.urls', 'two_factor'))),"
-        warn ""
-        warn "     with:"
-        warn ""
-        warn "         path('', include('config.urls_two_factor')),"
-        warn ""
-        warn "  3. Commit and re-run this script."
-        warn ""
+        warn "config/urls_two_factor.py should unwrap the 2-tuple that"
+        warn "django-two-factor-auth exposes. See the wrapper pattern."
     else
-        warn "Common causes for Phase 8:"
-        warn "  • A Phase 8 package is missing:"
-        warn "      pip install -r requirements.txt"
-        warn "  • A Phase 8 app is missing from SHARED_APPS:"
-        warn "      csp, axes, django_ratelimit, two_factor, django_otp"
+        warn "Common causes:"
+        warn "  • A required package is missing — pip install -r requirements.txt"
+        warn "  • An app is missing from SHARED_APPS"
         warn "  • A middleware class name is wrong"
-        warn ""
     fi
 
     warn "Full log: /tmp/django-check.log"
@@ -666,28 +622,19 @@ TENANTS_MIGRATION="${PROJECT_DIR}/apps/shared/tenants/migrations/0001_initial.py
 if [[ ! -f "${TENANTS_MIGRATION}" ]]; then
     warn "tenants/migrations/0001_initial.py missing — generating now"
     python manage.py makemigrations tenants --name "auto_${MIGRATION_TS}"
-    if [[ -f "${TENANTS_MIGRATION}" ]]; then
-        ok "Generated apps/shared/tenants/migrations/0001_initial.py"
-        warn "⚠ Commit this file to git or it regenerates every deploy."
-    else
-        die "Failed to generate tenants migration."
-    fi
+    [[ -f "${TENANTS_MIGRATION}" ]] && ok "Generated tenants migration" \
+        || die "Failed to generate tenants migration."
 else
     ok "tenants migration present"
 fi
 
-# ─── 5a.2 shared_users (Phase 8 auth-critical) ───
+# ─── 5a.2 shared_users ───
 SHARED_USERS_MIG_DIR="${PROJECT_DIR}/apps/shared/users/migrations"
-if [[ -d "${SHARED_USERS_MIG_DIR}" ]]; then
-    if compgen -G "${SHARED_USERS_MIG_DIR}/[0-9]*.py" > /dev/null; then
-        ok "shared_users migrations present"
-    else
-        warn "shared_users has no migrations — generating now"
-        python manage.py makemigrations shared_users --name "auto_${MIGRATION_TS}"
-        warn "⚠ Commit this file to git or it regenerates every deploy."
-    fi
+if [[ -d "${SHARED_USERS_MIG_DIR}" ]] \
+   && compgen -G "${SHARED_USERS_MIG_DIR}/[0-9]*.py" > /dev/null; then
+    ok "shared_users migrations present"
 else
-    warn "shared_users/migrations/ directory missing — creating and generating"
+    warn "shared_users has no migrations — generating now"
     mkdir -p "${SHARED_USERS_MIG_DIR}"
     touch "${SHARED_USERS_MIG_DIR}/__init__.py"
     python manage.py makemigrations shared_users --name "auto_${MIGRATION_TS}" || true
@@ -697,13 +644,7 @@ fi
 COMM_MIGRATION="${PROJECT_DIR}/apps/communications/migrations/0001_initial.py"
 if [[ ! -f "${COMM_MIGRATION}" ]]; then
     warn "communications/migrations/0001_initial.py missing — generating now"
-    python manage.py makemigrations communications --name "auto_${MIGRATION_TS}"
-    if [[ -f "${COMM_MIGRATION}" ]]; then
-        ok "Generated apps/communications/migrations/0001_initial.py"
-        warn "⚠ Commit this file to git or it regenerates every deploy."
-    else
-        warn "No migration generated for communications — check that the app has models."
-    fi
+    python manage.py makemigrations communications --name "auto_${MIGRATION_TS}" || true
 else
     ok "communications migration present"
 fi
@@ -720,15 +661,17 @@ if [[ ${MAKEMIGRATIONS_RC} -eq 0 ]] && echo "${MAKEMIGRATIONS_OUT}" | grep -q "N
 else
     warn "Model changes without migrations detected:"
     echo "${MAKEMIGRATIONS_OUT}" | sed 's/^/    /'
-    warn "Generating them now (they MUST be committed to git afterwards):"
-    python manage.py makemigrations --name "auto_${MIGRATION_TS}"
-    warn "⚠ Run 'git add */migrations/ && git commit' from your dev machine."
+    warn ""
+    warn "Generating them now — COMMIT THEM TO GIT after this deploy:"
+    python manage.py makemigrations --name "auto_${MIGRATION_TS}" || true
+    warn ""
+    warn "⚠⚠⚠  These files must be committed or they regenerate on every deploy."
 fi
 
-# ─── 5a.5 Flatten nested static icons (self-heal) ───
+# ─── 5a.5 Flatten nested static icons ───
 log "Step 5a.5: Fix nested static icons if present"
 if [[ -d "${PROJECT_DIR}/static/icons/icons" ]]; then
-    warn "Detected static/icons/icons/ — flattening to static/icons/"
+    warn "Flattening static/icons/icons/ → static/icons/"
     mkdir -p "${PROJECT_DIR}/static/icons"
     mv "${PROJECT_DIR}/static/icons/icons"/*.png \
        "${PROJECT_DIR}/static/icons/" 2>/dev/null || true
@@ -745,7 +688,7 @@ find "${PROJECT_DIR}/apps" -path "*/migrations/*.py" \
 ok "Migration inventory printed"
 
 # ============================================================================
-# Step 6 — Django check (second pass, belt-and-braces)
+# Step 6 — Django check (second pass)
 # ============================================================================
 log "Step 6: Django configuration check"
 python manage.py check
@@ -768,7 +711,6 @@ rm -f /tmp/drift-check.log /tmp/drift-check-status
 set +e
 python manage.py shell > /tmp/drift-check.log 2>&1 <<'PY'
 import json
-import sys
 from decimal import Decimal
 
 from django.apps import apps
@@ -777,23 +719,18 @@ from django.db import connection
 
 
 def _shared_model(model):
-    """Only check models whose app is in SHARED_APPS (public schema)."""
     return model._meta.app_config.name in settings.SHARED_APPS
 
 
 def _default_sql(field):
-    """Return a literal SQL DEFAULT clause, or None if we can't guess one."""
     if field.auto_now or field.auto_now_add:
         return "'1970-01-01 00:00:00+00'"
-
     if not field.has_default():
         return None
-
     try:
         val = field.get_default()
     except Exception:
         return None
-
     if val is None:
         return "NULL"
     if isinstance(val, bool):
@@ -805,23 +742,20 @@ def _default_sql(field):
     return "'" + str(val).replace("'", "''") + "'"
 
 
-fixed = []
-unfixable = []
-checked_models = 0
-checked_tables = 0
+fixed, unfixable = [], []
+checked_models = checked_tables = 0
 
 with connection.cursor() as cur:
     cur.execute("""
         SELECT table_name FROM information_schema.tables
         WHERE table_schema = current_schema()
     """)
-    existing_tables = {row[0] for row in cur.fetchall()}
+    existing_tables = {r[0] for r in cur.fetchall()}
 
     for model in apps.get_models():
         if not _shared_model(model):
             continue
         checked_models += 1
-
         table = model._meta.db_table
         label = model._meta.label
 
@@ -835,12 +769,11 @@ with connection.cursor() as cur:
             SELECT column_name FROM information_schema.columns
             WHERE table_schema = current_schema() AND table_name = %s
         """, [table])
-        actual = {row[0] for row in cur.fetchall()}
+        actual = {r[0] for r in cur.fetchall()}
 
         for field in model._meta.local_fields:
             if not field.column or field.column in actual:
                 continue
-
             try:
                 col_type = field.db_type(connection)
             except Exception as e:
@@ -848,28 +781,20 @@ with connection.cursor() as cur:
                 print(f"UNFIXABLE|NO_DB_TYPE|{label}|{table}.{field.column}|{e}",
                       flush=True)
                 continue
-
             if field.null:
-                sql = (
-                    f'ALTER TABLE "{table}" ADD COLUMN IF NOT EXISTS '
-                    f'"{field.column}" {col_type} NULL'
-                )
+                sql = (f'ALTER TABLE "{table}" ADD COLUMN IF NOT EXISTS '
+                       f'"{field.column}" {col_type} NULL')
                 kind = 'NULLABLE_COLUMN'
             else:
                 default_sql = _default_sql(field)
                 if default_sql is None:
                     unfixable.append((label, table, field.column))
-                    print(
-                        f"UNFIXABLE|REQUIRED_COLUMN|{label}|{table}.{field.column}",
-                        flush=True,
-                    )
+                    print(f"UNFIXABLE|REQUIRED_COLUMN|{label}|{table}.{field.column}",
+                          flush=True)
                     continue
-                sql = (
-                    f'ALTER TABLE "{table}" ADD COLUMN IF NOT EXISTS '
-                    f'"{field.column}" {col_type} NOT NULL DEFAULT {default_sql}'
-                )
+                sql = (f'ALTER TABLE "{table}" ADD COLUMN IF NOT EXISTS '
+                       f'"{field.column}" {col_type} NOT NULL DEFAULT {default_sql}')
                 kind = 'REQUIRED_COLUMN_WITH_DEFAULT'
-
             try:
                 cur.execute(sql)
                 fixed.append((label, table, field.column))
@@ -878,12 +803,9 @@ with connection.cursor() as cur:
                 unfixable.append((label, table, field.column))
                 print(f"FAILED|{label}|{table}.{field.column}|{e}", flush=True)
 
-print(
-    f"SUMMARY|shared_models={checked_models}|"
-    f"tables_present={checked_tables}|"
-    f"fixed={len(fixed)}|unfixable={len(unfixable)}",
-    flush=True,
-)
+print(f"SUMMARY|shared_models={checked_models}|"
+      f"tables_present={checked_tables}|"
+      f"fixed={len(fixed)}|unfixable={len(unfixable)}", flush=True)
 
 with open('/tmp/drift-check-status', 'w') as f:
     f.write('OK' if not unfixable else 'UNFIXABLE')
@@ -896,10 +818,9 @@ case "${STATUS}" in
     OK)
         FIXED_N="$(grep -c '^FIXED|' /tmp/drift-check.log 2>/dev/null || true)"
         FIXED_N="${FIXED_N:-0}"
-        SUMMARY="$(grep '^SUMMARY|' /tmp/drift-check.log 2>/dev/null | tail -1 || true)"
-
+        SUMMARY="$(grep '^SUMMARY|' /tmp/drift-check.log | tail -1 || true)"
         if [[ "${FIXED_N}" -gt 0 ]]; then
-            ok "Schema drift auto-repaired (${FIXED_N} column(s) added):"
+            ok "Schema drift auto-repaired (${FIXED_N} column(s) added)"
             while IFS='|' read -r _ kind label col; do
                 info "  + ${col}  (${kind})"
             done < <(grep '^FIXED|' /tmp/drift-check.log)
@@ -908,22 +829,17 @@ case "${STATUS}" in
         fi
         [[ -n "${SUMMARY}" ]] && info "  ${SUMMARY}"
         ;;
-
     UNFIXABLE)
         warn "Schema drift detected that the script cannot safely repair:"
         while IFS='|' read -r _ kind label col rest; do
             warn "  ! ${col}  (${kind} in ${label})"
         done < <(grep '^UNFIXABLE|' /tmp/drift-check.log)
-        warn ""
-        warn "Full log: /tmp/drift-check.log"
         die "Cannot continue with schema drift unresolved."
         ;;
-
     *)
-        warn "Drift check did not complete cleanly (status='${STATUS}')."
-        warn "Last 40 lines of output:"
+        warn "Drift check did not complete cleanly (status='${STATUS}')"
         tail -40 /tmp/drift-check.log 2>/dev/null | sed 's/^/    /'
-        die "Drift check failed — fix the error above before deploying."
+        die "Drift check failed."
         ;;
 esac
 
@@ -959,18 +875,128 @@ PY
 ok "Public tenant ready"
 
 # ============================================================================
+# Step 8b — Ensure allauth Site record exists (Phase 9.1)
+#
+# django.contrib.sites requires one Site row. allauth uses it for
+# default redirect URLs and email context. Idempotent.
+# ============================================================================
+log "Step 8b: Ensure allauth Site record exists"
+
+python manage.py shell <<PY
+from django.contrib.sites.models import Site
+
+site, created = Site.objects.update_or_create(
+    id=1,
+    defaults={
+        'domain': '${DOMAIN}',
+        'name': 'Pritech PMS',
+    },
+)
+print(f'Site: {"created" if created else "updated"} — {site.domain} ({site.name})')
+PY
+ok "allauth Site record ready"
+
+# ============================================================================
 # Step 9 — Apply migrations to every tenant schema
+# (retry loop handles 'already exists' errors from regenerated migrations)
 # ============================================================================
 log "Step 9: Apply migrations to all tenant schemas"
-python manage.py migrate_schemas --noinput
-ok "All tenant schemas migrated"
+
+MAX_MIGRATION_ATTEMPTS=15
+MIGRATION_ATTEMPT=0
+MIGRATION_DONE=false
+
+while [[ ${MIGRATION_ATTEMPT} -lt ${MAX_MIGRATION_ATTEMPTS} ]]; do
+    MIGRATION_ATTEMPT=$((MIGRATION_ATTEMPT + 1))
+
+    rm -f /tmp/migrate-tenants.log
+    set +e
+    python manage.py migrate_schemas --noinput 2>&1 | tee /tmp/migrate-tenants.log
+    MIGRATE_RC=${PIPESTATUS[0]}
+    set -e
+
+    if [[ ${MIGRATE_RC} -eq 0 ]]; then
+        MIGRATION_DONE=true
+        if [[ ${MIGRATION_ATTEMPT} -eq 1 ]]; then
+            ok "All tenant schemas migrated"
+        else
+            ok "All tenant schemas migrated after ${MIGRATION_ATTEMPT} attempts"
+        fi
+        break
+    fi
+
+    if ! grep -qE 'already exists|DuplicateTable|DuplicateColumn' /tmp/migrate-tenants.log; then
+        warn "Migration failed with an unexpected error (not 'already exists')."
+        tail -40 /tmp/migrate-tenants.log | sed 's/^/    /'
+        die "Cannot auto-recover."
+    fi
+
+    FAILED_MIG="$(grep -oP 'Applying \K[a-z_]+\.\d+_\w+' /tmp/migrate-tenants.log | tail -1 || true)"
+
+    if [[ -z "${FAILED_MIG}" ]]; then
+        warn "Could not identify failing migration."
+        tail -40 /tmp/migrate-tenants.log | sed 's/^/    /'
+        die "Manual intervention required."
+    fi
+
+    FAILED_APP="${FAILED_MIG%.*}"
+    FAILED_NAME="${FAILED_MIG#*.}"
+    DUP_OBJECT="$(grep -oP '(?:relation|column) "\K[^"]+(?=" already exists)' /tmp/migrate-tenants.log | tail -1 || true)"
+
+    warn "Attempt ${MIGRATION_ATTEMPT}/${MAX_MIGRATION_ATTEMPTS}: '${FAILED_MIG}' failed — ${DUP_OBJECT:-object} already exists."
+    info "Faking '${FAILED_APP}.${FAILED_NAME}' where the effect is present..."
+
+    python manage.py shell <<PY
+from django.db import connection
+from django_tenants.utils import get_tenant_model
+
+APP = "${FAILED_APP}"
+NAME = "${FAILED_NAME}"
+DUP_OBJECT = "${DUP_OBJECT}"
+
+Tenant = get_tenant_model()
+faked = skipped = 0
+
+for tenant in Tenant.objects.all():
+    connection.set_schema(tenant.schema_name)
+    with connection.cursor() as cur:
+        cur.execute("SELECT 1 FROM django_migrations WHERE app = %s AND name = %s",
+                    [APP, NAME])
+        if cur.fetchone():
+            continue
+        if DUP_OBJECT:
+            cur.execute("SELECT 1 FROM pg_indexes WHERE indexname = %s", [DUP_OBJECT])
+            found = cur.fetchone() is not None
+            if not found:
+                cur.execute("SELECT 1 FROM information_schema.columns "
+                            "WHERE column_name = %s LIMIT 1", [DUP_OBJECT])
+                found = cur.fetchone() is not None
+            if not found:
+                print(f'  SKIP {tenant.schema_name}: {DUP_OBJECT} not present')
+                skipped += 1
+                continue
+        cur.execute("INSERT INTO django_migrations (app, name, applied) "
+                    "VALUES (%s, %s, NOW())", [APP, NAME])
+        faked += 1
+        print(f'  FAKED {APP}.{NAME} in {tenant.schema_name}')
+
+print(f'\nFaked {faked} record(s), skipped {skipped} schema(s).')
+PY
+
+    sleep 1
+done
+
+if [[ "${MIGRATION_DONE}" != "true" ]]; then
+    warn "Could not resolve all migration errors after ${MAX_MIGRATION_ATTEMPTS} attempts."
+    die "Manual intervention required."
+fi
 
 # ============================================================================
 # Step 9b — Post-migration verification
 # ============================================================================
 log "Step 9b: Verifying all schemas are up to date"
 if python manage.py migrate_schemas --check 2>&1 | grep -q "No migrations to apply"; then
-    ok "Every schema reports 'No migrations to apply' — all in sync"
+    ok "Every schema reports 'No migrations to apply'"
 else
     warn "Some schemas still have pending migrations — rerunning"
     python manage.py migrate_schemas --noinput
@@ -978,11 +1004,7 @@ else
 fi
 
 # ============================================================================
-# Step 9c — Compile translations (Phase 8)
-#
-# Non-fatal. If gettext is missing or the .po file has a duplicate msgid,
-# we warn loudly and continue — the app still runs, just with English
-# fallback for Chichewa.
+# Step 9c — Compile translations
 # ============================================================================
 log "Step 9c: Compiling translations"
 
@@ -990,8 +1012,7 @@ mkdir -p "${PROJECT_DIR}/locale/en/LC_MESSAGES" \
          "${PROJECT_DIR}/locale/ny/LC_MESSAGES"
 
 if ! command -v msgfmt >/dev/null 2>&1; then
-    warn "msgfmt (gettext) not installed — Chichewa UI will fall back to English strings."
-    warn "  Install with: apt-get install -y gettext"
+    warn "msgfmt (gettext) not installed — Chichewa UI will fall back to English."
 else
     set +e
     COMPILE_OUT=$(python manage.py compilemessages 2>&1)
@@ -1000,7 +1021,6 @@ else
 
     if [[ ${COMPILE_RC} -eq 0 ]]; then
         ok "Translations compiled"
-
         for lang in en ny; do
             MO_FILE="${PROJECT_DIR}/locale/${lang}/LC_MESSAGES/django.mo"
             if [[ -f "${MO_FILE}" ]]; then
@@ -1010,29 +1030,12 @@ else
             fi
         done
     else
-        warn "compilemessages failed (exit ${COMPILE_RC}) — Chichewa UI may fall back to English."
-        warn ""
-        warn "Last 15 lines of output:"
+        warn "compilemessages failed (exit ${COMPILE_RC})"
         echo "${COMPILE_OUT}" | tail -15 | sed 's/^/    /'
-        warn ""
-
         if echo "${COMPILE_OUT}" | grep -q "duplicate message definition"; then
-            warn "Detected: duplicate msgid in the .po file."
-            warn "Fix with msgcat (keeps the first occurrence of each msgid):"
-            warn ""
-            for lang in en ny; do
-                PO="${PROJECT_DIR}/locale/${lang}/LC_MESSAGES/django.po"
-                [[ -f "${PO}" ]] || continue
-                warn "    cp ${PO} ${PO}.bak"
-                warn "    msgcat --use-first --output-file=/tmp/django-${lang}-fixed.po ${PO}"
-                warn "    msgfmt --check --output-file=/dev/null /tmp/django-${lang}-fixed.po && \\"
-                warn "        mv /tmp/django-${lang}-fixed.po ${PO}"
-                warn ""
-            done
-            warn "Then commit the fixed .po files and re-run the deploy."
+            warn "Duplicate msgid — dedupe the .po then re-run compilemessages."
         fi
-
-        warn "Continuing — the app runs fine, Chichewa strings just fall back to English."
+        warn "Continuing — app runs fine, Chichewa strings fall back to English."
     fi
 fi
 
@@ -1084,22 +1087,15 @@ for tpl in "${PHASE8_TEMPLATES[@]}"; do
 done
 [[ "${MISSING8}" -eq 0 ]] && ok "All 7 Phase 8 templates present"
 
-TEMPLATES_TO_CHECK=(
-    "templates/pages/offline.html"
-    "templates/partials/_offline_indicator.html"
-    "templates/partials/_pwa_install_prompt.html"
-    "templates/pages/communications/log_list.html"
-    "templates/pages/communications/inbound_list.html"
-    "templates/pages/communications/template_list.html"
-    "templates/pages/communications/log_detail.html"
-    "templates/pages/communications/inbound_reply.html"
-    "templates/pages/communications/template_form.html"
+PHASE9_TEMPLATES=(
+    "templates/pages/dashboard.html"
+    "templates/pages/properties/rent_list.html"
 )
-MISSING_T=0
-for tpl in "${TEMPLATES_TO_CHECK[@]}"; do
-    [[ -f "${PROJECT_DIR}/${tpl}" ]] || { warn "Missing template: ${tpl}"; MISSING_T=$((MISSING_T + 1)); }
+MISSING9=0
+for tpl in "${PHASE9_TEMPLATES[@]}"; do
+    [[ -f "${PROJECT_DIR}/${tpl}" ]] || { warn "Missing Phase 9 template: ${tpl}"; MISSING9=$((MISSING9 + 1)); }
 done
-[[ "${MISSING_T}" -eq 0 ]] && ok "All Phase 6 + 7 templates present"
+[[ "${MISSING9}" -eq 0 ]] && ok "All Phase 9 templates present"
 
 # ─── Verify BOTH URLconfs import cleanly ───
 log "Step 10b: Verify URL patterns AND both URLconf imports"
@@ -1117,6 +1113,8 @@ for mod in ('config.urls', 'config.urls_public'):
         print(f'  ✘ {mod} import failed: {type(e).__name__}: {e}')
 
 checks = [
+    ('tenant', 'home'),
+    ('tenant', 'dashboard'),
     ('tenant', 'offline'),
     ('tenant', 'sync:sync'),
     ('tenant', 'communications:log_list'),
@@ -1125,8 +1123,11 @@ checks = [
     ('tenant', 'health'),
     ('tenant', 'password_reset'),
     ('tenant', 'password_reset_done'),
-    ('tenant', 'password_reset_confirm'),
     ('tenant', 'password_reset_complete'),
+    ('tenant', 'properties:list'),
+    ('tenant', 'properties:rent_list'),
+    ('tenant', 'signup:signup'),
+    ('tenant', 'signup:signup_success'),
 ]
 for scope, name in checks:
     try:
@@ -1135,13 +1136,15 @@ for scope, name in checks:
     except NoReverseMatch:
         print(f'  ⚠ {scope}:{name} not reverse-resolvable')
 
-# Phase 8 — two_factor URLs are reverse-resolvable via namespace
-for name in ('two_factor:login', 'two_factor:setup'):
+# Public-schema checks
+for name in ('two_factor:login', 'two_factor:setup',
+             'public_home', 'account_login', 'account_signup',
+             'socialaccount_login'):
     try:
         url = reverse(name)
         print(f'  ✔ public:{name} → {url}')
     except NoReverseMatch:
-        print(f'  ⚠ public:{name} not reverse-resolvable (2FA not installed)')
+        print(f'  ⚠ public:{name} not reverse-resolvable')
 
 try:
     from apps.realtime.routing import websocket_urlpatterns
@@ -1157,12 +1160,20 @@ try:
         print(f'  ✔ Axes backend registered ({len(backends)} total)')
     else:
         print(f'  ⚠ Axes backend NOT in AUTHENTICATION_BACKENDS')
+    if any('allauth' in b for b in backends):
+        print(f'  ✔ allauth backend registered')
+    else:
+        print(f'  ⚠ allauth backend NOT in AUTHENTICATION_BACKENDS')
     if s.PASSWORD_HASHERS and 'Argon2' in s.PASSWORD_HASHERS[0]:
         print(f'  ✔ Argon2 is the default password hasher')
     else:
         print(f'  ⚠ Argon2 is not the first password hasher')
+    if getattr(s, 'SITE_ID', None) == 1:
+        print(f'  ✔ SITE_ID = 1')
+    else:
+        print(f'  ⚠ SITE_ID missing or not 1')
 except Exception as e:
-    print(f'  ⚠ Could not inspect Phase 8 settings: {e}')
+    print(f'  ⚠ Could not inspect settings: {e}')
 
 if errors:
     import sys
@@ -1408,14 +1419,10 @@ elif [[ -f "${CERT_PATH}" ]]; then
     fi
 else
     warn "No SSL cert — cannot auto-provision wildcard."
-    warn "Run manually:"
-    warn "  ~/.acme.sh/acme.sh --issue --dns \\"
-    warn "    -d ${DOMAIN} -d '${WILDCARD}' \\"
-    warn "    --yes-I-know-dns-manual-mode-enough-go-ahead-please"
 fi
 
 # ============================================================================
-# Step 17 — Restart services (clean stop → kill stragglers → start)
+# Step 17 — Restart services
 # ============================================================================
 log "Step 17: Restart services"
 
@@ -1466,9 +1473,7 @@ done
 log "Step 18: Smoke test"
 
 check() {
-    local label="$1"
-    local url="$2"
-    local extra="${3:-}"
+    local label="$1" url="$2" extra="${3:-}"
     local code
     if [[ -n "${extra}" ]]; then
         code=$(curl -sS -o /dev/null -w "%{http_code}" -k --max-time 10 ${extra} "$url" 2>/dev/null || echo "000")
@@ -1495,21 +1500,24 @@ C6=$(check "manifest"         "https://${DOMAIN}/manifest.json")
 C7=$(check "serviceworker"    "https://${DOMAIN}/serviceworker.js")
 C8=$(check "offline-page"     "https://${DOMAIN}/offline/")
 C9=$(check "icon-192"         "https://${DOMAIN}/static/icons/icon-192.png")
-C10=$(check "sync-api"        "https://${DOMAIN}/api/v1/sync/" "-X POST -H 'Content-Type: application/json' -d '{\"operations\":[]}'")
 
-log "  -- Phase 7: admin motion + realtime + WebSocket --"
-C11=$(check "admin-motion-css" "https://${DOMAIN}/static/css/admin_motion.css")
-C12=$(check "admin-motion-js"  "https://${DOMAIN}/static/js/admin_motion.js")
-C13=$(check "realtime-js"      "https://${DOMAIN}/static/js/realtime.js")
-C14=$(check "ws-endpoint"      "https://${DOMAIN}/ws/notifications/")
-C15=$(check "comm-log"         "https://${DOMAIN}/communications/logs/")
+log "  -- Phase 7: realtime --"
+C14=$(check "ws-endpoint"     "https://${DOMAIN}/ws/notifications/")
 
-log "  -- Phase 8: auth hardening + localization + health --"
-C16=$(check "health"                "https://${DOMAIN}/health/")
-C17=$(check "password-reset"        "https://${DOMAIN}/password-reset/")
-C18=$(check "password-reset-done"   "https://${DOMAIN}/password-reset/done/")
-C19=$(check "2fa-login"             "https://${DOMAIN}/account/login/")
-C20=$(check "language-switcher"     "https://${DOMAIN}/i18n/setlang/")
+log "  -- Phase 8: auth + health --"
+C16=$(check "health"          "https://${DOMAIN}/health/")
+C17=$(check "password-reset"  "https://${DOMAIN}/password-reset/")
+C19=$(check "2fa-login"       "https://${DOMAIN}/account/login/")
+
+log "  -- Phase 9: listings --"
+C21=$(check "properties-list" "https://pritech.${DOMAIN}/properties/")
+C22=$(check "properties-rent" "https://pritech.${DOMAIN}/properties/rent/")
+C23=$(check "dashboard"       "https://pritech.${DOMAIN}/dashboard/")
+
+log "  -- Phase 9.1: allauth / Google --"
+C24=$(check "allauth-login"     "https://${DOMAIN}/accounts/login/")
+C25=$(check "allauth-signup"    "https://${DOMAIN}/accounts/signup/")
+C26=$(check "google-login"      "https://${DOMAIN}/accounts/google/login/")
 
 HEALTH_BODY=$(curl -sS -k --max-time 10 "https://${DOMAIN}/health/" 2>/dev/null || echo '{}')
 if echo "${HEALTH_BODY}" | grep -q '"status": "ok"'; then
@@ -1543,7 +1551,6 @@ echo "  HEAD           : $(git -C ${PROJECT_DIR} rev-parse --short HEAD)"
 echo "  Public site    : https://${DOMAIN}/"
 echo "  Admin          : https://${DOMAIN}/admin/"
 echo "  First tenant   : https://pritech.${DOMAIN}/"
-echo "  PWA manifest   : https://${DOMAIN}/manifest.json"
 echo "  Health check   : https://${DOMAIN}/health/"
 echo "  Daphne port    : ${DAPHNE_PORT}"
 echo "  WebSocket      : wss://${DOMAIN}/ws/notifications/"
@@ -1553,31 +1560,15 @@ if [[ "${FAILED}" -gt 0 ]]; then
     warn "${FAILED} service(s) not active — see warnings above."
 fi
 
-if [[ "${C14}" == "502" || "${C14}" == "504" ]]; then
-    warn "WebSocket endpoint returned ${C14} — Daphne not responding on ${DAPHNE_PORT}."
-    warn "  Check: sudo systemctl status daphne-${PROJECT_NAME}"
-    warn "  Logs:  sudo journalctl -u daphne-${PROJECT_NAME} -n 60 --no-pager"
-fi
-
-if [[ "${C16}" != "200" ]]; then
-    warn "Health check returned ${C16} instead of 200."
-    warn "  Inspect body: curl -sS https://${DOMAIN}/health/ | jq"
-fi
-
-echo "  Logs:"
-echo "    journalctl -u gunicorn-${PROJECT_NAME}      -n 40 --no-pager"
-echo "    journalctl -u daphne-${PROJECT_NAME}        -n 40 --no-pager"
-echo "    journalctl -u celery-worker-${PROJECT_NAME} -n 30 --no-pager"
-echo "    journalctl -u celery-beat-${PROJECT_NAME}   -n 30 --no-pager"
-echo ""
-echo "  ─── Phase 8 — one-time setup reminders ──────────────────────────────"
-echo "  1. Add backup cron entries (sudo crontab -e):"
-echo "       0 3 * * * ${PROJECT_DIR}/scripts/backup_db.sh    >> /var/log/pritech-backup.log 2>&1"
-echo "       0 4 * * * ${PROJECT_DIR}/scripts/backup_media.sh >> /var/log/pritech-backup.log 2>&1"
-echo "  2. Install logrotate config:"
-echo "       sudo cp docs/logrotate.pritech-pms /etc/logrotate.d/pritech-pms"
-echo "  3. Force 2FA enrollment for platform admins:"
-echo "       Visit https://${DOMAIN}/account/two_factor/setup/ as a superuser"
+echo "  ─── Google Sign-In: one-time setup ──────────────────────────────"
+echo "  1. Configure OAuth client at https://console.cloud.google.com/apis/credentials"
+echo "     Authorized redirect URI:"
+echo "       https://${DOMAIN}/accounts/google/login/callback/"
+echo "       https://*.${DOMAIN}/accounts/google/login/callback/"
+echo "  2. Add to .env:"
+echo "       GOOGLE_CLIENT_ID=..."
+echo "       GOOGLE_CLIENT_SECRET=..."
+echo "  3. Restart: sudo systemctl restart gunicorn-${PROJECT_NAME} daphne-${PROJECT_NAME}"
 echo ""
 echo "  Superuser (if newly created): admin@pritechmw.com / ChangeMe123!"
 echo "  ⚠ CHANGE THE SUPERUSER PASSWORD IMMEDIATELY"

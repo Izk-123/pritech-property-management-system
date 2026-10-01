@@ -170,6 +170,19 @@
       .live-dot > span:last-child {
         @apply relative inline-flex h-2 w-2 rounded-full;
       }
+
+      /* ─── Password toggle ──────────────────────────────────── */
+      [data-password-wrap] input {
+        padding-right: 2.75rem;
+      }
+      [data-password-wrap] button {
+        border-top-right-radius: 0.5rem;
+        border-bottom-right-radius: 0.5rem;
+      }
+      [data-password-wrap] input[type="password"]::-ms-reveal,
+      [data-password-wrap] input[type="password"]::-ms-clear {
+        display: none;
+      }
     }
     @layer utilities {
       .text-gradient {

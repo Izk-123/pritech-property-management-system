@@ -1,3 +1,25 @@
+"""
+Forms for tenant provisioning and self-service signup.
+
+Two audiences:
+
+  * ``TenantForm``              — platform admins creating/editing
+                                  tenants via /platform/tenants/.
+
+  * ``TenantSignupForm``        — public self-service signup at
+                                  /signup/ (email + password path).
+
+  * ``TenantSignupCompleteForm``— second step for Google sign-ups:
+                                  collects the tenant details that
+                                  Google can't supply.
+
+Phone validation (Phase 9.1)
+----------------------------
+All three forms normalise Malawi phone numbers to E.164 format
+(+265 99 123 4567). ``TenantSignupForm`` additionally calls the
+optional Veriphone lookup if ``VERIPHONE_API_KEY`` is set — the
+lookup fails open, so a third-party outage never blocks signup.
+"""
 from django import forms
 from django.core.validators import RegexValidator
 
@@ -15,11 +37,16 @@ RESERVED_SUBDOMAINS = {
     'www', 'admin', 'api', 'app', 'mail', 'public',
     'static', 'media', 'dashboard', 'signup', 'login',
     'billing', 'support', 'help', 'docs', 'status',
+    'accounts', 'platform', 'health', 'offline',
 }
 
 
+# ─────────────────────────────────────────────────────────────────────
+# Platform admin — tenant create/edit
+# ─────────────────────────────────────────────────────────────────────
+
 class TenantForm(FormControlMixin, forms.ModelForm):
-    """Form for creating or editing a tenant."""
+    """Form for creating or editing a tenant via /platform/tenants/."""
 
     subdomain = forms.SlugField(
         max_length=63,
@@ -66,7 +93,6 @@ class TenantForm(FormControlMixin, forms.ModelForm):
         if subdomain in RESERVED_SUBDOMAINS:
             raise forms.ValidationError('This subdomain is reserved.')
 
-        # Check uniqueness (excluding current instance on edit)
         qs = Tenant.objects.filter(schema_name=subdomain)
         if self.instance and self.instance.pk:
             qs = qs.exclude(pk=self.instance.pk)
@@ -85,8 +111,12 @@ class TenantForm(FormControlMixin, forms.ModelForm):
         return instance
 
 
+# ─────────────────────────────────────────────────────────────────────
+# Public signup — email + password path
+# ─────────────────────────────────────────────────────────────────────
+
 class TenantSignupForm(FormControlMixin, forms.Form):
-    """Public signup form for new tenants."""
+    """Public signup form for new tenants (email + password path)."""
 
     organization_name = forms.CharField(
         max_length=255,
@@ -103,7 +133,11 @@ class TenantSignupForm(FormControlMixin, forms.Form):
     )
     contact_name = forms.CharField(max_length=255, label='Your name')
     contact_email = forms.EmailField(label='Email')
-    contact_phone = forms.CharField(max_length=20, required=False)
+    contact_phone = forms.CharField(
+        max_length=20,
+        required=False,
+        help_text='Malawi mobile, e.g. 0991 234 567',
+    )
     plan = forms.ChoiceField(
         choices=Tenant.Plan.choices,
         initial=Tenant.Plan.STARTER,
@@ -135,3 +169,105 @@ class TenantSignupForm(FormControlMixin, forms.Form):
                 'Please sign in or use a different email.'
             )
         return email
+
+    def clean_contact_phone(self):
+        """
+        Normalise the phone number to E.164 and optionally verify it
+        with Veriphone (if the API key is configured).
+        """
+        from apps.shared.users.validators import normalise_mw_phone
+        from apps.shared.users import veriphone
+
+        raw = self.cleaned_data.get('contact_phone', '').strip()
+        if not raw:
+            return ''
+
+        e164 = normalise_mw_phone(raw)
+        if not e164:
+            raise forms.ValidationError(
+                'Enter a valid Malawi mobile number '
+                '(e.g. 0991 234 567 or +265 99 123 4567).'
+            )
+
+        # Optional third-party verification — fails open
+        if not veriphone.lookup(e164):
+            raise forms.ValidationError(
+                'That phone number appears invalid. Please check and try again.'
+            )
+
+        return e164
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Public signup — Google completion path (Phase 9.1)
+# ─────────────────────────────────────────────────────────────────────
+
+class TenantSignupCompleteForm(FormControlMixin, forms.Form):
+    """
+    Completion form for users who signed up with Google.
+
+    Google already provided: full name, email (verified).
+    This form collects the fields Google cannot supply:
+      • Organization name
+      • Subdomain
+      • Modules to enable
+      • Contact phone
+      • Plan
+    """
+
+    organization_name = forms.CharField(
+        max_length=255,
+        label='Organization name',
+        widget=forms.TextInput(attrs={'placeholder': 'Lakeview Lodge'}),
+    )
+    subdomain = forms.SlugField(
+        max_length=63,
+        validators=[SUBDOMAIN_VALIDATOR],
+        label='Workspace URL',
+        help_text='Lowercase letters, numbers, and hyphens.',
+        widget=forms.TextInput(attrs={'placeholder': 'lakeview'}),
+    )
+    modules = forms.MultipleChoiceField(
+        choices=Tenant.Module.choices,
+        widget=forms.CheckboxSelectMultiple,
+        label='What will you manage?',
+        help_text='Choose all that apply. You can change this later.',
+    )
+    contact_phone = forms.CharField(
+        max_length=20,
+        required=False,
+        help_text='Malawi mobile — used for booking alerts',
+    )
+    plan = forms.ChoiceField(
+        choices=Tenant.Plan.choices,
+        initial=Tenant.Plan.STARTER,
+    )
+    accept_terms = forms.BooleanField(
+        label='I accept the terms of service',
+    )
+
+    def clean_subdomain(self):
+        subdomain = self.cleaned_data['subdomain'].lower()
+        if subdomain in RESERVED_SUBDOMAINS:
+            raise forms.ValidationError('This subdomain is reserved.')
+        if Tenant.objects.filter(schema_name=subdomain).exists():
+            raise forms.ValidationError('This subdomain is already taken.')
+        return subdomain
+
+    def clean_modules(self):
+        modules = self.cleaned_data.get('modules') or []
+        if not modules:
+            raise forms.ValidationError('Select at least one module.')
+        return modules
+
+    def clean_contact_phone(self):
+        from apps.shared.users.validators import normalise_mw_phone
+        raw = self.cleaned_data.get('contact_phone', '').strip()
+        if not raw:
+            return ''
+        e164 = normalise_mw_phone(raw)
+        if not e164:
+            raise forms.ValidationError(
+                'Enter a valid Malawi mobile number.'
+            )
+        return e164

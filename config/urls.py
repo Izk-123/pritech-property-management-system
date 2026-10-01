@@ -5,11 +5,11 @@ Tenant-schema URL configuration.
 Every tenant subdomain resolves here — the business modules, tenant-
 aware auth, password reset, and the guest-facing home page.
 
-Changed for Phase 9:
-  • `/` now routes to TenantHomeView (guest-facing marketing page)
-    instead of a static TemplateView.
-  • `/dashboard/` is the new staff landing page (redirect target for
-    authenticated staff who hit `/`).
+Phase 9:   `/` routes to TenantHomeView (guest home).
+           `/dashboard/` is the staff landing page.
+Phase 9.1: `/accounts/` is mounted here too so allauth works on
+           tenant subdomains — staff can sign in with Google or
+           manage their account without bouncing to the apex.
 """
 from django.conf import settings
 from django.conf.urls.static import static
@@ -50,6 +50,12 @@ urlpatterns = [
     path('documents/', include('apps.core.documents.urls')),
 
     # ─── Auth ──────────────────────────────────────────────────────
+    # Phase 9.1 — allauth on tenant subdomains. Google Sign-In,
+    # account management, and password reset all work under /accounts/.
+    # This is where a staff member on a tenant subdomain lands when
+    # they click "Sign in with Google".
+    path('accounts/', include('allauth.urls')),
+
     # Two-factor URLs live in a thin wrapper module because upstream
     # django-two-factor-auth doesn't declare app_name at module level.
     path('', include('config.urls_two_factor')),

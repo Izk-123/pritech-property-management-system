@@ -9,6 +9,18 @@ Design notes
 * Every field added after the initial migration is nullable or has
   a default so `migrate_schemas --shared` can run on existing data
   without prompting.
+
+Phase 9.1 additions
+-------------------
+* ``phone_verified`` / ``phone_verified_at`` — set when the user
+  completes a phone OTP challenge. Format validation alone is not
+  enough for payment/booking privileges, so this boolean is the
+  gate that ``can_transact()`` reads.
+
+  At signup we only validate the phone's *format* (see
+  apps/shared/users/validators.py). The expensive OTP step runs
+  later, on demand — when the tenant is ready to take a payment
+  or receive booking SMS alerts.
 """
 from django.contrib.auth.models import AbstractUser
 from django.db import models
@@ -104,6 +116,22 @@ class User(AbstractUser):
         null=True, blank=True,
     )
 
+    # ── Verification (Phase 9.1) ─────────────────────────────────
+    # Email verification is handled by allauth's EmailAddress table
+    # (one row per confirmed address, with a verified flag). Phone
+    # verification is separate — format-only at signup, OTP-confirmed
+    # later when the tenant needs to transact.
+    phone_verified = models.BooleanField(
+        _('phone verified'),
+        default=False,
+        help_text=_('Set to True after the user confirms an OTP'),
+    )
+    phone_verified_at = models.DateTimeField(
+        _('phone verified at'),
+        null=True, blank=True,
+        help_text=_('Timestamp of the successful OTP confirmation'),
+    )
+
     # ── Timestamps ───────────────────────────────────────────────
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -117,6 +145,7 @@ class User(AbstractUser):
         indexes = [
             models.Index(fields=['email']),
             models.Index(fields=['is_platform_admin', 'is_active']),
+            models.Index(fields=['phone']),
         ]
 
     def __str__(self):
@@ -166,7 +195,22 @@ class User(AbstractUser):
             tenant=tenant, is_active=True,
         ).first()
         return membership.role if membership else None
-    
+
+    # ── Transaction gate (Phase 9.1) ─────────────────────────────
+    def can_transact(self):
+        """
+        Whether the user is verified enough to make payments or
+        receive booking alerts by SMS.
+
+        Platform admins and superusers bypass — they're trusted
+        by definition. Everyone else needs a confirmed phone OTP,
+        which is enforced when the tenant is ready to go live.
+        """
+        if self.is_platform_admin or self.is_superuser:
+            return True
+        return self.phone_verified
+
+
 # ─────────────────────────────────────────────────────────────────────
 # Multi-tenant RBAC
 # ─────────────────────────────────────────────────────────────────────
@@ -258,6 +302,7 @@ class AuthAuditLog(models.Model):
         ROLE_CHANGED        = 'ROLE_CHG',   _('Role Changed')
         MEMBERSHIP_ADDED    = 'MEMB_ADD',   _('Membership Added')
         MEMBERSHIP_REMOVED  = 'MEMB_DEL',   _('Membership Removed')
+        PHONE_VERIFIED      = 'PHONE_OK',   _('Phone Verified')
 
     user = models.ForeignKey(
         User, on_delete=models.SET_NULL,

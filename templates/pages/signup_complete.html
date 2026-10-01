@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% comment %}
+    Google sign-up completion page (Phase 9.1).
+
+    The user is already authenticated via Google. This form collects
+    the tenant details Google cannot supply:
+      • Organization name
+      • Subdomain (becomes their <sub>.pms.pritechmw.com URL)
+      • Modules to enable
+      • Contact phone (Malawi mobile, format-validated)
+      • Plan
+
+    RequireTenantSetupMiddleware redirects the user here whenever an
+    authenticated user has no UserTenantMembership rows. Once the
+    form submits and creates the tenant + membership, the middleware
+    stops redirecting and normal navigation resumes.
+{% endcomment %}
+
+{% block title %}{% trans "One more step" %} — Pritech PMS{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-lg px-4 py-10 pb-32 sm:px-6 sm:py-14 sm:pb-14">
+
+  {# Heading #}
+  <div class="mb-8 text-center">
+    <div data-animate="zoom-in" data-animate-now data-hover="pop"
+         class="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl
+                bg-gradient-to-br from-emerald-500 to-cyan-500 text-white
+                shadow-lg shadow-emerald-500/30">
+      <svg viewBox="0 0 24 24" fill="none" class="h-6 w-6" stroke="currentColor"
+           stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
+           aria-hidden="true">
+        <path d="M5 13l4 4L19 7" />
+      </svg>
+    </div>
+
+    {# Signed-in identity — reminds the user which Google account is being used #}
+    <div data-animate="fade-up" data-animate-now
+         class="mb-3 inline-flex items-center gap-2 rounded-full border
+                border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold
+                text-emerald-700 dark:border-emerald-800 dark:bg-emerald-900/30
+                dark:text-emerald-300">
+      <span class="live-dot">
+        <span class="bg-emerald-400"></span>
+        <span class="bg-emerald-500"></span>
+      </span>
+      {% trans "Signed in as" %} {{ google_user.email }}
+    </div>
+
+    <h1 data-animate="blur-in" data-animate-now data-animate-duration="0.8"
+        class="text-3xl font-bold tracking-tight">
+      {% trans "One more step" %}
+    </h1>
+    <p data-animate="fade-up" data-animate-now data-animate-delay="140"
+       class="mt-2 text-slate-500 dark:text-slate-400">
+      {% if google_user.first_name %}
+        {% blocktrans with name=google_user.first_name %}
+        Almost there, {{ name }} — tell us about your organization.
+        {% endblocktrans %}
+      {% else %}
+        {% trans "Almost there — tell us about your organization." %}
+      {% endif %}
+    </p>
+  </div>
+
+  {# Form #}
+  <form method="post" novalidate
+        data-animate="fade-up" data-animate-now data-animate-delay="200"
+        data-form-dirty-warn
+        class="space-y-5">
+    {% csrf_token %}
+
+    {% include "partials/_form_errors.html" %}
+
+    {# Organization #}
+    <fieldset data-animate="fade-up" class="card space-y-5 p-6">
+      <legend class="sr-only">{% trans "Your organization" %}</legend>
+      <h2 class="text-xs font-bold uppercase tracking-wider
+                 text-slate-500 dark:text-slate-400">
+        {% trans "Your organization" %}
+      </h2>
+
+      {% include "partials/_form_field.html" with field=form.organization_name %}
+      {% include "partials/_form_field.html" with field=form.subdomain %}
+      {% include "partials/_form_field.html" with field=form.plan %}
+    </fieldset>
+
+    {# Modules #}
+    <fieldset data-animate="fade-up" class="card space-y-4 p-6">
+      <legend class="sr-only">{% trans "What will you manage?" %}</legend>
+      <h2 class="text-xs font-bold uppercase tracking-wider
+                 text-slate-500 dark:text-slate-400">
+        {% trans "What will you manage?" %}
+      </h2>
+      <p class="text-xs text-slate-500 dark:text-slate-400">
+        {% trans "Choose all that apply. You can change this later in settings." %}
+      </p>
+
+      <div class="space-y-3">
+        {% for checkbox in form.modules %}
+        <label class="flex cursor-pointer items-start gap-3
+                      rounded-lg px-2 py-1.5 transition-colors
+                      hover:bg-slate-100 dark:hover:bg-white/5">
+          {{ checkbox.tag }}
+          <span class="text-sm text-slate-700 dark:text-slate-200">
+            {{ checkbox.choice_label }}
+          </span>
+        </label>
+        {% endfor %}
+      </div>
+
+      {% for error in form.modules.errors %}
+      <p class="text-xs text-red-600">{{ error }}</p>
+      {% endfor %}
+    </fieldset>
+
+    {# Contact phone #}
+    <fieldset data-animate="fade-up" class="card space-y-4 p-6">
+      <legend class="sr-only">{% trans "Contact" %}</legend>
+      <h2 class="text-xs font-bold uppercase tracking-wider
+                 text-slate-500 dark:text-slate-400">
+        {% trans "Contact" %}
+      </h2>
+
+      {% include "partials/_form_field.html" with field=form.contact_phone %}
+      <p class="text-xs text-slate-500 dark:text-slate-400">
+        {% trans "We'll use this for booking alerts. Format: 0991 234 567." %}
+      </p>
+    </fieldset>
+
+    {# Terms #}
+    <div data-animate="fade-up" class="card p-5">
+      {% include "partials/_form_field.html" with field=form.accept_terms %}
+    </div>
+
+    {# Desktop submit #}
+    <div class="hidden sm:block">
+      <button type="submit" data-press data-hover="grow"
+              class="btn btn-primary w-full py-3">
+        {% trans "Finish setup" %}
+        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+             aria-hidden="true">
+          <path d="M5 12h14M13 6l6 6-6 6" />
+        </svg>
+      </button>
+    </div>
+
+    {# Escape hatch: wrong Google account #}
+    <p data-animate="fade-up"
+       class="text-center text-xs text-slate-500 dark:text-slate-400">
+      {% trans "Signed in with the wrong account?" %}
+      <a href="{% url 'account_logout' %}"
+         class="font-medium text-primary-600 transition-colors
+                hover:text-primary-500 dark:text-primary-400
+                dark:hover:text-primary-300">
+        {% trans "Sign out" %}
+      </a>
+    </p>
+  </form>
+</div>
+
+{# Mobile sticky action bar #}
+<div class="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200
+            bg-white/95 px-4 py-3 backdrop-blur-xl
+            dark:border-white/10 dark:bg-slate-900/95 sm:hidden">
+  <div class="mx-auto max-w-lg">
+    <button type="submit"
+            onclick="document.querySelector('form[data-form-dirty-warn]').requestSubmit()"
+            data-press class="btn btn-primary w-full py-3">
+      {% trans "Finish setup" %}
+    </button>
+  </div>
+</div>
+{% endblock %}

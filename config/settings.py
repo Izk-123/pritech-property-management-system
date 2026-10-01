@@ -11,6 +11,8 @@ Phase 7: real-time (Channels + Redis) + WhatsApp/email communications
 Phase 8: auth hardening (Argon2, 2FA, Axes lockout, rate limiting,
          password reset, JWT), Chichewa localization, security headers
          (CSP), django-redis cache, backups, health checks.
+Phase 9: public listings, vacant rentals, tenant home + staff dashboard.
+Phase 9.1: Google Sign-In via django-allauth + Malawi phone validation.
 
 PostgreSQL is required in BOTH dev and prod — SQLite cannot host tenants.
 """
@@ -79,7 +81,7 @@ CSRF_COOKIE_DOMAIN = config('CSRF_COOKIE_DOMAIN', default=None)
 # ─────────────────────────────────────────────────────────────────────
 # Applications
 # SHARED_APPS  → public schema (tenant registry, users, admin, celery,
-#                sync, realtime, pwa, channels, anymail)
+#                sync, realtime, pwa, channels, anymail, allauth)
 # TENANT_APPS  → per-tenant schema (business data)
 # ─────────────────────────────────────────────────────────────────────
 SHARED_APPS = [
@@ -96,6 +98,8 @@ SHARED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.humanize',      # intcomma, naturaltime (public templates)
+    'django.contrib.sites',         # required by allauth
 
     'auditlog',
     'django_celery_beat',
@@ -119,6 +123,12 @@ SHARED_APPS = [
 
     # ─── Phase 8 — security headers ────────────────────────────────
     'csp',
+
+    # ─── Phase 9.1 — allauth (email + Google sign-in) ──────────────
+    'allauth',
+    'allauth.account',
+    'allauth.socialaccount',
+    'allauth.socialaccount.providers.google',
 
     'channels',                     # Phase 7 — ASGI channel layer
     'anymail',                      # Phase 7 — email via Mailgun/SES
@@ -165,11 +175,20 @@ INSTALLED_APPS = list(SHARED_APPS) + [
 # ─────────────────────────────────────────────────────────────────────
 # Middleware
 #
-# TenantMainMiddleware MUST be first.
-# AxesMiddleware MUST be last (it inspects responses after the full stack).
+# Order matters:
+#   1. TenantMainMiddleware  — must be first, resolves request.tenant
+#   2. ClientIPMiddleware    — restores REMOTE_ADDR from X-Real-IP
+#   3. Security/CSP/WhiteNoise
+#   4. Session, Locale, TenantLanguage
+#   5. Common, CSRF, Authentication
+#   6. RequireTenantSetupMiddleware — after auth, before OTP
+#   7. OTP + ForceTwoFactor  — Phase 8
+#   8. Messages, XFrameOptions
+#   9. AxesMiddleware        — must be last
 # ─────────────────────────────────────────────────────────────────────
 MIDDLEWARE = [
     'django_tenants.middleware.main.TenantMainMiddleware',   # must be first
+    'apps.shared.users.middleware.ClientIPMiddleware',       # client IP via X-Real-IP
     'django.middleware.security.SecurityMiddleware',
 ]
 
@@ -186,16 +205,26 @@ MIDDLEWARE += [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+
+    # Phase 9.1 — route fresh Google users to /signup/complete/
+    'apps.shared.users.middleware.RequireTenantSetupMiddleware',
+
     'django_otp.middleware.OTPMiddleware',                    # Phase 8
     'apps.shared.users.middleware.ForceTwoFactorMiddleware',  # Phase 8
+
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'axes.middleware.AxesMiddleware',                         # Phase 8 — must be last
+    'axes.middleware.AxesMiddleware',                         # must be last
 ]
 
 
 WSGI_APPLICATION = 'config.wsgi.application'
 ASGI_APPLICATION = 'config.asgi.application'
+
+# django.contrib.sites — required by allauth. In a multi-tenant setup
+# this lives in the public schema (SHARED_APPS), so a single Site
+# record serves every tenant.
+SITE_ID = 1
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -300,13 +329,18 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
-# Phase 8 — Axes wraps the standard backend
+# Phase 8 — Axes wraps the standard backend.
+# Phase 9.1 — allauth's backend handles social sign-in.
 AUTHENTICATION_BACKENDS = [
     'axes.backends.AxesStandaloneBackend',
     'django.contrib.auth.backends.ModelBackend',
+    'allauth.account.auth_backends.AuthenticationBackend',
 ]
 
-# Phase 8 — login now routes through django-two-factor-auth
+# Phase 8 — login routes through django-two-factor-auth.
+# Phase 9.1 — allauth provides the Google Sign-In path, but the
+# email/password login form still flows through SchemaAwareLoginView
+# so tenant-membership checks stay in one place.
 LOGIN_URL = 'two_factor:login'
 LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = 'two_factor:login'
@@ -433,7 +467,7 @@ if not DEBUG:
             ],
             'frame-ancestors': ["'none'"],
             'base-uri': ["'self'"],
-            'form-action': ["'self'"],
+            'form-action': ["'self'", 'https://accounts.google.com'],
             'manifest-src': ["'self'"],
             'worker-src': ["'self'", 'blob:'],
         },
@@ -514,11 +548,11 @@ CELERY_BEAT_SCHEDULE = {
     # ─── Phase 7 — Communications ──────────────────────────────────────
     'scan-checkin-reminders': {
         'task': 'apps.communications.tasks.scan_checkin_reminders',
-        'schedule': crontab(hour=9, minute=0),        # 09:00 daily
+        'schedule': crontab(hour=9, minute=0),
     },
     'scan-rent-due-reminders': {
         'task': 'apps.communications.tasks.scan_rent_due_reminders',
-        'schedule': crontab(hour=8, minute=0),        # 08:00 daily
+        'schedule': crontab(hour=8, minute=0),
     },
 
     # ─── Phase 8 — Celery heartbeat (worker liveness) ──────────────────
@@ -531,10 +565,7 @@ CELERY_BEAT_SCHEDULE = {
 
 # ─────────────────────────────────────────────────────────────────────
 # Channels — Phase 7 WebSockets
-#
 # Redis channel layer on database 2 (broker uses 0, cache uses 1).
-# `capacity` raised from default 100 to 1500 so bursts of broadcasts
-# during heavy use (night audit fan-out) don't drop messages.
 # ─────────────────────────────────────────────────────────────────────
 CHANNEL_LAYERS = {
     'default': {
@@ -546,8 +577,8 @@ CHANNEL_LAYERS = {
                     default='redis://127.0.0.1:6379/2',
                 ),
             ],
-            'expiry': 60,        # seconds
-            'capacity': 1500,    # per-channel queue depth
+            'expiry': 60,
+            'capacity': 1500,
         },
     },
 }
@@ -562,15 +593,7 @@ INTERNAL_IPS = ['127.0.0.1']
 
 
 # ─────────────────────────────────────────────────────────────────────
-# Django Unfold (admin theme) — modern + animated
-#
-# Rounded corners, environment badge, sidebar separators, live badges,
-# and motion CSS/JS injected on every admin page. The motion layer
-# honours prefers-reduced-motion.
-#
-# NOTE: Fieldset tabs are configured per-ModelAdmin by adding
-#       'classes': ['tab'] to each fieldset — NOT via UNFOLD['TABS'].
-#       See any ModelAdmin in apps/*/admin.py for an example.
+# Django Unfold (admin theme)
 # ─────────────────────────────────────────────────────────────────────
 UNFOLD = {
     'SITE_TITLE': 'Pritech PMS',
@@ -584,23 +607,13 @@ UNFOLD = {
     'BORDER_RADIUS': '12px',
     'DASHBOARD_CALLBACK': 'apps.core.admin_dashboard.dashboard_callback',
 
-    # Environment badge — visible top-right of the admin header
     'ENVIRONMENT': (
         'production' if not DEBUG else 'development'
     ),
 
-    # Site dropdown — quick links from the top-right avatar
     'SITE_DROPDOWN': [
-        {
-            'icon': 'public',
-            'title': 'View public site',
-            'link': '/',
-        },
-        {
-            'icon': 'front_desk',
-            'title': 'Front Desk',
-            'link': '/reservations/front-desk/',
-        },
+        {'icon': 'public', 'title': 'View public site', 'link': '/'},
+        {'icon': 'front_desk', 'title': 'Front Desk', 'link': '/reservations/front-desk/'},
         {
             'icon': 'hub',
             'title': 'WebSocket status',
@@ -609,7 +622,6 @@ UNFOLD = {
         },
     ],
 
-    # Purple accent palette (matches the frontend)
     'COLORS': {
         'primary': {
             '50':  '250 245 255',
@@ -626,13 +638,8 @@ UNFOLD = {
         },
     },
 
-    # Custom CSS + JS injected into every admin page
-    'STYLES': [
-        'css/admin_motion.css',
-    ],
-    'SCRIPTS': [
-        'js/admin_motion.js',
-    ],
+    'STYLES': ['css/admin_motion.css'],
+    'SCRIPTS': ['js/admin_motion.js'],
 
     'SIDEBAR': {
         'show_search': True,
@@ -643,22 +650,12 @@ UNFOLD = {
                 'title': 'Platform',
                 'separator': True,
                 'items': [
-                    {
-                        'title': 'Tenants',
-                        'icon': 'domain',
-                        'link': '/platform/tenants/',
-                        'badge': 'Live',
-                    },
-                    {
-                        'title': 'Domains',
-                        'icon': 'link',
-                        'link': '/admin/tenants/domain/',
-                    },
-                    {
-                        'title': 'Users',
-                        'icon': 'manage_accounts',
-                        'link': '/admin/shared_users/user/',
-                    },
+                    {'title': 'Tenants', 'icon': 'domain',
+                     'link': '/platform/tenants/', 'badge': 'Live'},
+                    {'title': 'Domains', 'icon': 'link',
+                     'link': '/admin/tenants/domain/'},
+                    {'title': 'Users', 'icon': 'manage_accounts',
+                     'link': '/admin/shared_users/user/'},
                 ],
             },
             {
@@ -666,12 +663,8 @@ UNFOLD = {
                 'separator': True,
                 'items': [
                     {'title': 'Home', 'icon': 'dashboard', 'link': '/admin/'},
-                    {
-                        'title': 'Front Desk',
-                        'icon': 'front_desk',
-                        'link': '/reservations/front-desk/',
-                        'badge': 'Live',
-                    },
+                    {'title': 'Front Desk', 'icon': 'front_desk',
+                     'link': '/reservations/front-desk/', 'badge': 'Live'},
                 ],
             },
             {
@@ -790,56 +783,16 @@ LOGGING = {
         'level': 'INFO',
     },
     'loggers': {
-        'django': {
-            'level': 'INFO',
-            'handlers': ['console'],
-            'propagate': False,
-        },
-        'django.request': {
-            'level': 'WARNING',
-            'handlers': ['console'],
-            'propagate': False,
-        },
-        'django.security': {
-            'level': 'WARNING',
-            'handlers': ['console'],
-            'propagate': False,
-        },
-        'django.db.backends': {
-            'level': 'WARNING',
-            'handlers': ['console'],
-            'propagate': False,
-        },
-        'django_tenants': {
-            'level': 'INFO',
-            'handlers': ['console'],
-            'propagate': False,
-        },
-        'channels': {
-            'level': 'INFO',
-            'handlers': ['console'],
-            'propagate': False,
-        },
-        'apps.realtime': {
-            'level': 'INFO',
-            'handlers': ['console'],
-            'propagate': False,
-        },
-        'apps.communications': {
-            'level': 'INFO',
-            'handlers': ['console'],
-            'propagate': False,
-        },
-        'celery': {
-            'level': 'INFO',
-            'handlers': ['console'],
-            'propagate': False,
-        },
-        'apps': {
-            'level': 'INFO',
-            'handlers': ['console'],
-            'propagate': False,
-        },
+        'django': {'level': 'INFO', 'handlers': ['console'], 'propagate': False},
+        'django.request': {'level': 'WARNING', 'handlers': ['console'], 'propagate': False},
+        'django.security': {'level': 'WARNING', 'handlers': ['console'], 'propagate': False},
+        'django.db.backends': {'level': 'WARNING', 'handlers': ['console'], 'propagate': False},
+        'django_tenants': {'level': 'INFO', 'handlers': ['console'], 'propagate': False},
+        'channels': {'level': 'INFO', 'handlers': ['console'], 'propagate': False},
+        'apps.realtime': {'level': 'INFO', 'handlers': ['console'], 'propagate': False},
+        'apps.communications': {'level': 'INFO', 'handlers': ['console'], 'propagate': False},
+        'celery': {'level': 'INFO', 'handlers': ['console'], 'propagate': False},
+        'apps': {'level': 'INFO', 'handlers': ['console'], 'propagate': False},
     },
 }
 
@@ -940,41 +893,24 @@ PWA_APP_DIR = 'ltr'
 PWA_APP_LANG = 'en'
 
 PWA_APP_ICONS = [
-    {
-        'src': '/static/icons/icon-192.png',
-        'sizes': '192x192',
-        'type': 'image/png',
-        'purpose': 'any maskable',
-    },
-    {
-        'src': '/static/icons/icon-512.png',
-        'sizes': '512x512',
-        'type': 'image/png',
-        'purpose': 'any maskable',
-    },
+    {'src': '/static/icons/icon-192.png', 'sizes': '192x192',
+     'type': 'image/png', 'purpose': 'any maskable'},
+    {'src': '/static/icons/icon-512.png', 'sizes': '512x512',
+     'type': 'image/png', 'purpose': 'any maskable'},
 ]
 
 PWA_APP_ICONS_APPLE = [
-    {
-        'src': '/static/icons/apple-touch-icon.png',
-        'sizes': '180x180',
-        'type': 'image/png',
-    },
+    {'src': '/static/icons/apple-touch-icon.png', 'sizes': '180x180',
+     'type': 'image/png'},
 ]
 
 PWA_SERVICE_WORKER_PATH = BASE_DIR / 'static' / 'js' / 'serviceworker.js'
 
 PWA_APP_SHORTCUTS = [
-    {
-        'name': 'Front Desk',
-        'url': '/reservations/front-desk/',
-        'description': "Today's arrivals and departures",
-    },
-    {
-        'name': 'Housekeeping',
-        'url': '/housekeeping/tasks/',
-        'description': 'Room cleaning tasks',
-    },
+    {'name': 'Front Desk', 'url': '/reservations/front-desk/',
+     'description': "Today's arrivals and departures"},
+    {'name': 'Housekeeping', 'url': '/housekeeping/tasks/',
+     'description': 'Room cleaning tasks'},
 ]
 
 PWA_APP_DEBUG_MODE = DEBUG
@@ -1023,10 +959,11 @@ AXES_COOLOFF_TIME = 0.5                # 30 minutes
 AXES_LOCKOUT_PARAMETERS = [['username', 'ip_address']]
 AXES_RESET_ON_SUCCESS = True
 AXES_ENABLE_ACCESS_FAILURE_LOG = True
-AXES_LOCKOUT_CALLABLE = None            # use default lockout response
-AXES_VERBOSE = False                    # don't leak which field failed
+AXES_LOCKOUT_CALLABLE = None
+AXES_VERBOSE = False
 AXES_IPWARE_PROXY_COUNT = 1             # behind Nginx
 AXES_IPWARE_META_PRECEDENCE_ORDER = [
+    'HTTP_X_REAL_IP',                   # set by Nginx to $remote_addr
     'HTTP_X_FORWARDED_FOR',
     'REMOTE_ADDR',
 ]
@@ -1035,17 +972,17 @@ AXES_IPWARE_META_PRECEDENCE_ORDER = [
 RATELIMIT_USE_CACHE = 'default'
 RATELIMIT_VIEW = 'apps.shared.users.views.ratelimited_view'
 RATELIMIT_ENABLE = True
-# Rate limits are set per-view (see apps/shared/users/views.py)
+# Nginx proxies to Gunicorn over a Unix socket, so REMOTE_ADDR is
+# empty. ClientIPMiddleware restores REMOTE_ADDR from X-Real-IP; this
+# setting is a second layer in case the middleware is ever removed.
+RATELIMIT_IP_META_KEY = 'HTTP_X_REAL_IP'
 
 # ─── 2FA — django-two-factor-auth (AU-06) ──────────────────────────
-TWO_FACTOR_PATCH_ADMIN = True           # force 2FA on Django admin
-
-TWO_FACTOR_REMEMBER_COOKIE_AGE = 30 * 24 * 60 * 60  # 30 days
+TWO_FACTOR_PATCH_ADMIN = True
+TWO_FACTOR_REMEMBER_COOKIE_AGE = 30 * 24 * 60 * 60
 TWO_FACTOR_REMEMBER_COOKIE_DURATION = 30 * 24 * 60 * 60
-
-# 2FA requires email
-TWO_FACTOR_LOGIN_TIMEOUT = 600          # 10 minutes to complete 2FA
-TWO_FACTOR_TOTP_ISSUER = 'Pritech PMS'  # shown in authenticator apps
+TWO_FACTOR_LOGIN_TIMEOUT = 600
+TWO_FACTOR_TOTP_ISSUER = 'Pritech PMS'
 
 # ─── JWT for API clients (AU-04) ───────────────────────────────────
 REST_FRAMEWORK = {
@@ -1077,3 +1014,81 @@ SIMPLE_JWT = {
     'SIGNING_KEY': SECRET_KEY,
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Phase 9.1 — Authentication via allauth + Google Sign-In
+#
+# Design decisions:
+#   • Email/password login still routes through SchemaAwareLoginView
+#     (see apps/shared/users/views.py) so tenant-membership checks
+#     remain in one place.
+#   • Google Sign-In bypasses the password form entirely. allauth
+#     creates the User, our adapter splits the `name` claim into
+#     first_name / last_name, and the user is redirected to
+#     /signup/complete/ to finish setting up their tenant.
+#   • ACCOUNT_EMAIL_VERIFICATION is 'optional' — Google already
+#     verifies email. Email-signup users can log in immediately;
+#     they receive a confirmation link for soft verification.
+#   • Phone verification is format-only at signup (no SMS cost).
+#     OTP is sent later, only when the tenant is ready to make a
+#     payment or receive booking alerts.
+# ─────────────────────────────────────────────────────────────────────
+
+# ─── Allauth core ──────────────────────────────────────────────────
+ACCOUNT_LOGIN_METHODS = {'email'}
+ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*']
+ACCOUNT_USER_MODEL_USERNAME_FIELD = None
+ACCOUNT_UNIQUE_EMAIL = True
+ACCOUNT_EMAIL_VERIFICATION = 'optional'
+ACCOUNT_EMAIL_CONFIRMATION_HMAC = True
+ACCOUNT_CONFIRM_EMAIL_ON_GET = False
+ACCOUNT_EMAIL_CONFIRMATION_EXPIRE_DAYS = 3
+ACCOUNT_LOGIN_ON_EMAIL_CONFIRMATION = True
+ACCOUNT_SESSION_REMEMBER = True
+
+# Allauth login/logout entry points. Google sign-in and account
+# management live under /accounts/.
+ACCOUNT_LOGOUT_ON_GET = True
+ACCOUNT_LOGOUT_REDIRECT_URL = '/'
+
+# ─── Social account (Google) ──────────────────────────────────────
+SOCIALACCOUNT_AUTO_SIGNUP = True
+SOCIALACCOUNT_EMAIL_REQUIRED = True
+SOCIALACCOUNT_EMAIL_VERIFICATION = 'none'
+SOCIALACCOUNT_LOGIN_ON_GET = True
+SOCIALACCOUNT_QUERY_EMAIL = True
+SOCIALACCOUNT_STORE_TOKENS = False
+
+# If a Google email matches an existing email-signup account, link
+# the two instead of creating a duplicate user.
+SOCIALACCOUNT_EMAIL_AUTHENTICATION = True
+SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT = True
+
+SOCIALACCOUNT_PROVIDERS = {
+    'google': {
+        'SCOPE': ['profile', 'email'],
+        'AUTH_PARAMS': {
+            'access_type': 'online',
+            'prompt': 'select_account',
+        },
+        'OAUTH_PKCE_ENABLED': True,
+        'APP': {
+            'client_id': config('GOOGLE_CLIENT_ID', default=''),
+            'secret': config('GOOGLE_CLIENT_SECRET', default=''),
+            'key': '',
+        },
+    },
+}
+
+# Our adapter splits Google's single `name` claim into first/last.
+SOCIALACCOUNT_ADAPTER = 'apps.shared.users.adapters.PritechSocialAccountAdapter'
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Phase 9.1 — Optional Veriphone lookup for phone validation
+#
+# Free tier: 1,000 lookups/month. If the key is blank, validation is
+# format-only (always passes for a well-formed Malawi mobile number).
+# ─────────────────────────────────────────────────────────────────────
+VERIPHONE_API_KEY = config('VERIPHONE_API_KEY', default='')

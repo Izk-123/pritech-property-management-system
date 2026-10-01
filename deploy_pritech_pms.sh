@@ -16,12 +16,13 @@
 # drift, compiles translations, and verifies the auth stack.
 #
 # Phase 9.1 additions:
-#   • Step 2 now hard-fails if apps.shared.users.adapters cannot import
-#     (it is referenced by SOCIALACCOUNT_ADAPTER — not optional).
-#   • Step 2 now verifies allauth wiring in settings (AccountMiddleware,
+#   • Step 2b verifies allauth wiring in settings (AccountMiddleware,
 #     INSTALLED_APPS, AUTHENTICATION_BACKENDS, SITE_ID, adapter class)
-#     WITHOUT calling django.setup(), so the failure is caught before
-#     Django's app registry can raise ImproperlyConfigured.
+#     WITHOUT calling django.setup(), so a missing-middleware error is
+#     reported as a clean one-line fix rather than a raw traceback.
+#   • Step 2c bootstraps Django via django.setup() and then imports the
+#     social adapter — because allauth's adapter module transitively
+#     imports Django models and cannot be imported without app loading.
 #   • Step 5 recognises allauth-specific failures and prints the exact
 #     line of settings.py to change.
 #
@@ -367,28 +368,14 @@ if [[ "${ENV_ONLY}" != "true" ]]; then
         fi
     done
 
-    # ── Phase 9.1 — REQUIRED modules (fail hard) ────────────────────────
-    # apps.shared.users.adapters is referenced directly by
-    # SOCIALACCOUNT_ADAPTER in config/settings.py. A missing module here
-    # is not a soft degradation — allauth will ImportError the moment
-    # anyone touches /accounts/login/ or /accounts/google/login/.
-    if ! python -c "import apps.shared.users.adapters" 2>/dev/null; then
-        die "Phase 9.1 module 'apps.shared.users.adapters' not importable. \
-It is required by SOCIALACCOUNT_ADAPTER in config/settings.py."
-    fi
-    if ! python -c "from apps.shared.users.adapters import PritechSocialAccountAdapter" 2>/dev/null; then
-        die "apps.shared.users.adapters does not export PritechSocialAccountAdapter."
-    fi
-    ok "Phase 9.1 social adapter importable"
-
-    # ── Phase 9.1 — verify allauth wiring in settings ───────────────────
+    # ── Phase 9.1 — verify allauth wiring BEFORE any django.setup() ─────
     # django-allauth 65.x raises ImproperlyConfigured at AppConfig.ready()
-    # if AccountMiddleware is missing. We check it here — before any
-    # migrations, before touching services — so the operator gets a clear
-    # message rather than a traceback from inside Django's app registry.
+    # if AccountMiddleware is missing. We check the settings here — WITHOUT
+    # calling django.setup() — so the operator gets a one-line fix instead
+    # of a raw traceback from inside Django's app registry.
     #
-    # IMPORTANT: This reads settings WITHOUT calling django.setup(),
-    # because setup() itself is what crashes on the missing middleware.
+    # IMPORTANT: This reads settings via django.conf.settings (lazy, no
+    # app loading) — it does NOT call setup().
     log "Step 2b: Verify Phase 9.1 allauth settings wiring"
     python - <<'PY' || die "Phase 9.1 settings wiring check failed — see above."
 import os
@@ -396,8 +383,7 @@ import sys
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 
-# Read the settings module without triggering app loading. Accessing
-# django.conf.settings is lazy — it does NOT call django.setup().
+# Accessing django.conf.settings is lazy — it does NOT call django.setup().
 from django.conf import settings
 
 errors = []
@@ -459,6 +445,47 @@ if errors:
 print('    Phase 9.1 wiring OK')
 PY
     ok "Phase 9.1 allauth wiring verified"
+
+    # ── Phase 9.1 — REQUIRED modules (fail hard) ────────────────────────
+    # apps.shared.users.adapters imports allauth's socialaccount adapter,
+    # which transitively imports Django models. That import will raise
+    # ImproperlyConfigured unless DJANGO_SETTINGS_MODULE is set and
+    # django.setup() has been called — so we bootstrap Django here rather
+    # than relying on a bare `python -c "import …"`.
+    #
+    # This runs AFTER Step 2b so that any missing-middleware error is
+    # reported with a clean message rather than a raw traceback from
+    # inside django.setup().
+    log "Step 2c: Verify Phase 9.1 social adapter imports"
+    if ! python - <<'PY' 2>&1
+import os
+import sys
+
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+
+try:
+    import django
+    django.setup()
+except Exception as exc:
+    print(f"django.setup() failed: {type(exc).__name__}: {exc}", file=sys.stderr)
+    sys.exit(2)
+
+try:
+    from apps.shared.users.adapters import PritechSocialAccountAdapter  # noqa: F401
+except Exception as exc:
+    print(
+        f"Cannot import PritechSocialAccountAdapter "
+        f"({type(exc).__name__}: {exc})",
+        file=sys.stderr,
+    )
+    sys.exit(3)
+
+print("Adapter OK")
+PY
+    then
+        die "Phase 9.1 module 'apps.shared.users.adapters' not importable — see error above."
+    fi
+    ok "Phase 9.1 social adapter importable"
 fi
 
 # ============================================================================

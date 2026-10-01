@@ -218,7 +218,7 @@ MIDDLEWARE += [
     'apps.shared.users.middleware.RequireTenantSetupMiddleware',
 
     'django_otp.middleware.OTPMiddleware',                    # Phase 8
-    'apps.shared.users.middleware.ForceTwoFactorMiddleware',  # Phase 8
+    # 'apps.shared.users.middleware.ForceTwoFactorMiddleware',  # Phase 8
 
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',

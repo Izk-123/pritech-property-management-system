@@ -9,9 +9,13 @@ Phase 9:   `/` routes to TenantHomeView (guest home).
            `/dashboard/` is the staff landing page.
 Phase 9.1: `/accounts/` is mounted here too so allauth works on
            tenant subdomains.
-Phase 9.2: MFA (TOTP + recovery) lives under `/accounts/2fa/`,
-           owned by allauth.mfa. The old
-           `two_factor.urls` include is gone.
+Phase 9.2: MFA lives under /accounts/2fa/, owned by allauth.mfa.
+
+Signup and platform URLs are also mounted here. They live in the
+public URLconf as the primary entry points, but the header partials
+(which render on tenant pages too) reference `signup:*` and
+`platform:*` names, so the namespaces must be resolvable in every
+URLconf to avoid NoReverseMatch.
 """
 from django.conf import settings
 from django.conf.urls.static import static
@@ -41,19 +45,25 @@ urlpatterns = [
     path('offline/', TemplateView.as_view(template_name='pages/offline.html'),
          name='offline'),
 
+    # ─── Signup + Platform admin ──────────────────────────────────
+    # These are primarily public-schema features (both views are
+    # wrapped in PublicSchemaOnlyMixin), but the header partials
+    # reference their namespaces. Mounting them here — in addition
+    # to urls_public.py — makes `{% url 'signup:signup' %}` and
+    # `{% url 'platform:tenant_list' %}` resolvable from any URLconf.
+    path('signup/', include('apps.shared.tenants.urls_signup')),
+    path('platform/', include('apps.shared.tenants.urls_platform')),
+
     # ─── Core ──────────────────────────────────────────────────────
     path('properties/', include('apps.core.properties.urls')),
     path('people/', include('apps.core.people.urls')),
     path('documents/', include('apps.core.documents.urls')),
 
     # ─── Auth (Phase 9.1 + 9.2) ────────────────────────────────────
-    # allauth owns /accounts/ — login, signup, Google OAuth callback,
-    # password reset, account management, and MFA under /accounts/2fa/.
     path('accounts/', include('allauth.urls')),
 
-    # Legacy alias — anything pointing at /login/ now redirects to
-    # allauth's login view. Kept so old bookmarks and email templates
-    # don't 404.
+    # Legacy alias — anything pointing at /login/ redirects to
+    # allauth's login view.
     path('login/', RedirectView.as_view(
         pattern_name='account_login', permanent=False, query_string=True,
     ), name='login'),

@@ -14,9 +14,7 @@ Phase 8: auth hardening (Argon2, Axes lockout, rate limiting,
 Phase 9: public listings, vacant rentals, tenant home + staff dashboard.
 Phase 9.1: Google Sign-In via django-allauth.
 Phase 9.2: MFA via allauth.mfa (TOTP + recovery codes).
-           Replaces django-two-factor-auth / django-otp, whose
-           conflict with allauth's AccountMiddleware caused the
-           400 Bad Request (ManagementForm) at /account/two_factor/setup/.
+           Replaces django-two-factor-auth / django-otp.
 
 PostgreSQL is required in BOTH dev and prod — SQLite cannot host tenants.
 """
@@ -25,6 +23,7 @@ from datetime import timedelta
 from pathlib import Path
 
 from decouple import Csv, config
+from django.templatetags.static import static
 from celery.schedules import crontab
 
 # ─────────────────────────────────────────────────────────────────────
@@ -581,6 +580,19 @@ INTERNAL_IPS = ['127.0.0.1']
 
 # ─────────────────────────────────────────────────────────────────────
 # Django Unfold (admin theme)
+#
+# Notes
+# -----
+# * STYLES and SCRIPTS accept either a raw URL string or a callable
+#   receiving `request`. A raw string is used verbatim as the href/src
+#   attribute — on /admin/ a relative path like 'css/foo.css' resolves
+#   to /admin/css/foo.css and 404s. Wrap each entry in a lambda that
+#   calls django.templatetags.static.static() so the resolved URL
+#   respects STATIC_URL (and ManifestStaticFilesStorage's hash suffix
+#   in production).
+# * Icon names must come from Unfold's Material Symbols subset. Names
+#   it doesn't recognise render as literal text beside the label
+#   (e.g. 'front_desk' leaks as 'FRONT_').
 # ─────────────────────────────────────────────────────────────────────
 UNFOLD = {
     'SITE_TITLE': 'Pritech PMS',
@@ -600,9 +612,9 @@ UNFOLD = {
 
     'SITE_DROPDOWN': [
         {'icon': 'public', 'title': 'View public site', 'link': '/'},
-        {'icon': 'front_desk', 'title': 'Front Desk', 'link': '/reservations/front-desk/'},
+        {'icon': 'room_service', 'title': 'Front Desk', 'link': '/reservations/front-desk/'},
         {
-            'icon': 'hub',
+            'icon': 'sensors',
             'title': 'WebSocket status',
             'link': '/admin/realtime/',
             'permission': lambda request: request.user.is_superuser,
@@ -625,8 +637,16 @@ UNFOLD = {
         },
     },
 
-    'STYLES': ['css/admin_motion.css'],
-    'SCRIPTS': ['js/admin_motion.js'],
+    # Wrapped in lambda + static() so Unfold resolves the URL through
+    # STATIC_URL and (in production) appends ManifestStaticFilesStorage's
+    # content-hash suffix. A raw 'css/admin_motion.css' would render as
+    # a relative URL from /admin/ and 404.
+    'STYLES': [
+        lambda request: static('css/admin_motion.css'),
+    ],
+    'SCRIPTS': [
+        lambda request: static('js/admin_motion.js'),
+    ],
 
     'SIDEBAR': {
         'show_search': True,
@@ -650,7 +670,7 @@ UNFOLD = {
                 'separator': True,
                 'items': [
                     {'title': 'Home', 'icon': 'dashboard', 'link': '/admin/'},
-                    {'title': 'Front Desk', 'icon': 'front_desk',
+                    {'title': 'Front Desk', 'icon': 'room_service',
                      'link': '/reservations/front-desk/', 'badge': 'Live'},
                 ],
             },
@@ -671,7 +691,7 @@ UNFOLD = {
                 'separator': True,
                 'items': [
                     {'title': 'Dashboard', 'icon': 'analytics', 'link': '/property/'},
-                    {'title': 'Leases', 'icon': 'contract', 'link': '/property/leases/'},
+                    {'title': 'Leases', 'icon': 'article', 'link': '/property/leases/'},
                     {'title': 'Rent Invoices', 'icon': 'receipt_long',
                      'link': '/property/invoices/'},
                     {'title': 'Maintenance', 'icon': 'build',
@@ -1007,8 +1027,7 @@ SIMPLE_JWT = {
 #   • ACCOUNT_EMAIL_VERIFICATION is 'optional'. Google verifies the
 #     email; email-signup users receive a soft-confirm link.
 #   • Phone verification remains format-only at signup.
-#   • Phase 9.2: MFA via allauth.mfa — TOTP + recovery codes. This
-#     replaces django-two-factor-auth / django-otp entirely.
+#   • Phase 9.2: MFA via allauth.mfa — TOTP + recovery codes.
 # ─────────────────────────────────────────────────────────────────────
 
 # ─── Allauth core ──────────────────────────────────────────────────
@@ -1076,7 +1095,6 @@ MFA_RECOVERY_CODE_COUNT = 10
 MFA_RECOVERY_CODE_DIGITS = 8
 
 # Allauth template pack — 'allauth' → templates/allauth/account/*.html
-# (default; made explicit to prevent drift if allauth changes its default)
 TEMPLATE_PACK = 'allauth'
 
 

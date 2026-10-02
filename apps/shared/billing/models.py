@@ -266,7 +266,7 @@ class SubscriptionInvoice(models.Model):
     description = models.CharField(max_length=255, blank=True)
 
     status = models.CharField(
-        max_length=5, choices=Status.choices, default=Status.DRAFT,
+        max_length=6, choices=Status.choices, default=Status.DRAFT,
     )
 
     # ── Links to payment ───────────────────────────────────────

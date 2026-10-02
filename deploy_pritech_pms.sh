@@ -26,6 +26,13 @@
 #        • an optional submodule absent from an otherwise-working package
 #        • third-party services (PayChangu, WhatsApp) not configured
 #
+# Note on import checks
+# ---------------------
+#   Any module that touches Django models must be imported AFTER
+#   django.setup() — otherwise Django raises ImproperlyConfigured when
+#   the module tries to read settings.INSTALLED_APPS. Every import
+#   check in this script therefore bootstraps Django first.
+#
 # Usage:
 #   sudo bash deploy_pritech_pms.sh              # deploy / update
 #   sudo bash deploy_pritech_pms.sh --fresh      # wipe DB and start clean
@@ -308,9 +315,6 @@ fi
 # ImportError, the entire site 500s on every request — including Celery
 # and Daphne. We scan for the two most common offenders here so the
 # operator gets a clear message instead of a startup crash.
-#
-# This runs on the source tree, not via Python, so it works even if the
-# venv is broken.
 # ============================================================================
 if [[ "${ENV_ONLY}" != "true" ]]; then
     log "Step 1b: URLconf safety scan"
@@ -319,14 +323,10 @@ if [[ "${ENV_ONLY}" != "true" ]]; then
         local urlconf="$1"
         [[ -f "${urlconf}" ]] || return 0
 
-        # PDF package
         if grep -q "apps\.core\.documents\.pdf\.urls" "${urlconf}" 2>/dev/null; then
             local pdf_dir="${PROJECT_DIR}/apps/core/documents/pdf"
-            local pdf_views="${pdf_dir}/views.py"
             local missing=()
 
-            # views.py imports these — they must exist for the package
-            # to import cleanly
             for m in rent_invoice.py sale_agreement.py; do
                 [[ -f "${pdf_dir}/${m}" ]] || missing+=("${m}")
             done
@@ -339,7 +339,6 @@ if [[ "${ENV_ONLY}" != "true" ]]; then
             fi
         fi
 
-        # Billing package
         if grep -q "apps\.shared\.billing\.urls" "${urlconf}" 2>/dev/null \
            || grep -q "apps\.shared\.billing\.urls_admin" "${urlconf}" 2>/dev/null; then
             local billing_dir="${PROJECT_DIR}/apps/shared/billing"
@@ -349,9 +348,6 @@ if [[ "${ENV_ONLY}" != "true" ]]; then
                 die "Billing URLconf is included but apps/shared/billing is incomplete."
             fi
 
-            # The InvoicePDFView imports this at call time, not at
-            # module import time — so a missing pdf.py won't crash the
-            # URLconf. Warn only.
             if [[ ! -f "${billing_dir}/pdf.py" ]] \
                && grep -q "from apps\.shared\.billing\.pdf" "${billing_dir}/views.py" 2>/dev/null; then
                 warn "billing/views.py imports billing/pdf.py but the file is missing — invoice PDFs will 500"
@@ -395,7 +391,7 @@ if [[ "${ENV_ONLY}" != "true" ]]; then
     done
     ok "All core packages importable"
 
-    # ── Phase 8 auth hardening (MFA handled separately below) ───────────
+    # ── Phase 8 auth hardening ──────────────────────────────────────────
     for pkg in \
         axes django_ratelimit csp \
         django_redis rest_framework rest_framework_simplejwt argon2
@@ -431,8 +427,9 @@ for a in ('django_otp', 'two_factor'):
     fi
 
     # ── Phase 10 — billing dependencies ─────────────────────────────────
-    # python-dateutil is needed by apps.shared.billing.services for the
-    # relativedelta period math. Required only if billing is installed.
+    # python-dateutil is needed by apps.shared.billing.services for
+    # relativedelta period math. Checked here because it's a hard pip
+    # dependency of Phase 10; the module itself is verified in Step 2d.
     if [[ -d "${PROJECT_DIR}/apps/shared/billing" ]]; then
         if ! python -c "import dateutil" 2>/dev/null; then
             die "Phase 10 needs 'python-dateutil'. Add 'python-dateutil' to requirements.txt."
@@ -452,7 +449,6 @@ for a in ('django_otp', 'two_factor'):
         fi
         ok "reportlab + qrcode importable (PDF)"
 
-        # Fonts — warn only, PDFs render with Helvetica fallback if missing
         PDF_FONT_DIR="${PROJECT_DIR}/apps/core/documents/pdf/fonts"
         MISSING_FONTS=0
         for f in DejaVuSans.ttf DejaVuSans-Bold.ttf DejaVuSans-Oblique.ttf DejaVuSans-BoldOblique.ttf; do
@@ -478,6 +474,10 @@ for a in ('django_otp', 'two_factor'):
         || warn "Python package for forex rates not importable — Phase 4 features disabled."
 
     # ── Project apps ────────────────────────────────────────────────────
+    # Only the app package itself is imported here — the __init__.py
+    # for each of these is empty, so this doesn't touch models. Model
+    # loading and Django app registry population happen in Step 2d's
+    # django.setup().
     for app in apps.core.sync apps.realtime apps.communications \
                apps.shared.users apps.shared.tenants; do
         if ! python -c "import ${app}" 2>/dev/null; then
@@ -485,16 +485,6 @@ for a in ('django_otp', 'two_factor'):
         fi
         ok "App importable: ${app}"
     done
-
-    # ── Phase 10 app (present-only) ─────────────────────────────────────
-    if [[ -d "${PROJECT_DIR}/apps/shared/billing" ]]; then
-        for mod in apps.shared.billing apps.shared.billing.services; do
-            if ! python -c "import ${mod}" 2>/dev/null; then
-                die "Phase 10 module not importable: ${mod}"
-            fi
-            ok "Phase 10 module importable: ${mod}"
-        done
-    fi
 
     # ── Phase 9.3 — admin mixins ────────────────────────────────────────
     if [[ -f "${PROJECT_DIR}/apps/shared/tenants/admin_mixins.py" ]]; then
@@ -597,7 +587,6 @@ for setting_name in ('ACCOUNT_ADAPTER', 'SOCIALACCOUNT_ADAPTER'):
 
 # ── 8. Phase 10 — billing wiring (if billing is installed) ──────────
 if 'apps.shared.billing' in settings.INSTALLED_APPS:
-    # Billing app must be in SHARED_APPS not TENANT_APPS
     if 'apps.shared.billing' in getattr(settings, 'TENANT_APPS', []) \
        and 'apps.shared.billing' not in getattr(settings, 'SHARED_APPS', []):
         errors.append(
@@ -605,12 +594,10 @@ if 'apps.shared.billing' in settings.INSTALLED_APPS:
             "— subscriptions live in the public schema."
         )
 
-    # Billing Celery schedule keys must point at real tasks
     sched = getattr(settings, 'CELERY_BEAT_SCHEDULE', {})
     for key, spec in sched.items():
         t = spec.get('task', '')
         if 'billing.tasks' in t:
-            # Just a naming check — the module must exist
             if not Path(settings.BASE_DIR, 'apps/shared/billing/tasks.py').exists():
                 errors.append(
                     f"CELERY_BEAT_SCHEDULE has billing task {key!r} "
@@ -671,6 +658,12 @@ PY
     ok "Phase 9.1/9.2 adapters importable"
 
     # ── Phase 10 — verify billing package imports cleanly ───────────────
+    #
+    # This is the ONLY place we import the billing package. Every check
+    # here goes through django.setup() first — services.py imports
+    # models.py, and models.py reads settings.INSTALLED_APPS at class
+    # definition time. A bare `python -c "import ..."` fails with
+    # ImproperlyConfigured even when the module is completely fine.
     if [[ -d "${PROJECT_DIR}/apps/shared/billing" ]]; then
         log "Step 2d: Verify Phase 10 billing package imports"
 
@@ -679,15 +672,18 @@ import os
 import sys
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
-import django
+
 try:
+    import django
     django.setup()
 except Exception as exc:
     print(f"django.setup() failed: {type(exc).__name__}: {exc}", file=sys.stderr)
     sys.exit(2)
 
+failures = []
+
+# Models
 try:
-    from apps.shared.billing import models, services, tasks  # noqa: F401
     from apps.shared.billing.models import (  # noqa: F401
         SubscriptionPlan,
         Subscription,
@@ -696,10 +692,9 @@ try:
         SubscriptionChange,
     )
 except Exception as exc:
-    print(f"billing import failure: {type(exc).__name__}: {exc}", file=sys.stderr)
-    sys.exit(3)
+    failures.append(f"models: {type(exc).__name__}: {exc}")
 
-# services must export the functions views.py and tasks.py rely on
+# Services — every symbol that views.py and tasks.py rely on
 try:
     from apps.shared.billing.services import (  # noqa: F401
         start_trial,
@@ -712,8 +707,28 @@ try:
         record_subscription_payment,
     )
 except Exception as exc:
-    print(f"billing.services missing a required symbol: {type(exc).__name__}: {exc}", file=sys.stderr)
-    sys.exit(4)
+    failures.append(f"services: {type(exc).__name__}: {exc}")
+
+# Tasks — top-level Celery task callables
+try:
+    from apps.shared.billing import tasks as _billing_tasks  # noqa: F401
+    for name in (
+        'process_expired_trials',
+        'generate_period_invoices',
+        'send_renewal_reminders',
+        'send_payment_reminders',
+        'mark_invoices_overdue',
+        'suspend_delinquent_tenants',
+    ):
+        if not hasattr(_billing_tasks, name):
+            failures.append(f"tasks: missing callable {name!r}")
+except Exception as exc:
+    failures.append(f"tasks: {type(exc).__name__}: {exc}")
+
+if failures:
+    for f in failures:
+        print(f"  {f}", file=sys.stderr)
+    sys.exit(3)
 
 print("Billing OK")
 PY
@@ -722,7 +737,9 @@ PY
         fi
         ok "Phase 10 billing package importable"
 
-        # Warn about the referenced-but-possibly-missing pieces
+        # Referenced-but-possibly-missing files. These are runtime
+        # imports only (called from within a view or task body), so
+        # their absence doesn't crash Django startup. Warn only.
         [[ -f "${PROJECT_DIR}/apps/shared/billing/pdf.py" ]] \
             || warn "apps/shared/billing/pdf.py not found — InvoicePDFView will 500"
         [[ -f "${PROJECT_DIR}/apps/shared/billing/admin.py" ]] \
@@ -1006,6 +1023,12 @@ if ! python manage.py check > /tmp/django-check.log 2>&1; then
         warn "FIX: add 'allauth.account.middleware.AccountMiddleware' immediately AFTER"
         warn "     'django.contrib.auth.middleware.AuthenticationMiddleware' in config/settings.py."
 
+    elif grep -q "fields\.E009" /tmp/django-check.log; then
+        warn "Detected: a model CharField with choices is too short for its longest value."
+        warn "FIX: open the model in the traceback, find the field with"
+        warn "     'max_length' is too small to fit the longest value in 'choices',"
+        warn "     and raise its max_length to match."
+
     elif grep -q "apps\.shared\.users\.adapters\|SOCIALACCOUNT_ADAPTER\|ACCOUNT_ADAPTER" \
             /tmp/django-check.log; then
         warn "Detected: an allauth adapter could not be resolved."
@@ -1074,7 +1097,6 @@ else
     ok "communications migration present"
 fi
 
-# ── Phase 10 — billing migrations ───────────────────────────────────────
 BILLING_MIG_DIR="${PROJECT_DIR}/apps/shared/billing/migrations"
 if [[ -d "${PROJECT_DIR}/apps/shared/billing" ]]; then
     if [[ -d "${BILLING_MIG_DIR}" ]] \
@@ -1589,7 +1611,6 @@ for tpl in "${PHASE9_TEMPLATES[@]}"; do
 done
 [[ "${MISSING9}" -eq 0 ]] && ok "All Phase 9 templates present"
 
-# ── Phase 10 templates ────────────────────────────────────────────────
 if [[ -d "${PROJECT_DIR}/apps/shared/billing" ]]; then
     PHASE10_TEMPLATES=(
         "templates/pages/billing/dashboard.html"
@@ -1604,7 +1625,6 @@ if [[ -d "${PROJECT_DIR}/apps/shared/billing" ]]; then
     [[ "${MISSING10}" -eq 0 ]] && ok "All 4 Phase 10 templates present"
 fi
 
-# ── allauth template overrides (Phase 9.1/9.2) ────────────────────────
 ALLAUTH_TEMPLATES=(
     "templates/account/login.html"
     "templates/account/signup.html"
@@ -1657,7 +1677,6 @@ for scope, name in checks:
     except NoReverseMatch:
         print(f'  ⚠ {scope}:{name} not reverse-resolvable')
 
-# Public-schema checks
 for name in ('account_login', 'account_signup',
              'mfa_index', 'mfa_activate_totp'):
     try:
@@ -1666,7 +1685,6 @@ for name in ('account_login', 'account_signup',
     except NoReverseMatch:
         print(f'  ⚠ public:{name} not reverse-resolvable')
 
-# Phase 10 — billing URLs (only if the app is installed)
 try:
     from django.conf import settings as _s
     if 'apps.shared.billing' in _s.INSTALLED_APPS:
@@ -1679,7 +1697,6 @@ try:
 except Exception:
     pass
 
-# PDF URLs (only if included)
 try:
     url = reverse('pdf:folio_invoice', args=[1])
     print(f'  ✔ pdf:folio_invoice → {url}')
@@ -2076,10 +2093,8 @@ log "  -- Phase 9.2: allauth MFA --"
 C27=$(check "mfa-index"         "https://${DOMAIN}/accounts/2fa/")
 C28=$(check "mfa-activate-totp" "https://${DOMAIN}/accounts/2fa/totp/activate/")
 
-# ── Phase 10 — billing ────────────────────────────────────────────────
 if [[ -d "${PROJECT_DIR}/apps/shared/billing" ]]; then
     log "  -- Phase 10: billing --"
-    # 302 is expected — anonymous users get redirected to login
     C29=$(check "billing-dashboard" "https://pritech.${DOMAIN}/billing/")
     C30=$(check "billing-plans"     "https://pritech.${DOMAIN}/billing/plans/")
     C31=$(check "billing-admin"     "https://${DOMAIN}/platform/billing/")

@@ -29,6 +29,7 @@
     {# Desktop nav #}
     <nav class="hidden items-center gap-1 md:flex">
 
+      {% if not user.is_authenticated %}
       <a href="{% url 'public_home' %}"
          data-animate="fade-down" data-animate-now data-hover="lift"
          class="nav-link">{% trans "Home" %}</a>
@@ -36,9 +37,11 @@
       <a href="{% url 'signup:signup' %}"
          data-animate="fade-down" data-animate-now data-animate-delay="40"
          data-hover="lift" class="nav-link">{% trans "Sign up" %}</a>
+      {% endif %}
 
       {# Platform admin dropdown #}
-      {% if user.is_authenticated and user.is_platform_admin or user.is_superuser %}
+      {% if user.is_authenticated %}
+      {% if user.is_superuser or user.is_platform_admin %}
       <div data-nav-dropdown class="relative"
            data-animate="fade-down" data-animate-now data-animate-delay="80">
         <button type="button" data-nav-dropdown-trigger
@@ -66,6 +69,7 @@
           </a>
         </div>
       </div>
+      {% endif %}
       {% endif %}
 
       {# Language switcher — Phase 8 #}
@@ -133,6 +137,36 @@
               {{ user.email }}
             </p>
           </div>
+
+          {% if user.last_tenant and user.last_tenant.domains.exists %}
+          {% with primary=user.last_tenant.domains.first %}
+          <a href="https://{{ primary.domain }}/"
+             class="menu-item flex items-center gap-2.5">
+            <svg class="h-4 w-4 shrink-0 text-slate-400" fill="none"
+                 stroke="currentColor" viewBox="0 0 24 24"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                 aria-hidden="true">
+              <path d="M3 10.5 12 3l9 7.5" />
+              <path d="M5 9.5V21h14V9.5" />
+            </svg>
+            {% trans "My workspace" %}
+            <span class="ml-auto text-[10px] font-normal text-slate-400">
+              {{ user.last_tenant.name }}
+            </span>
+          </a>
+          {% endwith %}
+          {% elif user.is_authenticated and not user.is_superuser and not user.is_platform_admin %}
+          <a href="{% url 'signup:complete' %}"
+             class="menu-item flex items-center gap-2.5">
+            <svg class="h-4 w-4 shrink-0 text-slate-400" fill="none"
+                 stroke="currentColor" viewBox="0 0 24 24"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                 aria-hidden="true">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            {% trans "Create a workspace" %}
+          </a>
+          {% endif %}
 
           {# Account settings #}
           <a href="{% url 'mfa_index' %}"
@@ -260,7 +294,8 @@
         {% trans "Sign up" %}
       </a>
 
-      {% if user.is_authenticated and user.is_platform_admin or user.is_superuser %}
+      {% if user.is_authenticated %}
+      {% if user.is_superuser or user.is_platform_admin %}
       <div class="mt-3 border-t border-slate-200 pt-3 dark:border-white/5">
         <p class="drawer-section">{% trans "Platform" %}</p>
         <a href="{% url 'platform:tenant_list' %}" class="drawer-item">
@@ -273,6 +308,7 @@
           {% trans "Admin Panel" %}
         </a>
       </div>
+      {% endif %}
       {% endif %}
 
       {# Account section — Phase 9.2 #}

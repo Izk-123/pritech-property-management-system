@@ -232,6 +232,7 @@
 
   {% if request.tenant and request.tenant.schema_name != 'public' %}
     {% include "partials/_header_tenant.html" %}
+    {% include "partials/_subscription_banner.html" %}
   {% else %}
     {% include "partials/_header_public.html" %}
   {% endif %}

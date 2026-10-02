@@ -122,9 +122,14 @@ urlpatterns = [
 
     # ─── Communications (staff-facing) ─────────────────────────────
     path('communications/', include('apps.communications.urls')),
-    
-    # ─── PDF documents ──────────────────────────────────────────────
-    path('pdf/', include('apps.core.documents.pdf.urls')),
+
+    # ─── PDF documents deferred until model/asset validation completes ─
+    # NOTE: this package is intentionally not mounted here. Importing it at
+    # startup still crashes Django when the underlying document modules are not
+    # fully implemented or the required fonts/model assumptions are unverified.
+
+    # ─── Billing (Phase 10) ────────────────────────────────────────
+    path('billing/', include('apps.shared.billing.urls')),
 
     # ─── Admin ─────────────────────────────────────────────────────
     path('admin/', admin.site.urls),

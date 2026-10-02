@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% load i18n humanize %}
+
+{% block title %}{% trans "Plans" %} - {{ request.tenant.name }}{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+
+  <h1 data-animate="fade-up" data-animate-now
+      class="text-center text-3xl font-bold tracking-tight">
+    {% trans "Choose your plan" %}
+  </h1>
+  <p data-animate="fade-up" data-animate-delay="80"
+     class="mt-2 text-center text-slate-500 dark:text-slate-400">
+    {% trans "Change at any time. Cancel at end of period." %}
+  </p>
+
+  <div data-stagger="0.08" class="mt-8 grid gap-5 sm:grid-cols-3">
+    {% for plan in plans %}
+    <div data-animate="fade-up" data-hover="lift"
+         class="card flex flex-col
+                {% if subscription and subscription.plan.pk == plan.pk %}
+                ring-2 ring-primary-500
+                {% endif %}">
+      <h2 class="text-lg font-bold">{{ plan.name }}</h2>
+      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+        {{ plan.get_interval_display }}
+      </p>
+
+      <p class="mt-4 text-3xl font-bold text-primary-600 dark:text-primary-400">
+        MWK {{ plan.price_mwk|floatformat:0|intcomma }}
+        <span class="text-sm font-normal text-slate-500">
+          / {% if plan.is_annual %}{% trans "year" %}{% else %}{% trans "month" %}{% endif %}
+        </span>
+      </p>
+      {% if plan.price_usd %}
+      <p class="text-xs text-slate-500 dark:text-slate-400">
+        approx USD {{ plan.price_usd|floatformat:0 }}
+      </p>
+      {% endif %}
+
+      <ul class="mt-5 flex-1 space-y-2 text-sm">
+        <li class="flex items-start gap-2">
+          <span class="text-primary-500">+</span>
+          {% if plan.max_properties == 0 %}
+          {% trans "Unlimited properties" %}
+          {% else %}
+          {{ plan.max_properties }} {% trans "properties" %}
+          {% endif %}
+        </li>
+        <li class="flex items-start gap-2">
+          <span class="text-primary-500">+</span>
+          {% if plan.max_units == 0 %}
+          {% trans "Unlimited units" %}
+          {% else %}
+          {{ plan.max_units }} {% trans "units" %}
+          {% endif %}
+        </li>
+        <li class="flex items-start gap-2">
+          <span class="text-primary-500">+</span>
+          {% if plan.max_staff == 0 %}
+          {% trans "Unlimited staff" %}
+          {% else %}
+          {{ plan.max_staff }} {% trans "staff accounts" %}
+          {% endif %}
+        </li>
+        {% if plan.includes_hospitality %}
+        <li class="flex items-start gap-2">
+          <span class="text-primary-500">+</span>
+          {% trans "Hospitality module" %}
+        </li>
+        {% endif %}
+        {% if plan.includes_rentals %}
+        <li class="flex items-start gap-2">
+          <span class="text-primary-500">+</span>
+          {% trans "Rental management" %}
+        </li>
+        {% endif %}
+        {% if plan.includes_sales %}
+        <li class="flex items-start gap-2">
+          <span class="text-primary-500">+</span>
+          {% trans "Property sales" %}
+        </li>
+        {% endif %}
+        {% if plan.includes_eis %}
+        <li class="flex items-start gap-2">
+          <span class="text-primary-500">+</span>
+          {% trans "MRA EIS compliance" %}
+        </li>
+        {% endif %}
+        {% if plan.includes_priority_support %}
+        <li class="flex items-start gap-2">
+          <span class="text-primary-500">+</span>
+          {% trans "Priority support" %}
+        </li>
+        {% endif %}
+      </ul>
+
+      <form method="post"
+            action="{% url 'billing:change_plan' plan.pk %}"
+            class="mt-5">
+        {% csrf_token %}
+        {% if subscription and subscription.plan.pk == plan.pk %}
+        <button type="button" disabled
+                class="btn w-full bg-slate-100 text-slate-500
+                       dark:bg-white/5 dark:text-slate-500">
+          {% trans "Current plan" %}
+        </button>
+        {% else %}
+        <button type="submit" data-press data-hover="grow"
+                class="btn btn-primary w-full">
+          {% trans "Switch to this plan" %}
+        </button>
+        {% endif %}
+      </form>
+    </div>
+    {% endfor %}
+  </div>
+
+</div>
+{% endblock %}

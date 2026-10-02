@@ -16,13 +16,13 @@ from django.urls import path, include
 from django.views.generic import RedirectView, TemplateView
 
 from apps.shared.tenants.views_health import health_check
+from apps.shared.tenants.views_public import PublicHomeView
 from apps.communications import views as comm_views
 
 
 urlpatterns = [
     # ─── Marketing home ────────────────────────────────────────────
-    path('', TemplateView.as_view(template_name='pages/public_home.html'),
-         name='public_home'),
+    path('', PublicHomeView.as_view(), name='public_home'),
 
     # ─── PWA manifest and service worker ───────────────────────────
     path('', include('pwa.urls')),
@@ -42,6 +42,9 @@ urlpatterns = [
 
     # ─── Platform admin (tenant management) ────────────────────────
     path('platform/', include('apps.shared.tenants.urls_platform')),
+
+    # ─── Billing admin (Phase 10) ──────────────────────────────────
+    path('platform/billing/', include('apps.shared.billing.urls_admin')),
 
     # ─── Auth (Phase 9.1 + 9.2) ────────────────────────────────────
     # allauth owns /accounts/ — login, signup, Google OAuth callback,

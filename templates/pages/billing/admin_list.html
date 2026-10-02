@@ -1,0 +1,58 @@
+{% extends "admin/base_site.html" %}
+{% load i18n humanize %}
+
+{% block content %}
+<div class="p-6">
+  <h1 class="text-2xl font-bold">{% trans "Tenant subscriptions" %}</h1>
+
+  <div class="mt-4 grid grid-cols-3 gap-4">
+    <div class="rounded-lg bg-slate-50 p-4">
+      <p class="text-xs uppercase text-slate-500">MRR (MWK)</p>
+      <p class="mt-1 text-2xl font-bold">{{ mrr|floatformat:0|intcomma }}</p>
+    </div>
+    <div class="rounded-lg bg-blue-50 p-4">
+      <p class="text-xs uppercase text-blue-700">Trials</p>
+      <p class="mt-1 text-2xl font-bold text-blue-700">{{ trial_count }}</p>
+    </div>
+    <div class="rounded-lg bg-amber-50 p-4">
+      <p class="text-xs uppercase text-amber-700">Past due</p>
+      <p class="mt-1 text-2xl font-bold text-amber-700">{{ past_due_count }}</p>
+    </div>
+  </div>
+
+  <form method="get" class="mt-6 flex gap-2">
+    <select name="status" class="rounded border px-3 py-2">
+      <option value="">{% trans "All statuses" %}</option>
+      {% for code, label in statuses %}
+      <option value="{{ code }}" {% if current_status == code %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="rounded bg-slate-700 px-4 py-2 text-white">
+      {% trans "Filter" %}
+    </button>
+  </form>
+
+  <table class="mt-6 w-full text-sm">
+    <thead class="bg-slate-50">
+      <tr>
+        <th class="px-3 py-2 text-left">{% trans "Tenant" %}</th>
+        <th class="px-3 py-2 text-left">{% trans "Plan" %}</th>
+        <th class="px-3 py-2 text-left">{% trans "Status" %}</th>
+        <th class="px-3 py-2 text-left">{% trans "Renews" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for sub in subscriptions %}
+      <tr class="border-b">
+        <td class="px-3 py-2">{{ sub.tenant.name }}</td>
+        <td class="px-3 py-2">{{ sub.plan.name }}</td>
+        <td class="px-3 py-2">{{ sub.get_status_display }}</td>
+        <td class="px-3 py-2">{{ sub.current_period_end|date:"d M Y"|default:"-" }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="4" class="px-3 py-6 text-center text-slate-500">{% trans "No subscriptions." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

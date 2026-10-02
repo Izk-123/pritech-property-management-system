@@ -192,3 +192,81 @@ class PropertyScopedQuerySetMixin:
             return qs.filter(reservation__property_id__in=assigned)
 
         return qs
+
+# ─────────────────────────────────────────────────────────────────────
+# Phase 10 — Subscription enforcement
+# ─────────────────────────────────────────────────────────────────────
+
+class SubscriptionRequiredMixin:
+    """
+    Redirect suspended or cancelled tenants to the billing page.
+    Applied to every authenticated view.
+
+    Also updates request.tenant.subscription if it exists so downstream
+    code doesn't hit the DB again.
+    """
+
+    def dispatch(self, request, *args, **kwargs):
+        user = getattr(request, 'user', None)
+        tenant = getattr(request, 'tenant', None)
+
+        # Public schema or anonymous users — no subscription to check
+        if not tenant or tenant.schema_name == 'public':
+            return super().dispatch(request, *args, **kwargs)
+
+        # Platform admins bypass
+        if user and user.is_authenticated and (
+            user.is_platform_admin or user.is_superuser
+        ):
+            return super().dispatch(request, *args, **kwargs)
+
+        subscription = getattr(tenant, 'subscription', None)
+        if subscription is None:
+            # Tenant has no subscription row — treat as free trial fallback
+            return super().dispatch(request, *args, **kwargs)
+
+        # Compute the current access state once
+        request.subscription = subscription
+        request.subscription_state = _subscription_banner_state(subscription)
+
+        # Suspended → send to billing
+        if subscription.is_suspended:
+            from django.shortcuts import redirect
+            return redirect('billing:dashboard')
+
+        return super().dispatch(request, *args, **kwargs)
+
+
+def _subscription_banner_state(subscription):
+    """
+    Return a dict describing what banner (if any) the UI should show.
+    """
+    if subscription.status == subscription.Status.TRIAL:
+        days = subscription.trial_days_remaining
+        return {
+            'kind': 'trial',
+            'days_remaining': days,
+            'message': (
+                f'Free trial · {days} day{"s" if days != 1 else ""} remaining'
+            ),
+            'show': True,
+        }
+    if subscription.status == subscription.Status.PAST_DUE:
+        return {
+            'kind': 'past_due',
+            'days_remaining': 0,
+            'message': 'Payment overdue — please pay to avoid suspension.',
+            'show': True,
+        }
+    if 0 < subscription.days_until_period_end <= 7:
+        return {
+            'kind': 'renewal',
+            'days_remaining': subscription.days_until_period_end,
+            'message': (
+                f'Subscription renews in '
+                f'{subscription.days_until_period_end} day'
+                f'{"s" if subscription.days_until_period_end != 1 else ""}'
+            ),
+            'show': True,
+        }
+    return {'show': False}

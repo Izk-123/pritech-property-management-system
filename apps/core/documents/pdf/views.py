@@ -10,8 +10,6 @@ from apps.property.leases.models import Lease
 from .folio import render_folio_invoice
 from .receipt import render_payment_receipt
 from .lease import render_lease_agreement
-from .rent_invoice import render_rent_invoice
-from .sale_agreement import render_sale_agreement
 
 
 def _pdf_response(pdf_bytes, filename, inline=True):

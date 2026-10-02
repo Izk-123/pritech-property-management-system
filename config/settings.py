@@ -109,6 +109,7 @@ SHARED_APPS = [
     'django_celery_results',
 
     'apps.shared.users',
+    'apps.shared.billing',
     'apps.core.sync',               # Phase 6 — offline sync API
     'apps.realtime',                # Phase 7 — WebSocket infrastructure
 
@@ -552,6 +553,31 @@ CELERY_BEAT_SCHEDULE = {
     'scan-rent-due-reminders': {
         'task': 'apps.communications.tasks.scan_rent_due_reminders',
         'schedule': crontab(hour=8, minute=0),
+    },
+    # ─── Phase 10 — Subscription billing ───────────────────────────
+    'process-expired-trials': {
+        'task': 'apps.shared.billing.tasks.process_expired_trials',
+        'schedule': crontab(hour=2, minute=0),
+    },
+    'generate-period-invoices': {
+        'task': 'apps.shared.billing.tasks.generate_period_invoices',
+        'schedule': crontab(hour=2, minute=15),
+    },
+    'send-renewal-reminders': {
+        'task': 'apps.shared.billing.tasks.send_renewal_reminders',
+        'schedule': crontab(hour=6, minute=0),
+    },
+    'send-payment-reminders': {
+        'task': 'apps.shared.billing.tasks.send_payment_reminders',
+        'schedule': crontab(hour=9, minute=0),
+    },
+    'mark-invoices-overdue': {
+        'task': 'apps.shared.billing.tasks.mark_invoices_overdue',
+        'schedule': crontab(hour=9, minute=30),
+    },
+    'suspend-delinquent-tenants': {
+        'task': 'apps.shared.billing.tasks.suspend_delinquent_tenants',
+        'schedule': crontab(hour=10, minute=0),
     },
     'celery-heartbeat': {
         'task': 'apps.shared.tenants.tasks.heartbeat',

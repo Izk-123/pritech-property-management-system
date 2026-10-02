@@ -144,6 +144,11 @@ def provision_tenant(
         )
 
     logger.info(f'Provisioned tenant {schema_name} at {domain_name}')
+    
+    # Phase 10 — start the free trial subscription
+    from apps.shared.billing.services import start_trial
+    start_trial(tenant)
+    
     return tenant
 
 

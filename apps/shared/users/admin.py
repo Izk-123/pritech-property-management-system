@@ -13,13 +13,101 @@ Phase 8:   expanded User fieldsets (personal, address, preferences,
 Phase 9.1: surfaces phone verification state (phone_verified /
            phone_verified_at) so support staff can tell at a glance
            whether a user is cleared to transact.
+Phase 9.3: tenant scoping. On a tenant subdomain, UserAdmin and
+           UserTenantMembershipAdmin only expose that tenant's members,
+           and platform-level fields become read-only.
 """
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+from django_tenants.utils import get_public_schema_name
 from unfold.admin import ModelAdmin
 from unfold.decorators import display
 
+from apps.shared.tenants.admin_mixins import (
+    PublicSchemaOnlyAdminMixin,
+    TenantScopedAdminMixin,
+)
+
 from .models import AuthAuditLog, User, UserTenantMembership
+
+
+def _current_tenant(request):
+    """Return the tenant for tenant-subdomain requests, None on public."""
+    tenant = getattr(request, 'tenant', None)
+    if tenant is None or tenant.schema_name == get_public_schema_name():
+        return None
+    return tenant
+
+
+class _TenantScopedUserAdminMixin:
+    """
+    Scope UserAdmin to members of the current tenant.
+
+    * get_queryset: list/change/delete views and the autocomplete
+      endpoint only see active members of this tenant.
+    * Platform-level fields (superuser flag, platform role, groups,
+      raw permissions, last_tenant) are read-only on tenant
+      subdomains. Without this a tenant admin could tick
+      "is_superuser" on their own account.
+    """
+    TENANT_READONLY = (
+        'is_superuser', 'is_platform_admin',
+        'groups', 'user_permissions', 'last_tenant',
+    )
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        tenant = _current_tenant(request)
+        if tenant is None:
+            return qs
+        return qs.filter(
+            tenant_memberships__tenant=tenant,
+            tenant_memberships__is_active=True,
+        ).distinct()
+
+    def get_readonly_fields(self, request, obj=None):
+        ro = tuple(super().get_readonly_fields(request, obj))
+        if _current_tenant(request) is not None:
+            ro += tuple(f for f in self.TENANT_READONLY if f not in ro)
+        return ro
+
+    def get_autocomplete_fields(self, request):
+        # last_tenant autocomplete would hit TenantAdmin, which is
+        # public-only and 403s on tenant subdomains.
+        if _current_tenant(request) is not None:
+            return ()
+        return super().get_autocomplete_fields(request)
+
+
+class _TenantScopedMembershipAdminMixin:
+    """Scope UserTenantMembershipAdmin to the current tenant."""
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        tenant = _current_tenant(request)
+        if tenant is None:
+            return qs
+        return qs.filter(tenant=tenant)
+
+    def get_autocomplete_fields(self, request):
+        fields = tuple(super().get_autocomplete_fields(request))
+        if _current_tenant(request) is not None:
+            fields = tuple(f for f in fields if f != 'tenant')
+        return fields
+
+    def get_list_filter(self, request):
+        filters = tuple(super().get_list_filter(request))
+        if _current_tenant(request) is not None:
+            # The 'tenant' filter would list every tenant's name.
+            filters = tuple(f for f in filters if f != 'tenant')
+        return filters
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        tenant = _current_tenant(request)
+        if tenant is not None and db_field.name == 'tenant':
+            from apps.shared.tenants.models import Tenant
+            kwargs['queryset'] = Tenant.objects.filter(pk=tenant.pk)
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -27,7 +115,7 @@ from .models import AuthAuditLog, User, UserTenantMembership
 # ─────────────────────────────────────────────────────────────────────
 
 @admin.register(User)
-class UserAdmin(BaseUserAdmin, ModelAdmin):
+class UserAdmin(_TenantScopedUserAdminMixin, BaseUserAdmin, ModelAdmin):
     """
     Extends Django's stock UserAdmin with the extra Pritech fields.
 
@@ -138,7 +226,11 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
 # ─────────────────────────────────────────────────────────────────────
 
 @admin.register(UserTenantMembership)
-class UserTenantMembershipAdmin(ModelAdmin):
+class UserTenantMembershipAdmin(
+    _TenantScopedMembershipAdminMixin,
+    TenantScopedAdminMixin,   # scopes 'user' / 'invited_by' on POST validation too
+    ModelAdmin,
+):
     """
     The RBAC table. One row per (user, tenant) pair.
 
@@ -165,7 +257,7 @@ class UserTenantMembershipAdmin(ModelAdmin):
 # ─────────────────────────────────────────────────────────────────────
 
 @admin.register(AuthAuditLog)
-class AuthAuditLogAdmin(ModelAdmin):
+class AuthAuditLogAdmin(PublicSchemaOnlyAdminMixin, ModelAdmin):
     """
     Read-only audit trail.
 
@@ -202,7 +294,9 @@ class AuthAuditLogAdmin(ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         # Only superusers can delete audit logs (data-subject requests).
-        return request.user.is_superuser
+        # super() keeps the public-schema-only guard in force: this
+        # override would otherwise shadow the mixin completely.
+        return request.user.is_superuser and super().has_delete_permission(request, obj)
 
     @display(description='User')
     def user_display(self, obj):

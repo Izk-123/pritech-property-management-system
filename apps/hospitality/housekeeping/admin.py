@@ -1,10 +1,12 @@
 from django.contrib import admin
 from unfold.admin import ModelAdmin
+
+from apps.shared.tenants.admin_mixins import TenantScopedAdminMixin
 from .models import HousekeepingTask
 
 
 @admin.register(HousekeepingTask)
-class HousekeepingTaskAdmin(ModelAdmin):
+class HousekeepingTaskAdmin(TenantScopedAdminMixin, ModelAdmin):
     list_display = (
         'unit', 'task_type', 'status', 'priority',
         'assigned_to', 'started_at', 'completed_at',

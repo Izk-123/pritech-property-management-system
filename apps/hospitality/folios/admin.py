@@ -1,5 +1,7 @@
 from django.contrib import admin
 from unfold.admin import ModelAdmin
+
+from apps.shared.tenants.admin_mixins import TenantScopedAdminMixin
 from .models import Folio, FolioCharge, FolioPayment
 
 
@@ -29,7 +31,7 @@ class FolioAdmin(ModelAdmin):
 
 
 @admin.register(FolioCharge)
-class FolioChargeAdmin(ModelAdmin):
+class FolioChargeAdmin(TenantScopedAdminMixin, ModelAdmin):
     list_display = ('folio', 'charge_type', 'amount', 'currency', 'created_at')
     list_filter = ('charge_type', 'currency')
     search_fields = ('description', 'folio__reservation__reservation_number')
@@ -38,7 +40,7 @@ class FolioChargeAdmin(ModelAdmin):
 
 
 @admin.register(FolioPayment)
-class FolioPaymentAdmin(ModelAdmin):
+class FolioPaymentAdmin(TenantScopedAdminMixin, ModelAdmin):
     list_display = ('folio', 'method', 'amount', 'currency', 'reference', 'created_at')
     list_filter = ('method', 'currency')
     search_fields = ('reference', 'folio__reservation__reservation_number')

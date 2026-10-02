@@ -73,3 +73,11 @@ Desktop.ini
 # ─── Local overrides ─────────────────────────────────────────────────
 *.local*.po.bak*
 *.bak
+
+# .gitignore
+*.ttf
+!apps/core/documents/pdf/fonts/*.ttf
+
+# Allow PDF fonts to be committed (DejaVu â€” public domain)
+*.ttf
+!apps/core/documents/pdf/fonts/*.ttf

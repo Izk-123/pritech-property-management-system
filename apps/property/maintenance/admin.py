@@ -1,10 +1,12 @@
 from django.contrib import admin
 from unfold.admin import ModelAdmin
+
+from apps.shared.tenants.admin_mixins import TenantScopedAdminMixin
 from .models import MaintenanceRequest
 
 
 @admin.register(MaintenanceRequest)
-class MaintenanceRequestAdmin(ModelAdmin):
+class MaintenanceRequestAdmin(TenantScopedAdminMixin, ModelAdmin):
     list_display = (
         'title', 'unit', 'category', 'priority',
         'status', 'assigned_to', 'total_cost',

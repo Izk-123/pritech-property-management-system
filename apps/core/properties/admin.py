@@ -1,6 +1,7 @@
 # apps/core/properties/admin.py
 from django.contrib import admin
 from unfold.admin import ModelAdmin, TabularInline
+from apps.shared.tenants.admin_mixins import TenantScopedAdminMixin
 
 from .models import (
     Amenity,
@@ -100,7 +101,7 @@ class UnitAdmin(ModelAdmin):
 
 
 @admin.register(StaffPropertyAssignment)
-class StaffPropertyAssignmentAdmin(ModelAdmin):
+class StaffPropertyAssignmentAdmin(TenantScopedAdminMixin, ModelAdmin):
     list_display = ('user', 'property', 'is_active', 'assigned_at')
     list_filter = ('is_active', 'property')
     search_fields = ('user__email', 'property__name')

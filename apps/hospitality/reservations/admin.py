@@ -1,10 +1,12 @@
 from django.contrib import admin
 from unfold.admin import ModelAdmin
+
+from apps.shared.tenants.admin_mixins import TenantScopedAdminMixin
 from .models import Reservation, ReservationRoom
 
 
 @admin.register(Reservation)
-class ReservationAdmin(ModelAdmin):
+class ReservationAdmin(TenantScopedAdminMixin, ModelAdmin):
     list_display = (
         'reservation_number', 'primary_guest', 'property',
         'check_in', 'check_out', 'status',

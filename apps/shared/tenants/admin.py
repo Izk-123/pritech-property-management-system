@@ -16,10 +16,11 @@ from unfold.admin import ModelAdmin
 from unfold.decorators import display
 
 from .models import Domain, Tenant
+from .admin_mixins import PublicSchemaOnlyAdminMixin
 
 
 @admin.register(Tenant)
-class TenantAdmin(ModelAdmin):
+class TenantAdmin(PublicSchemaOnlyAdminMixin, ModelAdmin):
     """
     Tenant administration.
 
@@ -108,7 +109,7 @@ class TenantAdmin(ModelAdmin):
 # ─────────────────────────────────────────────────────────────────────
 
 @admin.register(Domain)
-class DomainAdmin(ModelAdmin):
+class DomainAdmin(PublicSchemaOnlyAdminMixin, ModelAdmin):
     """
     Hostname → Tenant mapping.
 

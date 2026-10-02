@@ -285,11 +285,21 @@ if not DEBUG:
 if DEBUG:
     CACHES = {
         'default': {
-            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
-            'LOCATION': 'pritech-pms-dev',
+            'BACKEND': 'django_redis.cache.RedisCache',
+            'LOCATION': config('REDIS_URL', default='redis://127.0.0.1:6379/1'),
+            'OPTIONS': {
+                'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+                'IGNORE_EXCEPTIONS': True,
+                'CONNECTION_POOL_KWARGS': {'max_connections': 50},
+                'SOCKET_CONNECT_TIMEOUT': 5,
+                'SOCKET_TIMEOUT': 5,
+            },
+            'KEY_PREFIX': 'pritech_pms',
+            'TIMEOUT': 300,
         }
     }
-    SESSION_ENGINE = 'django.contrib.sessions.backends.db'
+    SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
+    SESSION_CACHE_ALIAS = 'default'
 else:
     CACHES = {
         'default': {

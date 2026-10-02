@@ -1,10 +1,12 @@
 from django.contrib import admin
 from unfold.admin import ModelAdmin
+
+from apps.shared.tenants.admin_mixins import TenantScopedAdminMixin
 from .models import Lease, LeaseUnit
 
 
 @admin.register(Lease)
-class LeaseAdmin(ModelAdmin):
+class LeaseAdmin(TenantScopedAdminMixin, ModelAdmin):
     list_display = (
         'lease_number', 'tenant', 'unit', 'status',
         'start_date', 'end_date', 'rent_amount',

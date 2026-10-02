@@ -122,6 +122,9 @@ urlpatterns = [
 
     # ─── Communications (staff-facing) ─────────────────────────────
     path('communications/', include('apps.communications.urls')),
+    
+    # ─── PDF documents ──────────────────────────────────────────────
+    path('pdf/', include('apps.core.documents.pdf.urls')),
 
     # ─── Admin ─────────────────────────────────────────────────────
     path('admin/', admin.site.urls),

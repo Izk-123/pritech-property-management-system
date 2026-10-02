@@ -1,95 +1,148 @@
-{# Save as: templates/admin/index.html                                  #}
-{# Requires TEMPLATES[0]['DIRS'] to include BASE_DIR / "templates"       #}
-{# (already true in your settings.py) and                                #}
-{# UNFOLD['DASHBOARD_CALLBACK'] = 'apps.core.admin_dashboard.dashboard_callback' #}
-{# (already set).                                                        #}
-
 {% extends 'admin/base.html' %}
 {% load i18n %}
 
 {% block title %}
-    {% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} | {{ site_title|default:_('Django site admin') }}
+  {% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} | {{ site_title|default:_('Django site admin') }}
 {% endblock %}
 
 {% block branding %}
-    {% include "unfold/helpers/site_branding.html" %}
+  {% include "unfold/helpers/site_branding.html" %}
 {% endblock %}
 
 {% block content %}
-<div class="pritech-dashboard">
+<div class="flex flex-col gap-6 px-1">
 
-  <header class="pritech-dash-header" data-admin-module>
-    <div class="pritech-dash-avatar" aria-hidden="true">{{ admin_name|slice:":1"|upper }}</div>
-    <div>
-      <h1 class="pritech-dash-greeting">{{ greeting }}, {{ admin_name }}</h1>
-      <p class="pritech-dash-sub">
+  {# ── Greeting header ─────────────────────────────────────── #}
+  <div class="flex items-center gap-4">
+    <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full
+                bg-primary-600 text-lg font-bold text-white
+                dark:bg-primary-500">
+      {{ admin_name|slice:":1"|upper }}
+    </div>
+    <div class="min-w-0">
+      <h1 class="truncate text-xl font-semibold
+                 text-font-important-light dark:text-font-important-dark">
+        {{ greeting }}, {{ admin_name }}
+      </h1>
+      <p class="truncate text-sm
+                text-font-subtle-light dark:text-font-subtle-dark">
         {% if tenant %}{{ tenant }} &middot; {% endif %}{{ today|date:"l, j F Y" }}
       </p>
     </div>
-  </header>
+  </div>
 
-  <section class="pritech-kpi-grid" aria-label="{% trans 'Key metrics' %}">
-    {% for card in kpi_cards %}
-      <a href="{{ card.href }}"
-         class="pritech-kpi-card pritech-accent-{{ card.accent }}"
-         data-admin-module>
-        <span class="pritech-kpi-icon material-symbols-outlined" aria-hidden="true">{{ card.icon }}</span>
-        <span class="pritech-kpi-value"
-              {% if card.value != None %}data-countup="{{ card.value }}"{% endif %}>
-          {% if card.value != None %}{{ card.value }}{% else %}&mdash;{% endif %}
+  {# ── Quick actions ───────────────────────────────────────── #}
+  <section>
+    <h2 class="mb-3 text-xs font-semibold uppercase tracking-wider
+               text-font-subtle-light dark:text-font-subtle-dark">
+      {% trans "Quick actions" %}
+    </h2>
+    <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+
+      <a href="/reservations/front-desk/"
+         class="group flex flex-col items-center gap-2 rounded-default border
+                border-base-200 bg-white p-4 text-center transition-all
+                hover:border-primary-500 hover:shadow-sm
+                dark:border-base-800 dark:bg-base-900
+                dark:hover:border-primary-500">
+        <span class="material-symbols-outlined text-2xl text-primary-600
+                     dark:text-primary-400" aria-hidden="true">room_service</span>
+        <span class="text-sm font-medium
+                     text-font-important-light dark:text-font-important-dark">
+          {% trans "Front Desk" %}
         </span>
-        <span class="pritech-kpi-label">{{ card.label }}</span>
       </a>
-    {% endfor %}
+
+      <a href="/housekeeping/tasks/"
+         class="group flex flex-col items-center gap-2 rounded-default border
+                border-base-200 bg-white p-4 text-center transition-all
+                hover:border-primary-500 hover:shadow-sm
+                dark:border-base-800 dark:bg-base-900
+                dark:hover:border-primary-500">
+        <span class="material-symbols-outlined text-2xl text-primary-600
+                     dark:text-primary-400" aria-hidden="true">cleaning_services</span>
+        <span class="text-sm font-medium
+                     text-font-important-light dark:text-font-important-dark">
+          {% trans "Housekeeping" %}
+        </span>
+      </a>
+
+      <a href="/admin/auditlog/logentry/"
+         class="group flex flex-col items-center gap-2 rounded-default border
+                border-base-200 bg-white p-4 text-center transition-all
+                hover:border-primary-500 hover:shadow-sm
+                dark:border-base-800 dark:bg-base-900
+                dark:hover:border-primary-500">
+        <span class="material-symbols-outlined text-2xl text-primary-600
+                     dark:text-primary-400" aria-hidden="true">history</span>
+        <span class="text-sm font-medium
+                     text-font-important-light dark:text-font-important-dark">
+          {% trans "Audit Log" %}
+        </span>
+      </a>
+
+      <a href="/admin/django_celery_beat/periodictask/"
+         class="group flex flex-col items-center gap-2 rounded-default border
+                border-base-200 bg-white p-4 text-center transition-all
+                hover:border-primary-500 hover:shadow-sm
+                dark:border-base-800 dark:bg-base-900
+                dark:hover:border-primary-500">
+        <span class="material-symbols-outlined text-2xl text-primary-600
+                     dark:text-primary-400" aria-hidden="true">schedule</span>
+        <span class="text-sm font-medium
+                     text-font-important-light dark:text-font-important-dark">
+          {% trans "Periodic Tasks" %}
+        </span>
+      </a>
+
+    </div>
   </section>
 
-  <div class="pritech-dash-columns">
+  {# ── Recent activity ─────────────────────────────────────── #}
+  <section class="rounded-default border border-base-200 bg-white
+                  dark:border-base-800 dark:bg-base-900">
+    <header class="flex items-center justify-between border-b
+                   border-base-200 px-4 py-3
+                   dark:border-base-800">
+      <h2 class="text-sm font-semibold
+                 text-font-important-light dark:text-font-important-dark">
+        {% trans "Recent activity" %}
+      </h2>
+      <a href="/admin/auditlog/logentry/"
+         class="text-xs font-medium text-primary-600 hover:text-primary-500
+                dark:text-primary-400 dark:hover:text-primary-300">
+        {% trans "View all" %}
+      </a>
+    </header>
 
-    <section class="pritech-panel" data-admin-module aria-label="{% trans 'Recent activity' %}">
-      <h2 class="pritech-panel-title">{% trans "Recent activity" %}</h2>
+    <div class="p-4">
       {% if recent_activity %}
-        <ul class="pritech-activity-list">
+        <ul class="space-y-3">
           {% for entry in recent_activity %}
-            <li class="pritech-activity-item">
-              <span class="pritech-activity-dot"></span>
-              <div>
-                <p class="pritech-activity-text">
-                  <strong>{{ entry.actor|default:_("System") }}</strong>
-                  {{ entry.get_action_display|default:entry.action }}
+            <li class="flex items-start gap-3">
+              <span class="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-primary-500"></span>
+              <div class="min-w-0 flex-1">
+                <p class="text-sm text-font-default-light dark:text-font-default-dark">
+                  <strong class="text-font-important-light dark:text-font-important-dark">
+                    {{ entry.actor|default:_("System") }}
+                  </strong>
+                  {{ entry.action }}
                   {{ entry.object_repr|truncatechars:40 }}
                 </p>
-                <time class="pritech-activity-time">{{ entry.timestamp|timesince }} {% trans "ago" %}</time>
+                <time class="text-xs text-font-subtle-light dark:text-font-subtle-dark">
+                  {{ entry.timestamp|timesince }} {% trans "ago" %}
+                </time>
               </div>
             </li>
           {% endfor %}
         </ul>
       {% else %}
-        <p class="pritech-empty">{% trans "No recent activity yet." %}</p>
+        <p class="text-sm text-font-subtle-light dark:text-font-subtle-dark">
+          {% trans "No recent activity yet." %}
+        </p>
       {% endif %}
-    </section>
+    </div>
+  </section>
 
-    <section class="pritech-panel" data-admin-module aria-label="{% trans 'Quick actions' %}">
-      <h2 class="pritech-panel-title">{% trans "Quick actions" %}</h2>
-      <div class="pritech-quick-actions">
-        <a class="pritech-quick-action" href="/reservations/front-desk/">
-          <span class="material-symbols-outlined" aria-hidden="true">front_desk</span>
-          {% trans "Front Desk" %}
-        </a>
-        <a class="pritech-quick-action" href="/housekeeping/tasks/">
-          <span class="material-symbols-outlined" aria-hidden="true">cleaning_services</span>
-          {% trans "Housekeeping" %}
-        </a>
-        <a class="pritech-quick-action" href="/admin/auditlog/logentry/">
-          <span class="material-symbols-outlined" aria-hidden="true">history</span>
-          {% trans "Audit Log" %}
-        </a>
-        <a class="pritech-quick-action" href="/admin/django_celery_beat/periodictask/">
-          <span class="material-symbols-outlined" aria-hidden="true">schedule</span>
-          {% trans "Periodic Tasks" %}
-        </a>
-      </div>
-    </section>
-
-  </div>
 </div>
 {% endblock %}

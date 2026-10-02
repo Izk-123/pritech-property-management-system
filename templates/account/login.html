@@ -7,14 +7,15 @@
 
 {% block body %}
 
-  {# ── Django messages ──────────────────────────────────────────
-     Surfaces:
-       • "Your account does not have access to <tenant>" — raised by
-         PritechAccountAdapter.login() when a user without a
-         UserTenantMembership tries to sign in to a tenant subdomain.
-       • "Sign-in failed" and similar messages from allauth.
-     Without this block the messages are consumed silently and the
-     user sees a freshly-reloaded login form with no explanation.  #}
+  {% comment %}
+    Surfaces two kinds of messages:
+      • "Your account does not have access to <tenant>" — raised by
+        PritechAccountAdapter.login() when a user without a
+        UserTenantMembership tries to sign in to a tenant subdomain.
+      • "Sign-in failed" and similar messages from allauth.
+    Without this block the messages are consumed silently and the
+    user sees a freshly-reloaded login form with no explanation.
+  {% endcomment %}
   {% if messages %}
   <div class="space-y-2">
     {% for message in messages %}

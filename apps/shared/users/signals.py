@@ -122,3 +122,35 @@ def on_membership_change(sender, instance, created, **kwargs):
             'expires_at': instance.expires_at.isoformat() if instance.expires_at else None,
         },
     )
+    
+# ── Tenant admin → permissions ──────────────────────────────────────
+@receiver(post_save, sender=UserTenantMembership)
+def grant_tenant_admin_permissions(sender, instance, created, **kwargs):
+    """
+    When a TENANT_ADMIN membership is created, grant the user every
+    Django permission for the tenant apps.
+
+    Without this, `is_staff=True` gets the user into /admin/ but every
+    Add/Change page 403s — because `is_staff` alone doesn't imply any
+    model permissions. Django admin's has_add_permission() and friends
+    check the per-model codename (`<app>.add_<model>`), which the
+    provision_tenant() flow doesn't grant.
+
+    Uses .add() not .set() — if the user already has permissions from
+    another tenant (or another role), we don't want to overwrite them.
+    """
+    if not instance.is_active:
+        return
+    if instance.role != UserTenantMembership.Role.TENANT_ADMIN:
+        return
+
+    from django.conf import settings
+    from django.contrib.auth.models import Permission
+
+    tenant_app_labels = [
+        app.rsplit('.', 1)[-1] for app in settings.TENANT_APPS
+    ]
+    perms = Permission.objects.filter(
+        content_type__app_label__in=tenant_app_labels,
+    )
+    instance.user.user_permissions.add(*perms)

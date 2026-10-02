@@ -1,0 +1,559 @@
+# Pritech PMS — New User Tutorial
+
+A step-by-step guide for anyone arriving at the platform for the first time. Written for both hotel owners and their staff.
+
+---
+
+## Part 1: Getting Your Workspace
+
+This takes about 3 minutes. You'll need an email address, and preferably a Google account.
+
+### Step 1 — Visit the platform
+
+Open your browser and go to:
+
+```
+https://pms.pritechmw.com
+```
+
+You'll see the marketing page. Click **Start free trial** in the top right.
+
+### Step 2 — Choose how to sign up
+
+You'll see two options.
+
+**Option A — Sign up with Google (recommended)**
+
+Click the **Sign up with Google** button. Choose a Google account.
+
+What happens:
+- Your name and email are pulled from Google automatically
+- Google has already verified your email, so no confirmation link is needed
+- You skip straight to the workspace setup form
+
+**Option B — Sign up with email**
+
+Fill in the form:
+- **Organization name** — e.g., "Lakeview Lodge"
+- **Workspace URL** — e.g., `lakeview` (this becomes `lakeview.pms.pritechmw.com`)
+- **Your name**
+- **Email**
+- **Phone** — Malawi mobile, e.g., `0991 234 567`
+- **Password** — minimum 10 characters
+- **Plan** — Starter is fine to begin
+- **Accept terms** — check the box
+
+Click **Create workspace**.
+
+### Step 3 — Tell us what you manage
+
+Whether you signed up with Google or email, you'll land on the same page.
+
+Choose the modules you need. **Pick all that apply:**
+
+- ☐ **Hospitality** — hotels, lodges, guesthouses with rooms to book
+- ☐ **Property Rentals** — apartments, houses to rent long-term
+- ☐ **Property Sales** — properties you're selling
+
+You can change this later in settings. Most first-time users pick Hospitality.
+
+Fill in:
+- **Organization name** (if not already filled)
+- **Workspace URL** (if not already filled)
+- **Contact phone** — for booking alerts
+- **Accept terms**
+
+Click **Finish setup**.
+
+### Step 4 — You're in
+
+Your workspace is now live at:
+
+```
+https://lakeview.pms.pritechmw.com
+```
+
+Bookmark this URL. This is where you and your staff will work every day.
+
+---
+
+## Part 2: First Login
+
+### Signing in with Google
+
+Click **Sign in with Google** on the login page. That's it — no password to remember.
+
+### Signing in with email
+
+1. Go to your workspace URL
+2. Enter your email and password
+3. Click **Sign in**
+
+### If you're asked for a security code
+
+The first time you sign in as an admin, you'll be asked to set up **two-factor authentication (2FA)**.
+
+1. Install **Google Authenticator** or **Authy** on your phone
+2. Scan the QR code shown on screen
+3. Enter the 6-digit code the app displays
+4. Save the backup codes in a safe place
+
+From then on, you'll enter a 6-digit code each time you sign in. This is what protects your business data.
+
+---
+
+## Part 3: Setting Up Your Business
+
+You're now looking at the **Staff Dashboard**. Here's what to do first.
+
+### 3.1 Add your property
+
+Go to **Admin → Properties → Add Property**.
+
+Fill in:
+- **Name** — "Lakeview Lodge"
+- **Property type** — Hotel, Lodge, Rental Building, or Standalone House
+- **Address** — street and area
+- **District** — e.g., Mangochi
+- **Region** — Northern, Central, or Southern
+- **Phone** — the number guests should call
+- **Email** — for contact form submissions
+- **Description** — a paragraph guests will read
+- **Status** — Active
+- **Is public** — ✓ tick this so it appears on your public site
+
+Click **Save**.
+
+### 3.2 Add your rooms or units
+
+Still in the property detail, scroll down to **Units** and click **Add Unit** (or go to **Admin → Units → Add Unit**).
+
+For each room or apartment:
+- **Identifier** — e.g., "Room 101", "Chalet A", "Apt 3B"
+- **Unit type** — Hotel Room, Lodge Chalet, Apartment, House, or Bed
+- **Capacity** — how many adults and children fit
+- **Beds** — number of beds
+- **Base rate MWK** — the nightly or monthly price
+- **Base rate USD** (optional) — for foreign guests
+- **Status** — Available
+- **Is public** — ✓ tick to show it on your public listing
+- **Amenities** — select Wi-Fi, AC, en-suite, etc. from the list
+
+Click **Save and add another** to keep going, or **Save** when done.
+
+**Fast tip:** Create one unit first, then use it as a template by duplicating. Saves a lot of time for a 20-room hotel.
+
+### 3.3 Upload photos
+
+Photos sell rooms. Don't skip this.
+
+On the property or unit edit page, find the **Photos** section at the bottom.
+
+1. Click **Choose File** and pick a photo
+2. Add a caption — "Main bedroom with lake view"
+3. Tick **Is cover** for the one photo that represents the room best
+4. Set **Order** — 1 for the first photo, 2 for the second, etc.
+
+Upload 3–5 photos per room. Landscape orientation, at least 1200×800 pixels.
+
+### 3.4 Add your amenities
+
+Go to **Admin → Amenities** and create the ones you offer:
+
+- Wi-Fi
+- Air Conditioning
+- En-suite Bathroom
+- Hot Shower
+- TV
+- Minibar
+- Balcony
+- Lake View
+- Parking
+- Swimming Pool
+- Restaurant
+- Room Service
+
+Assign them to each unit. Guests filter by these on your public site.
+
+### 3.5 Set up your rate plans
+
+Go to **Admin → Rate Plans → Add Rate Plan**.
+
+For each pricing policy you offer:
+- **Name** — "Flexible Rate" or "Non-Refundable"
+- **Property** — select the property
+- **Policy** — Flexible (free cancellation), Non-Refundable, Bed & Breakfast, All-Inclusive
+- **Deposit percentage** — e.g., 30% deposit at booking
+- **Cancellation hours** — e.g., 48 hours free cancellation
+
+Most lodges offer one **Flexible** rate and one **Non-Refundable** rate at a discount.
+
+---
+
+## Part 4: Inviting Your Staff
+
+Don't share your admin password. Instead, add staff as team members.
+
+### 4.1 Create staff accounts
+
+Go to **Admin → Users → Add User**.
+
+Fill in:
+- **Email** — the staff member's work email
+- **First name**, **Middle name**, **Last name**
+- **Phone**
+- **Password** — set a temporary one; they'll change it on first login
+- **Is staff** — ✓ tick this
+- **Is platform admin** — leave UNCHECKED
+
+Click **Save**.
+
+### 4.2 Give them the right role
+
+Go to **Admin → User Tenant Memberships → Add**.
+
+- **User** — select the staff member you just created
+- **Tenant** — select your workspace
+- **Role** — one of:
+
+| Role | What they can do |
+|---|---|
+| **Tenant Administrator** | Everything — full control |
+| **Manager** | Manage bookings, staff, reports |
+| **Front Desk** | Check-in, check-out, payments, bookings |
+| **Housekeeper** | View and update cleaning tasks only |
+| **Accountant** | View and record payments, run reports |
+| **Maintenance** | View and update maintenance requests |
+| **Property Agent** | Manage property listings and offers |
+| **Read Only** | View-only access |
+
+Click **Save**.
+
+### 4.3 Send them the login details
+
+Send your staff member:
+- The workspace URL: `https://lakeview.pms.pritechmw.com`
+- Their email and temporary password
+- Instructions to change the password on first login
+- Instructions to set up 2FA when prompted
+
+---
+
+## Part 5: Your First Day
+
+### 5.1 Take a booking (or check one in)
+
+From the **Front Desk** page, click **+ Walk-in** if it's a walk-in guest.
+
+Fill in:
+- **Guest name**, **phone**, **nationality**
+- **Check-in date**, **check-out date**
+- **Adults**, **children**
+- **Rate plan**
+- Any notes
+
+Click **Save**. The reservation appears under **Today's Arrivals**.
+
+### 5.2 Check in the guest
+
+1. Click the guest's name in **Today's Arrivals**
+2. Click **Check In**
+3. Select an available room
+4. Confirm the rate per night
+5. Click **Confirm Check In**
+
+The room is now marked **Occupied** and a folio (bill) is created.
+
+### 5.3 Post a charge
+
+If the guest buys dinner or a drink:
+
+1. Open the reservation
+2. Scroll to the **Folio** section
+3. Click **Post Charge**
+4. Choose the type (Food & Beverage, Laundry, Minibar, etc.)
+5. Enter a description and the amount
+6. Click **Post Charge**
+
+### 5.4 Take a payment
+
+1. Open the reservation
+2. In the Folio section, click **Record Payment**
+3. Choose how they paid:
+   - **Cash (MWK)** — cash in Kwacha
+   - **Cash (USD)** — cash in US dollars
+   - **Airtel Money** — mobile money
+   - **TNM Mpamba** — mobile money
+   - **Card** — debit or credit
+   - **Bank Transfer** — EFT
+4. Enter the amount and reference number
+5. Click **Record Payment**
+
+The guest receives a WhatsApp receipt automatically if their phone number is on file.
+
+### 5.5 Check out the guest
+
+1. Confirm the balance is **zero** (settle any outstanding amount first)
+2. Click **Check Out**
+3. Confirm
+
+The room is marked **Cleaning**, and a housekeeping task is created.
+
+### 5.6 Housekeeping completes the room
+
+Your housekeeper opens **Housekeeping** on their phone. They see the task.
+
+1. Tap **Start** when they begin cleaning
+2. Tap **Mark Clean** when done
+3. A supervisor taps **Inspect** to confirm
+
+The room returns to **Available** automatically.
+
+---
+
+## Part 6: Your Public Listing
+
+Your guests can now find you on the web.
+
+### 6.1 Share your listing
+
+Your public site is at:
+
+```
+https://lakeview.pms.pritechmw.com
+```
+
+Visitors see:
+- **Places to stay** — your hotels and lodges with photos and prices
+- **Recently available rentals** — vacant apartments and houses (if you enabled Rentals)
+- **Chat on WhatsApp** button — for instant inquiries
+
+### 6.2 Share on WhatsApp
+
+Whenever you want to advertise a specific room or property, open it in the admin, copy the public URL, and paste it into a WhatsApp message.
+
+For a specific unit, the URL is:
+
+```
+https://lakeview.pms.pritechmw.com/p/<unit-id>/
+```
+
+### 6.3 Share on Facebook
+
+Copy the main listing URL and paste it into a Facebook post. The photo preview comes from your cover image automatically.
+
+### 6.4 Guests can inquire directly
+
+Every listing has a **Chat on WhatsApp** button. When a guest taps it, their WhatsApp opens with a pre-filled message like:
+
+> "Hi, I'm interested in Chalet A at Lakeview Lodge — is it still available?"
+
+The message goes to the phone number you set on the property. Reply directly from WhatsApp.
+
+---
+
+## Part 7: Handling Money
+
+### 7.1 Mobile money (Airtel Money, TNM Mpamba)
+
+When a guest pays via mobile money:
+
+1. They send the payment to your registered number
+2. They show you the SMS confirmation
+3. You record the payment in the folio using **Record Payment → Airtel Money** or **TNM Mpamba**
+4. Enter the transaction reference from their SMS
+5. Click **Record Payment**
+
+The reference is important — it's your audit trail.
+
+### 7.2 MRA EIS invoices
+
+Every invoice you generate is submitted to the Malawi Revenue Authority automatically. You'll see the MRA invoice number on the printed invoice.
+
+Go to **Compliance → MRA EIS Terminals** to check:
+- How many invoices were validated today
+- Whether any are queued offline
+- The last config sync time
+
+If power or internet was out, invoices queue offline and sync automatically when connectivity returns. Check **EIS Offline Queue** if you want to see the pending list.
+
+### 7.3 Tourism Levy
+
+Every folio automatically includes the 1% Tourism Levy. At the end of each month:
+
+1. Go to **Compliance → Tourism Levy**
+2. Select the previous month
+3. Review the total levy due
+4. Pay the Malawi Tourism Council
+5. Click **Mark Remitted** for each record
+
+The deadline is the **12th of the following month**.
+
+### 7.4 Foreign currency
+
+If a foreign guest pays in USD or EUR:
+
+- The system locks the exchange rate at check-in
+- The folio displays both the foreign amount and the MWK equivalent
+- All receipts show both currencies
+
+RBM returns are generated automatically on the 1st of each month. Go to **Compliance → FCY & RBM** to review and submit by the **10th**.
+
+---
+
+## Part 8: When the Power Goes Out
+
+ESCOM cuts don't stop your business.
+
+### 8.1 The app keeps working
+
+Pritech PMS is a **Progressive Web App (PWA)**. When the internet drops:
+
+- A small **amber indicator** appears in the bottom-right corner: "Offline — changes saved locally"
+- You can still check guests in and out
+- You can still record payments
+- You can still update housekeeping tasks
+- Everything you do is saved on your device
+
+### 8.2 When power returns
+
+The indicator turns **green**: "Back online". Your changes sync to the server automatically. You don't need to do anything.
+
+If there's a queue of pending changes, you'll see a blue **"Syncing…"** indicator until it clears.
+
+### 8.3 Installing the app on your phone
+
+**On Android:**
+1. Open the site in Chrome
+2. Tap the three-dot menu → **Install app**
+3. Confirm
+
+**On iPhone:**
+1. Open the site in Safari
+2. Tap the Share icon
+3. Scroll and tap **Add to Home Screen**
+
+The app now opens like any other app on your phone, works offline, and updates automatically.
+
+---
+
+## Part 9: Real-Time Updates
+
+When you're online, some things update without refreshing:
+
+- **Front desk** — new bookings appear instantly, payments flash on screen
+- **Housekeeping** — room status changes are visible immediately to front desk
+- **Payments** — when a payment arrives, the folio balance updates live
+- **Notifications** — a small popup shows when something important happens
+
+Just keep the page open and watch. No need to reload.
+
+---
+
+## Part 10: Daily Routine
+
+A typical day for a lodge owner using Pritech PMS:
+
+**Morning (7:00 AM)**
+- Open the Staff Dashboard
+- Check **Today's Arrivals** and **Today's Departures**
+- Review any new bookings from overnight
+- Check the **Housekeeping** task list
+
+**Mid-morning (10:00 AM)**
+- Guests check out
+- Process payments
+- Housekeeping turns over rooms for the next arrivals
+
+**Afternoon (2:00 PM)**
+- New guests arrive
+- Check-in, assign rooms, take deposits
+- Send WhatsApp confirmations
+
+**Evening (6:00 PM)**
+- Check in remaining arrivals
+- Review outstanding folios
+- Record any F&B charges
+
+**Night (11:00 PM)**
+- Automatic **night audit** runs at 2:00 AM
+- Posts room charges to every in-house folio
+- Flags no-shows from the day
+
+**Monthly (1st of the month)**
+- Rent invoices generated automatically
+- Tourism Levy report ready to remit
+- RBM returns generated for foreign currency
+
+---
+
+## Part 11: Getting Help
+
+### In-app help
+
+Every form has tooltips explaining what to enter. Hover over any label or help icon.
+
+### Common questions
+
+**"I forgot my password"**
+Click **Forgot?** on the login page. You'll receive a reset email.
+
+**"A staff member can't log in"**
+Check their **User Tenant Membership** in admin. They need an active membership for your workspace.
+
+**"A guest's name is misspelled"**
+Open the guest record at **Records → People**. Click **Edit**, fix the spelling, save.
+
+**"The public site isn't showing my rooms"**
+Check that:
+- The property's **Status** is Active
+- The property's **Is public** is ticked
+- The unit's **Is public** is ticked
+- The unit's **Status** is Available
+
+**"Power went out and I'm not sure my changes saved"**
+Look at the indicator in the bottom-right. If it's amber, your changes are safe on your device. When it turns green, they've synced.
+
+**"I need to add a new module I didn't select at signup"**
+Contact support. We can enable Property Sales or Rentals on your workspace.
+
+### Contact support
+
+- **WhatsApp:** +265 XXX XXX XXX (business hours 8 AM – 6 PM, Mon–Sat)
+- **Email:** support@pritechmw.com
+- **Emergency (system down):** phone the on-call number sent to you at signup
+
+---
+
+## Part 12: Quick Reference
+
+| I want to... | Go to... |
+|---|---|
+| See today's arrivals | Front Desk |
+| Take a booking | Reservations → + New |
+| Check in a guest | Front Desk → click guest name |
+| Post a charge | Reservation → Folio → Post Charge |
+| Record a payment | Reservation → Folio → Record Payment |
+| Check out a guest | Front Desk → Departures → click name |
+| Update a cleaning task | Housekeeping |
+| Manage rooms and rates | Admin → Properties / Units |
+| View my public listing | `https://<your-workspace>/` |
+| See messages sent to guests | Communications → Message Log |
+| View MRA invoices | Compliance → EIS Invoice Log |
+| Generate levy report | Compliance → Tourism Levy |
+| Add a new staff member | Admin → Users |
+| Change my password | Click your name top-right → Change Password |
+
+---
+
+## You're Ready
+
+That's the full tour. Your workspace is live, your staff know their roles, your rooms are listed, and your guests can find you.
+
+The best advice for the first week: **use the Front Desk screen every day**. Everything else — reports, compliance, staff management — flows naturally from that daily rhythm.
+
+As questions come up, we're one WhatsApp message away.
+
+Welcome to Pritech PMS.
+
+**Made in Malawi.**

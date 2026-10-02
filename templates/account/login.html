@@ -7,6 +7,47 @@
 
 {% block body %}
 
+  {# ── Django messages ──────────────────────────────────────────
+     Surfaces:
+       • "Your account does not have access to <tenant>" — raised by
+         PritechAccountAdapter.login() when a user without a
+         UserTenantMembership tries to sign in to a tenant subdomain.
+       • "Sign-in failed" and similar messages from allauth.
+     Without this block the messages are consumed silently and the
+     user sees a freshly-reloaded login form with no explanation.  #}
+  {% if messages %}
+  <div class="space-y-2">
+    {% for message in messages %}
+    <div class="flex items-start gap-3 rounded-xl border p-3 text-xs
+                {% if message.tags == 'error' %}
+                  border-red-200 bg-red-50 text-red-700
+                  dark:border-red-800 dark:bg-red-900/30 dark:text-red-300
+                {% elif message.tags == 'warning' %}
+                  border-amber-200 bg-amber-50 text-amber-700
+                  dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-300
+                {% elif message.tags == 'success' %}
+                  border-emerald-200 bg-emerald-50 text-emerald-700
+                  dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300
+                {% else %}
+                  border-slate-200 bg-slate-50 text-slate-700
+                  dark:border-white/10 dark:bg-white/5 dark:text-slate-300
+                {% endif %}">
+      <svg class="mt-0.5 h-4 w-4 shrink-0" fill="none" stroke="currentColor"
+           viewBox="0 0 24 24" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        {% if message.tags == 'success' %}
+        <path d="M5 13l4 4L19 7" />
+        {% else %}
+        <circle cx="12" cy="12" r="10" />
+        <path d="M12 8v4M12 16h.01" />
+        {% endif %}
+      </svg>
+      <p class="flex-1">{{ message }}</p>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
   {# ── Offline warning ──────────────────────────────────────── #}
   <div id="login-offline-warning"
        class="hidden rounded-xl border border-amber-200 bg-amber-50

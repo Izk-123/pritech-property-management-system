@@ -1079,6 +1079,7 @@ MFA_RECOVERY_CODE_DIGITS = 8
 # (default; made explicit to prevent drift if allauth changes its default)
 TEMPLATE_PACK = 'allauth'
 
+
 # ─────────────────────────────────────────────────────────────────────
 # Phase 9.1 — Optional Veriphone lookup for phone validation
 # ─────────────────────────────────────────────────────────────────────

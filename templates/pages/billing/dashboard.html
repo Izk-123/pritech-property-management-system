@@ -1,20 +1,38 @@
 {% extends "base.html" %}
 {% load i18n humanize %}
 
-{% block title %}{% trans "Billing" %} - {{ request.tenant.name }}{% endblock %}
+{% block title %}{% trans "Billing" %} — {{ request.tenant.name }}{% endblock %}
 
 {% block content %}
 <div class="mx-auto max-w-4xl px-4 py-8 sm:px-6">
 
-  <h1 data-animate="fade-up" data-animate-now
-      class="text-2xl font-bold tracking-tight sm:text-3xl">
-    {% trans "Billing & Subscription" %}
-  </h1>
+  {# ── Header ────────────────────────────────────────────── #}
+  <header class="mb-6 flex flex-wrap items-start justify-between gap-3">
+    <div>
+      <h1 data-animate="fade-up" data-animate-now
+          class="text-2xl font-bold tracking-tight sm:text-3xl">
+        {% trans "Billing & Subscription" %}
+      </h1>
+      <p data-animate="fade-up" data-animate-now data-animate-delay="80"
+         class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+        {% trans "Manage your plan, view invoices, and pay online." %}
+      </p>
+    </div>
+    <a href="{% url 'billing:plans' %}"
+       data-press data-hover="lift"
+       class="btn border border-slate-200 bg-white text-slate-700
+              hover:bg-slate-50 dark:border-white/10 dark:bg-white/5
+              dark:text-slate-200 dark:hover:bg-white/10">
+      {% trans "View plans" %}
+    </a>
+  </header>
 
   {% if subscription %}
-  <section data-animate="fade-up" data-animate-delay="80"
-           class="card mt-6 overflow-hidden !p-0">
-    <div class="border-b border-slate-200 p-5 dark:border-slate-700">
+
+  {# ── Current plan card ────────────────────────────────── #}
+  <section data-animate="fade-up" data-animate-delay="120"
+           class="card mb-6 overflow-hidden !p-0">
+    <div class="border-b border-slate-200 p-5 dark:border-slate-700/60">
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p class="text-xs font-bold uppercase tracking-wider
@@ -24,31 +42,60 @@
           <p class="mt-1 text-2xl font-bold">{{ subscription.plan.name }}</p>
           <p class="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
             MWK {{ subscription.plan.price_mwk|floatformat:0|intcomma }}
-            / {{ subscription.plan.get_interval_display|lower }}
+            / {% if subscription.plan.is_annual %}{% trans "year" %}{% else %}{% trans "month" %}{% endif %}
           </p>
         </div>
         <span class="chip
           {% if subscription.status == 'TRIAL' %}bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-200
           {% elif subscription.status == 'ACTIVE' %}chip-green
           {% elif subscription.status == 'PAST_DUE' %}bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200
-          {% else %}bg-red-100 text-red-800 dark:bg-red-900/60 dark:text-red-200{% endif %}">
+          {% elif subscription.status == 'SUSPENDED' or subscription.status == 'CANCELLED' %}bg-red-100 text-red-800 dark:bg-red-900/60 dark:text-red-200
+          {% else %}chip-slate{% endif %}">
           {{ subscription.get_status_display }}
         </span>
       </div>
 
-      {% if subscription.is_trialing %}
-      <p class="mt-3 text-sm text-slate-600 dark:text-slate-300">
-        {% blocktrans with days=subscription.trial_days_remaining ends=subscription.trial_ends_at|date:"d M Y" %}
-        Free trial - {{ days }} days remaining (ends {{ ends }})
-        {% endblocktrans %}
-      </p>
-      {% elif subscription.current_period_end %}
-      <p class="mt-3 text-sm text-slate-600 dark:text-slate-300">
-        {% blocktrans with date=subscription.current_period_end|date:"d M Y" %}
-        Renews on {{ date }}
-        {% endblocktrans %}
-      </p>
-      {% endif %}
+      <dl class="mt-4 grid grid-cols-2 gap-4 text-sm sm:grid-cols-3">
+        {% if subscription.is_trialing %}
+        <div>
+          <dt class="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            {% trans "Trial ends" %}
+          </dt>
+          <dd class="mt-1 font-medium">{{ subscription.trial_ends_at|date:"d M Y" }}</dd>
+        </div>
+        <div>
+          <dt class="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            {% trans "Days remaining" %}
+          </dt>
+          <dd class="mt-1 font-medium text-blue-600 dark:text-blue-400">
+            {{ subscription.trial_days_remaining }}
+          </dd>
+        </div>
+        {% elif subscription.current_period_end %}
+        <div>
+          <dt class="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            {% trans "Renews on" %}
+          </dt>
+          <dd class="mt-1 font-medium">{{ subscription.current_period_end|date:"d M Y" }}</dd>
+        </div>
+        <div>
+          <dt class="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            {% trans "Days until renewal" %}
+          </dt>
+          <dd class="mt-1 font-medium">{{ subscription.days_until_period_end }}</dd>
+        </div>
+        {% endif %}
+        {% if subscription.last_payment_at %}
+        <div>
+          <dt class="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            {% trans "Last payment" %}
+          </dt>
+          <dd class="mt-1 font-medium">
+            MWK {{ subscription.last_payment_amount|floatformat:0|intcomma }}
+          </dd>
+        </div>
+        {% endif %}
+      </dl>
     </div>
 
     <div class="flex flex-wrap gap-2 p-5">
@@ -57,26 +104,43 @@
          class="btn btn-primary">
         {% trans "Change plan" %}
       </a>
+      {% if subscription.status == 'ACTIVE' %}
+      <button type="button" data-press data-hover="lift"
+              onclick="document.getElementById('cancel-section').scrollIntoView({behavior:'smooth'})"
+              class="btn border border-red-200 bg-red-50 text-red-700
+                     hover:bg-red-100 dark:border-red-800
+                     dark:bg-red-900/20 dark:text-red-300">
+        {% trans "Cancel subscription" %}
+      </button>
+      {% endif %}
     </div>
   </section>
 
+  {# ── Outstanding invoice ──────────────────────────────── #}
   {% if upcoming_invoice %}
-  <section data-animate="fade-up" data-animate-delay="140"
-           class="card mt-6 border-amber-200 bg-amber-50 dark:border-amber-800
-                  dark:bg-amber-900/20">
+  <section data-animate="fade-up" data-animate-delay="160"
+           class="card mb-6 border-amber-200 bg-amber-50
+                  dark:border-amber-800 dark:bg-amber-900/20">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div>
         <p class="text-xs font-bold uppercase tracking-wider
                   text-amber-700 dark:text-amber-300">
+          {% if upcoming_invoice.is_overdue %}
+          {% trans "Payment overdue" %}
+          {% else %}
           {% trans "Payment due" %}
+          {% endif %}
         </p>
         <p class="mt-1 text-lg font-semibold">
           {{ upcoming_invoice.currency }} {{ upcoming_invoice.amount|floatformat:0|intcomma }}
         </p>
-        <p class="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
+        <p class="mt-0.5 text-xs text-amber-700 dark:text-amber-300">
           {% blocktrans with number=upcoming_invoice.invoice_number due=upcoming_invoice.due_date|date:"d M Y" %}
-          Invoice {{ number }} - due {{ due }}
+          Invoice {{ number }} · due {{ due }}
           {% endblocktrans %}
+          {% if upcoming_invoice.is_overdue %}
+          · <strong>{% blocktrans with days=upcoming_invoice.days_overdue %}{{ days }} days overdue{% endblocktrans %}</strong>
+          {% endif %}
         </p>
       </div>
       <form method="post"
@@ -91,62 +155,137 @@
   </section>
   {% endif %}
 
+  {# ── Invoice history ──────────────────────────────────── #}
   {% if invoices %}
-  <section data-animate="fade-up" data-animate-delay="200" class="mt-8">
-    <h2 class="mb-3 text-lg font-semibold">{% trans "Recent invoices" %}</h2>
+  <section data-animate="fade-up" data-animate-delay="200" class="mb-6">
+    <h2 class="mb-3 text-lg font-semibold">{% trans "Invoices" %}</h2>
     <div class="card overflow-hidden !p-0">
-      <table class="w-full text-sm">
-        <thead class="bg-slate-50 dark:bg-white/5">
-          <tr class="text-left text-xs uppercase tracking-wider
-                     text-slate-500 dark:text-slate-400">
-            <th class="px-4 py-2">{% trans "Invoice" %}</th>
-            <th class="px-4 py-2">{% trans "Period" %}</th>
-            <th class="px-4 py-2 text-right">{% trans "Amount" %}</th>
-            <th class="px-4 py-2">{% trans "Status" %}</th>
-            <th class="px-4 py-2 text-right">{% trans "Actions" %}</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-slate-100 dark:divide-slate-700/60">
-          {% for inv in invoices %}
-          <tr>
-            <td class="px-4 py-3 font-mono text-xs">{{ inv.invoice_number }}</td>
-            <td class="px-4 py-3 text-xs">
-              {{ inv.period_start|date:"d M" }} - {{ inv.period_end|date:"d M Y" }}
-            </td>
-            <td class="px-4 py-3 text-right font-medium">
-              {{ inv.currency }} {{ inv.amount|floatformat:0|intcomma }}
-            </td>
-            <td class="px-4 py-3">
-              <span class="chip
-                {% if inv.status == 'PAID' %}chip-green
-                {% elif inv.status == 'OVER' %}bg-red-100 text-red-800 dark:bg-red-900/60 dark:text-red-200
-                {% elif inv.status == 'VOID' %}chip-slate
-                {% else %}bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-200{% endif %}">
-                {{ inv.get_status_display }}
-              </span>
-            </td>
-            <td class="px-4 py-3 text-right">
-              <a href="{% url 'billing:invoice_pdf' inv.pk %}"
-                 target="_blank" rel="noopener"
-                 class="text-xs text-primary-600 hover:underline
-                        dark:text-primary-400">
-                {% trans "PDF" %}
-              </a>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-slate-50 dark:bg-white/5">
+            <tr class="text-left text-xs uppercase tracking-wider
+                       text-slate-500 dark:text-slate-400">
+              <th class="px-4 py-2">{% trans "Invoice" %}</th>
+              <th class="px-4 py-2">{% trans "Period" %}</th>
+              <th class="px-4 py-2 text-right">{% trans "Amount" %}</th>
+              <th class="px-4 py-2">{% trans "Status" %}</th>
+              <th class="px-4 py-2 text-right">{% trans "PDF" %}</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100 dark:divide-slate-700/60">
+            {% for inv in invoices %}
+            <tr class="transition-colors hover:bg-slate-50 dark:hover:bg-white/5">
+              <td class="px-4 py-3 font-mono text-xs">{{ inv.invoice_number }}</td>
+              <td class="px-4 py-3 text-xs">
+                {{ inv.period_start|date:"d M" }} → {{ inv.period_end|date:"d M Y" }}
+              </td>
+              <td class="px-4 py-3 text-right font-medium">
+                {{ inv.currency }} {{ inv.amount|floatformat:0|intcomma }}
+              </td>
+              <td class="px-4 py-3">
+                <span class="chip
+                  {% if inv.status == 'PAID' %}chip-green
+                  {% elif inv.status == 'OVER' %}bg-red-100 text-red-800 dark:bg-red-900/60 dark:text-red-200
+                  {% elif inv.status == 'VOID' %}chip-slate
+                  {% else %}bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-200{% endif %}">
+                  {{ inv.get_status_display }}
+                </span>
+              </td>
+              <td class="px-4 py-3 text-right">
+                <a href="{% url 'billing:invoice_pdf' inv.pk %}"
+                   target="_blank" rel="noopener"
+                   class="text-xs font-medium text-primary-600
+                          hover:underline dark:text-primary-400">
+                  {% trans "Open" %}
+                </a>
+                <a href="{% url 'billing:invoice_pdf' inv.pk %}?download=1"
+                   class="ml-2 text-xs font-medium text-slate-500
+                          hover:underline dark:text-slate-400">
+                  {% trans "Save" %}
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     </div>
   </section>
   {% endif %}
 
+  {# ── Payment history ──────────────────────────────────── #}
+  {% if payments %}
+  <section data-animate="fade-up" data-animate-delay="240" class="mb-6">
+    <h2 class="mb-3 text-lg font-semibold">{% trans "Payments" %}</h2>
+    <div class="card divide-y divide-slate-100 dark:divide-slate-700/60">
+      {% for p in payments %}
+      <div class="flex items-center justify-between gap-3 p-4">
+        <div>
+          <p class="text-sm font-medium">{{ p.get_method_display }}</p>
+          <p class="text-xs text-slate-500 dark:text-slate-400">
+            {{ p.received_at|date:"d M Y H:i" }}
+            {% if p.reference %}· {{ p.reference }}{% endif %}
+          </p>
+        </div>
+        <span class="shrink-0 font-medium text-emerald-600 dark:text-emerald-400">
+          {{ p.currency }} {{ p.amount|floatformat:0|intcomma }}
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  {# ── Cancel section ───────────────────────────────────── #}
+  {% if subscription.status == 'ACTIVE' or subscription.status == 'TRIAL' %}
+  <section id="cancel-section" data-animate="fade-up" data-animate-delay="280">
+    <details class="card border-red-200 dark:border-red-800">
+      <summary class="cursor-pointer text-sm font-semibold
+                      text-red-700 dark:text-red-300">
+        {% trans "Cancel your subscription" %}
+      </summary>
+      <form method="post" action="{% url 'billing:cancel' %}"
+            class="mt-4 space-y-3">
+        {% csrf_token %}
+        <p class="text-sm text-slate-600 dark:text-slate-400">
+          {% blocktrans with date=subscription.current_period_end|date:"d M Y" %}
+          Your subscription will remain active until {{ date }}.
+          After that, your workspace will be suspended and you will lose
+          access to your data unless you reactivate.
+          {% endblocktrans %}
+        </p>
+        <div>
+          <label for="cancel-reason"
+                 class="mb-1.5 block text-sm font-medium">
+            {% trans "Reason (optional)" %}
+          </label>
+          <textarea id="cancel-reason" name="reason" rows="2"
+                    class="field"
+                    placeholder="{% trans 'Tell us why you are cancelling — helps us improve' %}"></textarea>
+        </div>
+        <button type="submit"
+                onclick="return confirm('{% trans "Are you sure you want to cancel?" %}')"
+                data-press data-hover="grow"
+                class="btn bg-red-600 text-white hover:bg-red-700">
+          {% trans "Confirm cancellation" %}
+        </button>
+      </form>
+    </details>
+  </section>
+  {% endif %}
+
   {% else %}
-  <div class="card mt-6 text-center py-10">
+
+  {# ── No subscription ──────────────────────────────────── #}
+  <div class="card text-center py-12">
     <p class="text-slate-500 dark:text-slate-400">
-      {% trans "No subscription found. Please contact support." %}
+      {% trans "No subscription found for this workspace." %}
+    </p>
+    <p class="mt-2 text-sm text-slate-400 dark:text-slate-500">
+      {% trans "Please contact support to set up billing." %}
     </p>
   </div>
+
   {% endif %}
 
 </div>

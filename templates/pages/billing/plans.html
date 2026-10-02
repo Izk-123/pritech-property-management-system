@@ -1,27 +1,48 @@
 {% extends "base.html" %}
 {% load i18n humanize %}
 
-{% block title %}{% trans "Plans" %} - {{ request.tenant.name }}{% endblock %}
+{% block title %}{% trans "Plans" %} — {{ request.tenant.name }}{% endblock %}
 
 {% block content %}
 <div class="mx-auto max-w-5xl px-4 py-8 sm:px-6">
 
-  <h1 data-animate="fade-up" data-animate-now
+  <nav data-animate="fade-right" data-animate-now class="mb-4 text-sm">
+    <a href="{% url 'billing:dashboard' %}"
+       class="inline-flex items-center gap-1 text-primary-600
+              transition-colors hover:text-primary-500
+              dark:text-primary-400 dark:hover:text-primary-300">
+      <svg class="h-4 w-4" fill="none" stroke="currentColor"
+           viewBox="0 0 24 24" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round">
+        <path d="M19 12H5M12 19l-7-7 7-7" />
+      </svg>
+      {% trans "Back to billing" %}
+    </a>
+  </nav>
+
+  <h1 data-animate="blur-in" data-animate-now data-animate-duration="0.8"
       class="text-center text-3xl font-bold tracking-tight">
     {% trans "Choose your plan" %}
   </h1>
-  <p data-animate="fade-up" data-animate-delay="80"
+  <p data-animate="fade-up" data-animate-now data-animate-delay="80"
      class="mt-2 text-center text-slate-500 dark:text-slate-400">
     {% trans "Change at any time. Cancel at end of period." %}
   </p>
 
-  <div data-stagger="0.08" class="mt-8 grid gap-5 sm:grid-cols-3">
+  <div data-stagger="0.08" class="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
     {% for plan in plans %}
     <div data-animate="fade-up" data-hover="lift"
          class="card flex flex-col
                 {% if subscription and subscription.plan.pk == plan.pk %}
                 ring-2 ring-primary-500
                 {% endif %}">
+
+      {% if subscription and subscription.plan.pk == plan.pk %}
+      <span class="chip chip-primary mb-2 self-start">
+        {% trans "Current plan" %}
+      </span>
+      {% endif %}
+
       <h2 class="text-lg font-bold">{{ plan.name }}</h2>
       <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
         {{ plan.get_interval_display }}
@@ -35,63 +56,116 @@
       </p>
       {% if plan.price_usd %}
       <p class="text-xs text-slate-500 dark:text-slate-400">
-        approx USD {{ plan.price_usd|floatformat:0 }}
+        ≈ USD {{ plan.price_usd|floatformat:0 }}
+      </p>
+      {% endif %}
+      {% if plan.is_annual %}
+      <p class="mt-1 text-xs text-emerald-600 dark:text-emerald-400">
+        ≈ MWK {{ plan.monthly_equivalent_mwk|floatformat:0|intcomma }} / {% trans "month" %}
       </p>
       {% endif %}
 
       <ul class="mt-5 flex-1 space-y-2 text-sm">
         <li class="flex items-start gap-2">
-          <span class="text-primary-500">+</span>
-          {% if plan.max_properties == 0 %}
-          {% trans "Unlimited properties" %}
-          {% else %}
-          {{ plan.max_properties }} {% trans "properties" %}
-          {% endif %}
+          <svg class="mt-0.5 h-4 w-4 shrink-0 text-primary-500" fill="none"
+               stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"
+               stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 13l4 4L19 7" />
+          </svg>
+          <span>
+            {% if plan.max_properties == 0 %}
+            {% trans "Unlimited properties" %}
+            {% else %}
+            {% blocktrans count n=plan.max_properties %}{{ n }} property{% plural %}{{ n }} properties{% endblocktrans %}
+            {% endif %}
+          </span>
         </li>
         <li class="flex items-start gap-2">
-          <span class="text-primary-500">+</span>
-          {% if plan.max_units == 0 %}
-          {% trans "Unlimited units" %}
-          {% else %}
-          {{ plan.max_units }} {% trans "units" %}
-          {% endif %}
+          <svg class="mt-0.5 h-4 w-4 shrink-0 text-primary-500" fill="none"
+               stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"
+               stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 13l4 4L19 7" />
+          </svg>
+          <span>
+            {% if plan.max_units == 0 %}
+            {% trans "Unlimited units" %}
+            {% else %}
+            {% blocktrans count n=plan.max_units %}{{ n }} unit{% plural %}{{ n }} units{% endblocktrans %}
+            {% endif %}
+          </span>
         </li>
         <li class="flex items-start gap-2">
-          <span class="text-primary-500">+</span>
-          {% if plan.max_staff == 0 %}
-          {% trans "Unlimited staff" %}
-          {% else %}
-          {{ plan.max_staff }} {% trans "staff accounts" %}
-          {% endif %}
+          <svg class="mt-0.5 h-4 w-4 shrink-0 text-primary-500" fill="none"
+               stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"
+               stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 13l4 4L19 7" />
+          </svg>
+          <span>
+            {% if plan.max_staff == 0 %}
+            {% trans "Unlimited staff" %}
+            {% else %}
+            {% blocktrans count n=plan.max_staff %}{{ n }} staff account{% plural %}{{ n }} staff accounts{% endblocktrans %}
+            {% endif %}
+          </span>
         </li>
         {% if plan.includes_hospitality %}
         <li class="flex items-start gap-2">
-          <span class="text-primary-500">+</span>
-          {% trans "Hospitality module" %}
+          <svg class="mt-0.5 h-4 w-4 shrink-0 text-primary-500" fill="none"
+               stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"
+               stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 13l4 4L19 7" />
+          </svg>
+          <span>{% trans "Hospitality module" %}</span>
         </li>
         {% endif %}
         {% if plan.includes_rentals %}
         <li class="flex items-start gap-2">
-          <span class="text-primary-500">+</span>
-          {% trans "Rental management" %}
+          <svg class="mt-0.5 h-4 w-4 shrink-0 text-primary-500" fill="none"
+               stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"
+               stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 13l4 4L19 7" />
+          </svg>
+          <span>{% trans "Rental management" %}</span>
         </li>
         {% endif %}
         {% if plan.includes_sales %}
         <li class="flex items-start gap-2">
-          <span class="text-primary-500">+</span>
-          {% trans "Property sales" %}
+          <svg class="mt-0.5 h-4 w-4 shrink-0 text-primary-500" fill="none"
+               stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"
+               stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 13l4 4L19 7" />
+          </svg>
+          <span>{% trans "Property sales" %}</span>
         </li>
         {% endif %}
         {% if plan.includes_eis %}
         <li class="flex items-start gap-2">
-          <span class="text-primary-500">+</span>
-          {% trans "MRA EIS compliance" %}
+          <svg class="mt-0.5 h-4 w-4 shrink-0 text-primary-500" fill="none"
+               stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"
+               stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 13l4 4L19 7" />
+          </svg>
+          <span>{% trans "MRA EIS compliance" %}</span>
+        </li>
+        {% endif %}
+        {% if plan.includes_whatsapp %}
+        <li class="flex items-start gap-2">
+          <svg class="mt-0.5 h-4 w-4 shrink-0 text-primary-500" fill="none"
+               stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"
+               stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 13l4 4L19 7" />
+          </svg>
+          <span>{% trans "WhatsApp notifications" %}</span>
         </li>
         {% endif %}
         {% if plan.includes_priority_support %}
         <li class="flex items-start gap-2">
-          <span class="text-primary-500">+</span>
-          {% trans "Priority support" %}
+          <svg class="mt-0.5 h-4 w-4 shrink-0 text-primary-500" fill="none"
+               stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"
+               stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 13l4 4L19 7" />
+          </svg>
+          <span>{% trans "Priority support" %}</span>
         </li>
         {% endif %}
       </ul>
@@ -116,6 +190,10 @@
     </div>
     {% endfor %}
   </div>
+
+  <p class="mt-8 text-center text-xs text-slate-500 dark:text-slate-400">
+    {% trans "All plans include the offline PWA, mobile money payments, and MRA-compliant invoicing." %}
+  </p>
 
 </div>
 {% endblock %}

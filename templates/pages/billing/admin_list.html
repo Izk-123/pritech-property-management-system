@@ -1,58 +1,171 @@
-{% extends "admin/base_site.html" %}
+{% extends "base.html" %}
 {% load i18n humanize %}
 
-{% block content %}
-<div class="p-6">
-  <h1 class="text-2xl font-bold">{% trans "Tenant subscriptions" %}</h1>
+{% block title %}{% trans "Subscriptions" %} — Platform Admin{% endblock %}
 
-  <div class="mt-4 grid grid-cols-3 gap-4">
-    <div class="rounded-lg bg-slate-50 p-4">
-      <p class="text-xs uppercase text-slate-500">MRR (MWK)</p>
-      <p class="mt-1 text-2xl font-bold">{{ mrr|floatformat:0|intcomma }}</p>
+{% block content %}
+<div class="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+
+  <header data-animate="fade-up" data-animate-now class="mb-6">
+    <h1 class="text-2xl font-bold tracking-tight sm:text-3xl">
+      {% trans "Subscriptions" %}
+    </h1>
+    <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+      {% trans "All tenant subscriptions across the platform." %}
+    </p>
+  </header>
+
+  {# ── Revenue stats ────────────────────────────────────── #}
+  <section data-stagger="0.06" class="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div data-animate="fade-up" class="card">
+      <p class="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
+        {% trans "MRR" %}
+      </p>
+      <p class="mt-1 text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+        MWK {{ mrr|floatformat:0|intcomma }}
+      </p>
     </div>
-    <div class="rounded-lg bg-blue-50 p-4">
-      <p class="text-xs uppercase text-blue-700">Trials</p>
-      <p class="mt-1 text-2xl font-bold text-blue-700">{{ trial_count }}</p>
+    <div data-animate="fade-up" class="card">
+      <p class="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
+        {% trans "ARR" %}
+      </p>
+      <p class="mt-1 text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+        MWK {{ arr|floatformat:0|intcomma }}
+      </p>
     </div>
-    <div class="rounded-lg bg-amber-50 p-4">
-      <p class="text-xs uppercase text-amber-700">Past due</p>
-      <p class="mt-1 text-2xl font-bold text-amber-700">{{ past_due_count }}</p>
+    <div data-animate="fade-up" class="card">
+      <p class="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
+        {% trans "On trial" %}
+      </p>
+      <p class="mt-1 text-2xl font-bold text-blue-600 dark:text-blue-400">
+        {{ trial_count }}
+      </p>
+    </div>
+    <div data-animate="fade-up" class="card">
+      <p class="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
+        {% trans "Past due / suspended" %}
+      </p>
+      <p class="mt-1 text-2xl font-bold text-red-600 dark:text-red-400">
+        {{ past_due_count }} / {{ suspended_count }}
+      </p>
+    </div>
+  </section>
+
+  {# ── Filters ──────────────────────────────────────────── #}
+  <form method="get" data-animate="fade-up" class="card mb-4 p-3">
+    <div class="flex flex-col gap-2 sm:flex-row">
+      <input type="search" name="q" value="{{ search_query }}"
+             placeholder="{% trans 'Search by tenant name, schema, or email…' %}"
+             class="field flex-1">
+      <select name="status" class="field sm:w-48">
+        <option value="">{% trans "All statuses" %}</option>
+        {% for value, label in statuses %}
+        <option value="{{ value }}" {% if current_status == value %}selected{% endif %}>
+          {{ label }}
+        </option>
+        {% endfor %}
+      </select>
+      <button type="submit" data-press class="btn btn-primary">
+        {% trans "Filter" %}
+      </button>
+    </div>
+  </form>
+
+  {# ── Subscriptions table ──────────────────────────────── #}
+  {% if subscriptions %}
+  <div data-animate="fade-up" class="card overflow-hidden !p-0">
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-slate-50 dark:bg-white/5">
+          <tr class="text-left text-xs uppercase tracking-wider
+                     text-slate-500 dark:text-slate-400">
+            <th class="px-4 py-3">{% trans "Tenant" %}</th>
+            <th class="px-4 py-3">{% trans "Plan" %}</th>
+            <th class="px-4 py-3">{% trans "Status" %}</th>
+            <th class="px-4 py-3">{% trans "Period ends" %}</th>
+            <th class="px-4 py-3 text-right">{% trans "MRR" %}</th>
+            <th class="px-4 py-3 text-right">{% trans "Actions" %}</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 dark:divide-slate-700/60">
+          {% for sub in subscriptions %}
+          <tr class="transition-colors hover:bg-slate-50 dark:hover:bg-white/5">
+            <td class="px-4 py-3">
+              <p class="font-medium">{{ sub.tenant.name }}</p>
+              <p class="text-xs text-slate-500 dark:text-slate-400 font-mono">
+                {{ sub.tenant.schema_name }}
+              </p>
+            </td>
+            <td class="px-4 py-3">
+              <p class="text-sm">{{ sub.plan.name }}</p>
+              <p class="text-xs text-slate-500 dark:text-slate-400">
+                {{ sub.plan.get_interval_display }}
+              </p>
+            </td>
+            <td class="px-4 py-3">
+              <span class="chip
+                {% if sub.status == 'TRIAL' %}bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-200
+                {% elif sub.status == 'ACTIVE' %}chip-green
+                {% elif sub.status == 'PAST_DUE' %}bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200
+                {% else %}bg-red-100 text-red-800 dark:bg-red-900/60 dark:text-red-200{% endif %}">
+                {{ sub.get_status_display }}
+              </span>
+            </td>
+            <td class="px-4 py-3 text-xs">
+              {% if sub.is_trialing %}
+              {{ sub.trial_ends_at|date:"d M Y" }}
+              {% elif sub.current_period_end %}
+              {{ sub.current_period_end|date:"d M Y" }}
+              {% else %}—{% endif %}
+            </td>
+            <td class="px-4 py-3 text-right font-medium">
+              {% if sub.status == 'ACTIVE' %}
+              MWK {{ sub.plan.monthly_equivalent_mwk|floatformat:0|intcomma }}
+              {% else %}—{% endif %}
+            </td>
+            <td class="px-4 py-3 text-right">
+              <a href="{% url 'billing_admin:admin_detail' sub.pk %}"
+                 class="text-xs font-medium text-primary-600
+                        hover:underline dark:text-primary-400">
+                {% trans "View" %}
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
   </div>
 
-  <form method="get" class="mt-6 flex gap-2">
-    <select name="status" class="rounded border px-3 py-2">
-      <option value="">{% trans "All statuses" %}</option>
-      {% for code, label in statuses %}
-      <option value="{{ code }}" {% if current_status == code %}selected{% endif %}>{{ label }}</option>
-      {% endfor %}
-    </select>
-    <button type="submit" class="rounded bg-slate-700 px-4 py-2 text-white">
-      {% trans "Filter" %}
-    </button>
-  </form>
+  {% if is_paginated %}
+  <nav class="mt-6 flex items-center justify-center gap-2">
+    {% if page_obj.has_previous %}
+    <a href="?{% querystring page=page_obj.previous_page_number %}"
+       class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm
+              dark:border-white/10 dark:bg-white/5">
+      ← {% trans "Previous" %}
+    </a>
+    {% endif %}
+    <span class="px-3 py-2 text-sm text-slate-600 dark:text-slate-400">
+      {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}
+    </span>
+    {% if page_obj.has_next %}
+    <a href="?{% querystring page=page_obj.next_page_number %}"
+       class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm
+              dark:border-white/10 dark:bg-white/5">
+      {% trans "Next" %} →
+    </a>
+    {% endif %}
+  </nav>
+  {% endif %}
 
-  <table class="mt-6 w-full text-sm">
-    <thead class="bg-slate-50">
-      <tr>
-        <th class="px-3 py-2 text-left">{% trans "Tenant" %}</th>
-        <th class="px-3 py-2 text-left">{% trans "Plan" %}</th>
-        <th class="px-3 py-2 text-left">{% trans "Status" %}</th>
-        <th class="px-3 py-2 text-left">{% trans "Renews" %}</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for sub in subscriptions %}
-      <tr class="border-b">
-        <td class="px-3 py-2">{{ sub.tenant.name }}</td>
-        <td class="px-3 py-2">{{ sub.plan.name }}</td>
-        <td class="px-3 py-2">{{ sub.get_status_display }}</td>
-        <td class="px-3 py-2">{{ sub.current_period_end|date:"d M Y"|default:"-" }}</td>
-      </tr>
-      {% empty %}
-      <tr><td colspan="4" class="px-3 py-6 text-center text-slate-500">{% trans "No subscriptions." %}</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  {% else %}
+  <div class="card text-center py-12">
+    <p class="text-slate-500 dark:text-slate-400">
+      {% trans "No subscriptions match your filters." %}
+    </p>
+  </div>
+  {% endif %}
+
 </div>
 {% endblock %}

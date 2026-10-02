@@ -1,5 +1,5 @@
 """
-Billing services - all the business logic in one place so views and
+Billing services — all the business logic in one place so views and
 tasks stay thin.
 """
 import logging
@@ -19,9 +19,16 @@ from .models import (
 logger = logging.getLogger(__name__)
 
 
+# ─────────────────────────────────────────────────────────────────────
+# Subscription lifecycle
+# ─────────────────────────────────────────────────────────────────────
+
 @transaction.atomic
 def start_trial(tenant, plan=None):
-    """Called from provision_tenant() right after a tenant is created."""
+    """
+    Called from provision_tenant() right after a tenant is created.
+    If no plan is given, default to the first public Starter plan.
+    """
     if plan is None:
         plan = SubscriptionPlan.objects.filter(
             tier=SubscriptionPlan.Tier.STARTER,
@@ -29,10 +36,7 @@ def start_trial(tenant, plan=None):
         ).order_by('price_mwk').first()
 
     if plan is None:
-        logger.error(
-            f'No Starter plan configured - cannot start trial '
-            f'for {tenant.schema_name}'
-        )
+        logger.error(f'No Starter plan configured — cannot start trial for {tenant.schema_name}')
         return None
 
     now = timezone.now()
@@ -81,7 +85,11 @@ def activate_subscription(subscription):
 
 @transaction.atomic
 def change_plan(subscription, new_plan, performed_by=None):
-    """Upgrade or downgrade. Takes effect immediately."""
+    """
+    Upgrade or downgrade. Takes effect immediately. Any unpaid current
+    invoice is voided; a new prorated invoice can be generated if
+    needed (kept simple: current period is not prorated).
+    """
     old_plan = subscription.plan
     if old_plan == new_plan:
         return subscription
@@ -103,6 +111,8 @@ def change_plan(subscription, new_plan, performed_by=None):
         performed_by=performed_by,
     )
 
+    # Void any unpaid draft/issued invoices so the tenant doesn't
+    # get charged twice.
     subscription.invoices.filter(
         status__in=[
             SubscriptionInvoice.Status.DRAFT,
@@ -112,13 +122,16 @@ def change_plan(subscription, new_plan, performed_by=None):
 
     logger.info(
         f'Plan changed for {subscription.tenant.schema_name}: '
-        f'{old_plan.name} -> {new_plan.name}'
+        f'{old_plan.name} → {new_plan.name}'
     )
     return subscription
 
 
 @transaction.atomic
 def cancel_subscription(subscription, performed_by=None, note=''):
+    """
+    Cancel at end of current period. Tenant keeps access until then.
+    """
     subscription.status = Subscription.Status.CANCELLED
     subscription.cancelled_at = timezone.now()
     subscription.save()
@@ -133,10 +146,12 @@ def cancel_subscription(subscription, performed_by=None, note=''):
 
 @transaction.atomic
 def suspend_subscription(subscription, reason='Non-payment'):
+    """Called by a Celery task when an invoice is too far overdue."""
     subscription.status = Subscription.Status.SUSPENDED
     subscription.suspended_at = timezone.now()
     subscription.save()
 
+    # Also deactivate the tenant so no requests get through
     tenant = subscription.tenant
     tenant.is_active = False
     tenant.save(update_fields=['is_active'])
@@ -146,11 +161,14 @@ def suspend_subscription(subscription, reason='Non-payment'):
         kind=SubscriptionChange.Kind.SUSPENDED,
         note=reason,
     )
-    logger.warning(f'Suspended {subscription.tenant.schema_name}: {reason}')
+    logger.warning(
+        f'Suspended {subscription.tenant.schema_name}: {reason}'
+    )
 
 
 @transaction.atomic
 def reactivate_subscription(subscription, performed_by=None):
+    """Reverse a suspension."""
     subscription.status = Subscription.Status.ACTIVE
     subscription.suspended_at = None
     subscription.consecutive_failed_payments = 0
@@ -167,6 +185,10 @@ def reactivate_subscription(subscription, performed_by=None):
     )
 
 
+# ─────────────────────────────────────────────────────────────────────
+# Invoice generation
+# ─────────────────────────────────────────────────────────────────────
+
 def _next_period_end(start, plan):
     if plan.interval == SubscriptionPlan.Interval.ANNUAL:
         return start + relativedelta(years=1)
@@ -176,17 +198,24 @@ def _next_period_end(start, plan):
 @transaction.atomic
 def generate_invoice_for_subscription(subscription, period_start=None,
                                        period_end=None, due_date=None):
-    """Generate a SubscriptionInvoice. Idempotent per period."""
+    """
+    Generate a SubscriptionInvoice. Idempotent per (subscription, period_start).
+
+    Default behavior:
+      • period_start = end of last period, or now
+      • period_end   = +1 month or +1 year based on plan interval
+      • due_date     = 7 days from issue_date (or immediately for trials
+                       about to expire)
+    """
     plan = subscription.plan
     now = timezone.now()
     period_start = period_start or subscription.current_period_end or now
     period_end = period_end or _next_period_end(period_start, plan)
     due_date = due_date or (now.date() + timedelta(days=7))
 
-    ps = period_start.date() if hasattr(period_start, 'date') else period_start
-
+    # Idempotency: skip if an unpaid invoice already exists for this period
     existing = subscription.invoices.filter(
-        period_start=ps,
+        period_start=period_start.date() if hasattr(period_start, 'date') else period_start,
         status__in=[
             SubscriptionInvoice.Status.DRAFT,
             SubscriptionInvoice.Status.ISSUED,
@@ -202,26 +231,31 @@ def generate_invoice_for_subscription(subscription, period_start=None,
         subscription=subscription,
         tenant=subscription.tenant,
         plan=plan,
-        period_start=ps,
+        period_start=period_start.date() if hasattr(period_start, 'date') else period_start,
         period_end=period_end.date() if hasattr(period_end, 'date') else period_end,
         due_date=due_date,
         amount=amount,
         currency=currency,
-        description=f'{plan.name} / {plan.get_interval_display()} subscription',
+        description=f'{plan.name} · {plan.get_interval_display()} subscription',
         status=SubscriptionInvoice.Status.ISSUED,
     )
-    logger.info(
-        f'Generated {invoice.invoice_number} for '
-        f'{subscription.tenant.schema_name}'
-    )
+    logger.info(f'Generated {invoice.invoice_number} for {subscription.tenant.schema_name}')
     return invoice
 
+
+# ─────────────────────────────────────────────────────────────────────
+# Payment application
+# ─────────────────────────────────────────────────────────────────────
 
 @transaction.atomic
 def record_subscription_payment(invoice, amount, method, reference='',
                                 paychangu_charge_id='', payer_name='',
                                 payer_phone='', received_by=None):
-    """Idempotent. Called by webhook, admin action, or task."""
+    """
+    Idempotent. Called by the PayChangu webhook, by a manual admin
+    action, or by a Celery task. Returns the SubscriptionPayment.
+    """
+    # Idempotency: same charge ID should only create one payment
     if paychangu_charge_id:
         existing = SubscriptionPayment.objects.filter(
             paychangu_charge_id=paychangu_charge_id,
@@ -242,33 +276,34 @@ def record_subscription_payment(invoice, amount, method, reference='',
         received_by=received_by,
     )
 
+    # Mark invoice paid if the total covers it
     if sum(p.amount for p in invoice.payments.all()) >= invoice.amount:
         invoice.status = SubscriptionInvoice.Status.PAID
         invoice.paid_date = timezone.now().date()
         invoice.save(update_fields=['status', 'paid_date', 'updated_at'])
 
+    # Update subscription state
     subscription = invoice.subscription
     subscription.last_payment_at = timezone.now()
     subscription.last_payment_amount = amount
     subscription.consecutive_failed_payments = 0
 
+    # Move period forward if this is the current period invoice
     if invoice.period_end >= timezone.now().date():
         subscription.current_period_start = timezone.make_aware(
-            timezone.datetime.combine(
-                invoice.period_start, timezone.datetime.min.time(),
-            )
+            timezone.datetime.combine(invoice.period_start, timezone.datetime.min.time())
         )
         subscription.current_period_end = timezone.make_aware(
-            timezone.datetime.combine(
-                invoice.period_end, timezone.datetime.min.time(),
-            )
+            timezone.datetime.combine(invoice.period_end, timezone.datetime.min.time())
         )
 
+    # Convert trial → active on first payment
     if subscription.status == Subscription.Status.TRIAL:
         subscription.status = Subscription.Status.ACTIVE
 
     if subscription.status == Subscription.Status.PAST_DUE:
         subscription.status = Subscription.Status.ACTIVE
+        # Un-suspend the tenant if they were shut off
         if subscription.tenant and not subscription.tenant.is_active:
             subscription.tenant.is_active = True
             subscription.tenant.save(update_fields=['is_active'])

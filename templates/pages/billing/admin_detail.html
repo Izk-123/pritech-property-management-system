@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+{% load i18n humanize %}
+
+{% block title %}{{ tenant.name }} — Billing{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+
+  <nav data-animate="fade-right" data-animate-now class="mb-4 text-sm">
+    <a href="{% url 'billing_admin:admin_list' %}"
+       class="inline-flex items-center gap-1 text-primary-600
+              hover:text-primary-500 dark:text-primary-400">
+      <svg class="h-4 w-4" fill="none" stroke="currentColor"
+           viewBox="0 0 24 24" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round">
+        <path d="M19 12H5M12 19l-7-7 7-7" />
+      </svg>
+      {% trans "All subscriptions" %}
+    </a>
+  </nav>
+
+  <header data-animate="fade-up" class="mb-6 flex flex-wrap items-start
+                                          justify-between gap-3">
+    <div>
+      <h1 class="text-2xl font-bold tracking-tight">{{ tenant.name }}</h1>
+      <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+        <span class="font-mono">{{ tenant.schema_name }}</span>
+        · {{ tenant.contact_email }}
+      </p>
+    </div>
+    <span class="chip
+      {% if subscription.status == 'TRIAL' %}bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-200
+      {% elif subscription.status == 'ACTIVE' %}chip-green
+      {% elif subscription.status == 'PAST_DUE' %}bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200
+      {% else %}bg-red-100 text-red-800 dark:bg-red-900/60 dark:text-red-200{% endif %}">
+      {{ subscription.get_status_display }}
+    </span>
+  </header>
+
+  {# ── Current plan card ────────────────────────────────── #}
+  <section data-animate="fade-up" class="card mb-6">
+    <dl class="grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
+      <div>
+        <dt class="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
+          {% trans "Plan" %}
+        </dt>
+        <dd class="mt-1 font-medium">{{ subscription.plan.name }}</dd>
+      </div>
+      <div>
+        <dt class="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
+          {% trans "Monthly" %}
+        </dt>
+        <dd class="mt-1 font-medium">
+          MWK {{ subscription.plan.monthly_equivalent_mwk|floatformat:0|intcomma }}
+        </dd>
+      </div>
+      <div>
+        <dt class="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
+          {% trans "Period ends" %}
+        </dt>
+        <dd class="mt-1 font-medium">
+          {% if subscription.current_period_end %}
+          {{ subscription.current_period_end|date:"d M Y" }}
+          {% elif subscription.trial_ends_at %}
+          {{ subscription.trial_ends_at|date:"d M Y" }}
+          {% else %}—{% endif %}
+        </dd>
+      </div>
+      <div>
+        <dt class="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
+          {% trans "Last payment" %}
+        </dt>
+        <dd class="mt-1 font-medium">
+          {% if subscription.last_payment_at %}
+          {{ subscription.last_payment_at|date:"d M Y" }}
+          {% else %}—{% endif %}
+        </dd>
+      </div>
+    </dl>
+  </section>
+
+  {# ── Trial extension ──────────────────────────────────── #}
+  {% if subscription.status == 'TRIAL' %}
+  <section data-animate="fade-up" class="card mb-6">
+    <h2 class="mb-3 text-sm font-bold uppercase tracking-wider
+               text-slate-500 dark:text-slate-400">
+      {% trans "Extend trial" %}
+    </h2>
+    <form method="post"
+          action="{% url 'billing_admin:extend_trial' subscription.pk %}"
+          class="flex flex-wrap items-end gap-2">
+      {% csrf_token %}
+      <div class="w-24">
+        <label for="days" class="mb-1.5 block text-xs font-medium">
+          {% trans "Days" %}
+        </label>
+        <input type="number" name="days" id="days" value="7" min="1" max="90"
+               class="field">
+      </div>
+      <div class="flex-1 min-w-[12rem]">
+        <label for="note" class="mb-1.5 block text-xs font-medium">
+          {% trans "Note" %}
+        </label>
+        <input type="text" name="note" id="note"
+               placeholder="{% trans 'e.g. Sales negotiation extension' %}"
+               class="field">
+      </div>
+      <button type="submit" data-press class="btn btn-primary">
+        {% trans "Extend" %}
+      </button>
+    </form>
+  </section>
+  {% endif %}
+
+  {# ── Invoices ─────────────────────────────────────────── #}
+  <section data-animate="fade-up" class="mb-6">
+    <h2 class="mb-3 text-lg font-semibold">{% trans "Invoices" %}</h2>
+    {% if invoices %}
+    <div class="card overflow-hidden !p-0">
+      <table class="w-full text-sm">
+        <thead class="bg-slate-50 dark:bg-white/5">
+          <tr class="text-left text-xs uppercase tracking-wider
+                     text-slate-500 dark:text-slate-400">
+            <th class="px-4 py-2">{% trans "Invoice" %}</th>
+            <th class="px-4 py-2">{% trans "Period" %}</th>
+            <th class="px-4 py-2 text-right">{% trans "Amount" %}</th>
+            <th class="px-4 py-2">{% trans "Status" %}</th>
+            <th class="px-4 py-2 text-right">{% trans "Actions" %}</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 dark:divide-slate-700/60">
+          {% for inv in invoices %}
+          <tr>
+            <td class="px-4 py-3 font-mono text-xs">{{ inv.invoice_number }}</td>
+            <td class="px-4 py-3 text-xs">
+              {{ inv.period_start|date:"d M" }} → {{ inv.period_end|date:"d M Y" }}
+            </td>
+            <td class="px-4 py-3 text-right font-medium">
+              {{ inv.currency }} {{ inv.amount|floatformat:0|intcomma }}
+            </td>
+            <td class="px-4 py-3">
+              <span class="chip
+                {% if inv.status == 'PAID' %}chip-green
+                {% elif inv.status == 'OVER' %}bg-red-100 text-red-800 dark:bg-red-900/60 dark:text-red-200
+                {% elif inv.status == 'VOID' %}chip-slate
+                {% else %}bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-200{% endif %}">
+                {{ inv.get_status_display }}
+              </span>
+            </td>
+            <td class="px-4 py-3 text-right">
+              {% if inv.status != 'PAID' and inv.status != 'VOID' %}
+              <form method="post"
+                    action="{% url 'billing_admin:mark_paid' inv.pk %}"
+                    class="inline">
+                {% csrf_token %}
+                <input type="hidden" name="reference"
+                       value="Manual by {{ request.user.email }}">
+                <button type="submit"
+                        onclick="return confirm('{% trans "Mark this invoice as paid?" %}')"
+                        class="text-xs font-medium text-emerald-600
+                               hover:underline dark:text-emerald-400">
+                  {% trans "Mark paid" %}
+                </button>
+              </form>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="card text-sm text-slate-500 dark:text-slate-400 py-6 text-center">
+      {% trans "No invoices yet." %}
+    </p>
+    {% endif %}
+  </section>
+
+  {# ── Plan change history ──────────────────────────────── #}
+  {% if changes %}
+  <section data-animate="fade-up">
+    <h2 class="mb-3 text-lg font-semibold">{% trans "History" %}</h2>
+    <div class="card divide-y divide-slate-100 dark:divide-slate-700/60">
+      {% for change in changes %}
+      <div class="flex items-start justify-between gap-3 p-4">
+        <div>
+          <p class="text-sm font-medium">{{ change.get_kind_display }}</p>
+          <p class="text-xs text-slate-500 dark:text-slate-400">
+            {% if change.from_plan %}From {{ change.from_plan.name }} · {% endif %}
+            {% if change.to_plan %}To {{ change.to_plan.name }} · {% endif %}
+            {{ change.created_at|date:"d M Y H:i" }}
+          </p>
+          {% if change.note %}
+          <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            {{ change.note }}
+          </p>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+</div>
+{% endblock %}

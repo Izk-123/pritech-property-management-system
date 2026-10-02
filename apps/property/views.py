@@ -1,15 +1,15 @@
 from datetime import timedelta
-from django.contrib.auth.mixins import LoginRequiredMixin
 from django.utils import timezone
 from django.views.generic import ListView, TemplateView
 from django.db.models import Count, Q, Sum
+from apps.core.mixins import TenantStaffRequiredMixin
 from apps.core.properties.models import Unit
 from apps.property.leases.models import Lease
 from apps.property.rent_invoicing.models import RentInvoice
 from apps.property.sales.models import SaleListing
 
 
-class AvailabilityDashboardView(LoginRequiredMixin, TemplateView):
+class AvailabilityDashboardView(TenantStaffRequiredMixin, TemplateView):
     template_name = 'pages/property/availability_dashboard.html'
 
     def get_context_data(self, **kwargs):
@@ -62,7 +62,7 @@ class AvailabilityDashboardView(LoginRequiredMixin, TemplateView):
         return ctx
 
 
-class LeaseListView(LoginRequiredMixin, ListView):
+class LeaseListView(TenantStaffRequiredMixin, ListView):
     model = Lease
     template_name = 'pages/property/lease_list.html'
     context_object_name = 'leases'
@@ -94,7 +94,7 @@ class LeaseListView(LoginRequiredMixin, ListView):
         return ctx
 
 
-class RentInvoiceListView(LoginRequiredMixin, ListView):
+class RentInvoiceListView(TenantStaffRequiredMixin, ListView):
     model = RentInvoice
     template_name = 'pages/property/rent_invoice_list.html'
     context_object_name = 'invoices'

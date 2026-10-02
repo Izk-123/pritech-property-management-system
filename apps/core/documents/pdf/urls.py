@@ -10,4 +10,8 @@ urlpatterns = [
          name='payment_receipt'),
     path('lease/<int:pk>/', views.LeaseAgreementPDFView.as_view(),
          name='lease_agreement'),
+    path('rent-invoice/<int:pk>/', views.RentInvoicePDFView.as_view(),
+         name='rent_invoice'),
+    path('sale/<int:pk>/', views.SaleAgreementPDFView.as_view(),
+         name='sale_agreement'),
 ]

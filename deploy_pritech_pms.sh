@@ -4,18 +4,27 @@
 #   Phase 5: multi-tenant via django-tenants
 #   Phase 6: PWA + offline-first
 #   Phase 7: Channels + Redis WebSockets + WhatsApp/email + animated admin
-#   Phase 8: auth hardening (Argon2, Axes, rate limits, JWT), CSP,
+#   Phase 8: auth hardening (Argon2, 2FA, Axes, rate limits, JWT), CSP,
 #            Chichewa localization, django-redis cache, health checks,
 #            backups, DR docs
 #   Phase 9: public listings + vacant rentals + tenant home + staff dashboard
 #   Phase 9.1: Google Sign-In via allauth
-#   Phase 9.2: MFA via allauth.mfa (TOTP + recovery codes).
-#              Replaces django-two-factor-auth / django-otp.
+#   Phase 9.2: MFA via allauth.mfa (TOTP + recovery codes)
+#   Phase 9.3: admin tenant/platform isolation
+#   Phase 10: subscription billing (PayChangu, trials, dunning, auto-suspend)
+#   Documents: ReportLab PDF generation (folio, receipt, lease, ...)
 #
-# Idempotent and self-healing. Fails fast on URLconf/middleware errors
-# BEFORE attempting migrations. Auto-detects a free Daphne port, cleans
-# stale processes, flattens nested static icons, reconciles public-schema
-# drift, compiles translations, and verifies the auth stack.
+# Safety model
+# ------------
+#   DIE  on anything that breaks Django startup:
+#        • incomplete PDF package while urls.py includes it
+#        • incomplete billing package while settings has it in SHARED_APPS
+#        • allauth wiring broken
+#        • URLconf imports that raise
+#   WARN on runtime-only gaps:
+#        • a template missing but its URL reachable
+#        • an optional submodule absent from an otherwise-working package
+#        • third-party services (PayChangu, WhatsApp) not configured
 #
 # Usage:
 #   sudo bash deploy_pritech_pms.sh              # deploy / update
@@ -292,6 +301,70 @@ else
 fi
 
 # ============================================================================
+# Step 1b — URLconf safety scan (BEFORE touching venv or DB)
+#
+# Django imports every URLconf at process start. If config/urls.py or
+# config/urls_public.py includes a package whose __init__ raises
+# ImportError, the entire site 500s on every request — including Celery
+# and Daphne. We scan for the two most common offenders here so the
+# operator gets a clear message instead of a startup crash.
+#
+# This runs on the source tree, not via Python, so it works even if the
+# venv is broken.
+# ============================================================================
+if [[ "${ENV_ONLY}" != "true" ]]; then
+    log "Step 1b: URLconf safety scan"
+
+    scan_urlconf_for_includes() {
+        local urlconf="$1"
+        [[ -f "${urlconf}" ]] || return 0
+
+        # PDF package
+        if grep -q "apps\.core\.documents\.pdf\.urls" "${urlconf}" 2>/dev/null; then
+            local pdf_dir="${PROJECT_DIR}/apps/core/documents/pdf"
+            local pdf_views="${pdf_dir}/views.py"
+            local missing=()
+
+            # views.py imports these — they must exist for the package
+            # to import cleanly
+            for m in rent_invoice.py sale_agreement.py; do
+                [[ -f "${pdf_dir}/${m}" ]] || missing+=("${m}")
+            done
+
+            if [[ ${#missing[@]} -gt 0 ]]; then
+                warn "${urlconf} includes apps.core.documents.pdf.urls"
+                warn "  but the PDF package is missing: ${missing[*]}"
+                warn "  — removing the include line is the safe fix."
+                die "PDF URLconf is broken. Remove the 'pdf/' include from $(basename ${urlconf}) or add the missing modules."
+            fi
+        fi
+
+        # Billing package
+        if grep -q "apps\.shared\.billing\.urls" "${urlconf}" 2>/dev/null \
+           || grep -q "apps\.shared\.billing\.urls_admin" "${urlconf}" 2>/dev/null; then
+            local billing_dir="${PROJECT_DIR}/apps/shared/billing"
+            if [[ ! -f "${billing_dir}/views.py" ]] \
+               || [[ ! -f "${billing_dir}/models.py" ]] \
+               || [[ ! -f "${billing_dir}/services.py" ]]; then
+                die "Billing URLconf is included but apps/shared/billing is incomplete."
+            fi
+
+            # The InvoicePDFView imports this at call time, not at
+            # module import time — so a missing pdf.py won't crash the
+            # URLconf. Warn only.
+            if [[ ! -f "${billing_dir}/pdf.py" ]] \
+               && grep -q "from apps\.shared\.billing\.pdf" "${billing_dir}/views.py" 2>/dev/null; then
+                warn "billing/views.py imports billing/pdf.py but the file is missing — invoice PDFs will 500"
+            fi
+        fi
+    }
+
+    scan_urlconf_for_includes "${PROJECT_DIR}/config/urls.py"
+    scan_urlconf_for_includes "${PROJECT_DIR}/config/urls_public.py"
+    ok "URLconf include structure is safe"
+fi
+
+# ============================================================================
 # Step 2 — Virtualenv + dependencies
 # ============================================================================
 if [[ "${ENV_ONLY}" != "true" ]]; then
@@ -344,8 +417,6 @@ if [[ "${ENV_ONLY}" != "true" ]]; then
     ok "Phase 9.1/9.2 allauth packages importable"
 
     # ── Legacy 2FA packages must be ABSENT from INSTALLED_APPS ──────────
-    # They can still be pip-installed from the residual venv; we only
-    # need to be sure they aren't on the Django app path.
     if python -c "
 import os, sys
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
@@ -357,6 +428,44 @@ for a in ('django_otp', 'two_factor'):
         ok "Legacy two_factor / django_otp not in INSTALLED_APPS"
     else
         die "Legacy MFA app is still registered in INSTALLED_APPS. Remove django_otp, otp_totp, otp_static, two_factor, two_factor.plugins.phonenumber from SHARED_APPS."
+    fi
+
+    # ── Phase 10 — billing dependencies ─────────────────────────────────
+    # python-dateutil is needed by apps.shared.billing.services for the
+    # relativedelta period math. Required only if billing is installed.
+    if [[ -d "${PROJECT_DIR}/apps/shared/billing" ]]; then
+        if ! python -c "import dateutil" 2>/dev/null; then
+            die "Phase 10 needs 'python-dateutil'. Add 'python-dateutil' to requirements.txt."
+        fi
+        ok "python-dateutil importable (billing)"
+    else
+        info "apps/shared/billing not present — skipping billing dependency check"
+    fi
+
+    # ── Documents / PDF dependencies ────────────────────────────────────
+    if [[ -d "${PROJECT_DIR}/apps/core/documents/pdf" ]]; then
+        if ! python -c "import reportlab" 2>/dev/null; then
+            die "PDF package present but 'reportlab' not installed. Add 'reportlab>=4.2' to requirements.txt."
+        fi
+        if ! python -c "import qrcode" 2>/dev/null; then
+            die "PDF package present but 'qrcode' not installed. Add 'qrcode[pil]>=7.4' to requirements.txt."
+        fi
+        ok "reportlab + qrcode importable (PDF)"
+
+        # Fonts — warn only, PDFs render with Helvetica fallback if missing
+        PDF_FONT_DIR="${PROJECT_DIR}/apps/core/documents/pdf/fonts"
+        MISSING_FONTS=0
+        for f in DejaVuSans.ttf DejaVuSans-Bold.ttf DejaVuSans-Oblique.ttf DejaVuSans-BoldOblique.ttf; do
+            [[ -f "${PDF_FONT_DIR}/${f}" ]] || { warn "Missing PDF font: ${f}"; MISSING_FONTS=$((MISSING_FONTS + 1)); }
+        done
+        if [[ "${MISSING_FONTS}" -eq 0 ]]; then
+            ok "All 4 DejaVu fonts present"
+        else
+            warn "${MISSING_FONTS}/4 DejaVu fonts missing — Chichewa characters may render as boxes"
+            warn "Download from https://github.com/dejavu-fonts/dejavu-fonts/releases"
+        fi
+    else
+        info "apps/core/documents/pdf not present — skipping PDF dependency check"
     fi
 
     # ── Compliance packages — optional, warn only ───────────────────────
@@ -377,6 +486,25 @@ for a in ('django_otp', 'two_factor'):
         ok "App importable: ${app}"
     done
 
+    # ── Phase 10 app (present-only) ─────────────────────────────────────
+    if [[ -d "${PROJECT_DIR}/apps/shared/billing" ]]; then
+        for mod in apps.shared.billing apps.shared.billing.services; do
+            if ! python -c "import ${mod}" 2>/dev/null; then
+                die "Phase 10 module not importable: ${mod}"
+            fi
+            ok "Phase 10 module importable: ${mod}"
+        done
+    fi
+
+    # ── Phase 9.3 — admin mixins ────────────────────────────────────────
+    if [[ -f "${PROJECT_DIR}/apps/shared/tenants/admin_mixins.py" ]]; then
+        if python -c "import apps.shared.tenants.admin_mixins" 2>/dev/null; then
+            ok "Phase 9.3 admin_mixins importable"
+        else
+            warn "apps.shared.tenants.admin_mixins not importable — admin isolation may not apply"
+        fi
+    fi
+
     # ── Phase 8 modules — warn only (soft dependencies) ─────────────────
     for app in apps.shared.tenants.views_health apps.shared.tenants.tasks \
                apps.shared.users.middleware; do
@@ -386,10 +514,6 @@ for a in ('django_otp', 'two_factor'):
     done
 
     # ── Phase 9.1/9.2 — verify allauth wiring BEFORE any django.setup() ─
-    # django-allauth 65.x raises ImproperlyConfigured at AppConfig.ready()
-    # if AccountMiddleware is missing. We check the settings here — WITHOUT
-    # calling django.setup() and WITHOUT importing adapter modules — so the
-    # operator gets a one-line fix instead of a raw traceback.
     log "Step 2b: Verify Phase 9.1/9.2 allauth wiring"
     python - <<'PY' || die "Phase 9.1/9.2 settings wiring check failed — see above."
 import os
@@ -471,19 +595,41 @@ for setting_name in ('ACCOUNT_ADAPTER', 'SOCIALACCOUNT_ADAPTER'):
             f"{as_module} nor {as_pkg} exists on disk."
         )
 
+# ── 8. Phase 10 — billing wiring (if billing is installed) ──────────
+if 'apps.shared.billing' in settings.INSTALLED_APPS:
+    # Billing app must be in SHARED_APPS not TENANT_APPS
+    if 'apps.shared.billing' in getattr(settings, 'TENANT_APPS', []) \
+       and 'apps.shared.billing' not in getattr(settings, 'SHARED_APPS', []):
+        errors.append(
+            "apps.shared.billing is in TENANT_APPS but must be in SHARED_APPS "
+            "— subscriptions live in the public schema."
+        )
+
+    # Billing Celery schedule keys must point at real tasks
+    sched = getattr(settings, 'CELERY_BEAT_SCHEDULE', {})
+    for key, spec in sched.items():
+        t = spec.get('task', '')
+        if 'billing.tasks' in t:
+            # Just a naming check — the module must exist
+            if not Path(settings.BASE_DIR, 'apps/shared/billing/tasks.py').exists():
+                errors.append(
+                    f"CELERY_BEAT_SCHEDULE has billing task {key!r} "
+                    f"but apps/shared/billing/tasks.py is missing."
+                )
+
 if errors:
     print('', file=sys.stderr)
-    print('  Phase 9.1/9.2 wiring problems:', file=sys.stderr)
+    print('  Phase 9.1/9.2/10 wiring problems:', file=sys.stderr)
     for e in errors:
         print(f'     ✘ {e}', file=sys.stderr)
     print('', file=sys.stderr)
     sys.exit(1)
 
-print('    Phase 9.1/9.2 wiring OK')
+print('    Phase 9.1/9.2/10 wiring OK')
 PY
-    ok "Phase 9.1/9.2 allauth wiring verified"
+    ok "Phase 9.1/9.2/10 wiring verified"
 
-    # ── Phase 9.1/9.2 — REQUIRED modules (django.setup then import) ─────
+    # ── Phase 9.1/9.2 — REQUIRED modules ────────────────────────────────
     log "Step 2c: Verify Phase 9.1/9.2 adapters import"
     if ! python - <<'PY' 2>&1
 import os
@@ -523,6 +669,102 @@ PY
         die "Phase 9.1/9.2 adapters not importable — see error above."
     fi
     ok "Phase 9.1/9.2 adapters importable"
+
+    # ── Phase 10 — verify billing package imports cleanly ───────────────
+    if [[ -d "${PROJECT_DIR}/apps/shared/billing" ]]; then
+        log "Step 2d: Verify Phase 10 billing package imports"
+
+        if ! python - <<'PY' 2>&1
+import os
+import sys
+
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+import django
+try:
+    django.setup()
+except Exception as exc:
+    print(f"django.setup() failed: {type(exc).__name__}: {exc}", file=sys.stderr)
+    sys.exit(2)
+
+try:
+    from apps.shared.billing import models, services, tasks  # noqa: F401
+    from apps.shared.billing.models import (  # noqa: F401
+        SubscriptionPlan,
+        Subscription,
+        SubscriptionInvoice,
+        SubscriptionPayment,
+        SubscriptionChange,
+    )
+except Exception as exc:
+    print(f"billing import failure: {type(exc).__name__}: {exc}", file=sys.stderr)
+    sys.exit(3)
+
+# services must export the functions views.py and tasks.py rely on
+try:
+    from apps.shared.billing.services import (  # noqa: F401
+        start_trial,
+        activate_subscription,
+        change_plan,
+        cancel_subscription,
+        suspend_subscription,
+        reactivate_subscription,
+        generate_invoice_for_subscription,
+        record_subscription_payment,
+    )
+except Exception as exc:
+    print(f"billing.services missing a required symbol: {type(exc).__name__}: {exc}", file=sys.stderr)
+    sys.exit(4)
+
+print("Billing OK")
+PY
+        then
+            die "Phase 10 billing package failed to import — see error above."
+        fi
+        ok "Phase 10 billing package importable"
+
+        # Warn about the referenced-but-possibly-missing pieces
+        [[ -f "${PROJECT_DIR}/apps/shared/billing/pdf.py" ]] \
+            || warn "apps/shared/billing/pdf.py not found — InvoicePDFView will 500"
+        [[ -f "${PROJECT_DIR}/apps/shared/billing/admin.py" ]] \
+            || warn "apps/shared/billing/admin.py not found — no admin UI for billing"
+        [[ -f "${PROJECT_DIR}/apps/shared/billing/urls.py" ]] \
+            || warn "apps/shared/billing/urls.py not found — tenant billing routes missing"
+        [[ -f "${PROJECT_DIR}/apps/shared/billing/urls_admin.py" ]] \
+            || warn "apps/shared/billing/urls_admin.py not found — platform billing routes missing"
+    fi
+
+    # ── Phase 10 / PDF — verify the whole URL tree resolves ─────────────
+    log "Step 2e: Verify URL tree resolves after all imports"
+    if ! python - <<'PY' 2>&1
+import os
+import sys
+
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+import django
+try:
+    django.setup()
+except Exception as exc:
+    print(f"django.setup() failed: {type(exc).__name__}: {exc}", file=sys.stderr)
+    sys.exit(2)
+
+failures = []
+for mod in ('config.urls', 'config.urls_public'):
+    try:
+        __import__(mod)
+    except Exception as exc:
+        failures.append(f'{mod}: {type(exc).__name__}: {exc}')
+
+if failures:
+    for f in failures:
+        print(f"  {f}", file=sys.stderr)
+    sys.exit(3)
+
+print("URLconfs OK")
+PY
+    then
+        die "One or both URLconfs failed to import — see error above."
+    fi
+    ok "Both URLconfs import cleanly"
 fi
 
 # ============================================================================
@@ -755,45 +997,40 @@ log "Step 5: Verify Django configuration loads"
 if ! python manage.py check > /tmp/django-check.log 2>&1; then
     warn "Django check FAILED — see traceback below."
     warn ""
-    tail -30 /tmp/django-check.log | sed 's/^/    /'
+    tail -40 /tmp/django-check.log | sed 's/^/    /'
     warn ""
 
     if grep -q "allauth.account.middleware.AccountMiddleware must be added to settings.MIDDLEWARE" \
             /tmp/django-check.log; then
         warn "Detected: django-allauth requires AccountMiddleware."
-        warn ""
-        warn "FIX: open config/settings.py, find the MIDDLEWARE list, and add"
-        warn "this line immediately AFTER django.contrib.auth.middleware.AuthenticationMiddleware:"
-        warn ""
-        warn "    'allauth.account.middleware.AccountMiddleware',"
-        warn ""
-        warn "Then re-run this deploy script."
+        warn "FIX: add 'allauth.account.middleware.AccountMiddleware' immediately AFTER"
+        warn "     'django.contrib.auth.middleware.AuthenticationMiddleware' in config/settings.py."
 
-    elif grep -q "SOCIALACCOUNT_ADAPTER\|ACCOUNT_ADAPTER" /tmp/django-check.log \
-         || grep -q "apps\.shared\.users\.adapters" /tmp/django-check.log; then
-        warn "Detected: an allauth adapter could not be resolved."
-        warn ""
-        warn "FIX: ensure apps/shared/users/adapters.py exists and exports"
-        warn "PritechAccountAdapter and PritechSocialAccountAdapter."
-
-    elif grep -q "No module named 'allauth.socialaccount.providers.google'" \
+    elif grep -q "apps\.shared\.users\.adapters\|SOCIALACCOUNT_ADAPTER\|ACCOUNT_ADAPTER" \
             /tmp/django-check.log; then
-        warn "Detected: allauth Google provider not installed."
-        warn "FIX: pip install 'django-allauth[socialaccount,mfa]'"
-
-    elif grep -q "No module named 'allauth.mfa'" /tmp/django-check.log; then
-        warn "Detected: allauth MFA extra not installed."
-        warn "FIX: pip install 'django-allauth[socialaccount,mfa]'"
+        warn "Detected: an allauth adapter could not be resolved."
+        warn "FIX: ensure apps/shared/users/adapters.py exports PritechAccountAdapter"
+        warn "     and PritechSocialAccountAdapter."
 
     elif grep -q "No module named 'allauth'" /tmp/django-check.log; then
-        warn "Detected: django-allauth itself is not installed."
-        warn "FIX: pip install -r requirements.txt"
+        warn "Detected: django-allauth not installed."
+        warn "FIX: pip install 'django-allauth[socialaccount,mfa]'"
+
+    elif grep -q "dateutil" /tmp/django-check.log; then
+        warn "Detected: python-dateutil missing (needed by Phase 10 billing)."
+        warn "FIX: add python-dateutil to requirements.txt and reinstall."
+
+    elif grep -q "No module named 'reportlab'\|No module named 'qrcode'" \
+            /tmp/django-check.log; then
+        warn "Detected: PDF dependencies missing."
+        warn "FIX: add 'reportlab>=4.2' and 'qrcode[pil]>=7.4' to requirements.txt."
 
     else
         warn "Common causes:"
         warn "  • A required package is missing — pip install -r requirements.txt"
-        warn "  • An app is missing from SHARED_APPS"
+        warn "  • An app is missing from SHARED_APPS or TENANT_APPS"
         warn "  • A middleware class name is wrong"
+        warn "  • A URLconf include references a missing module"
     fi
 
     warn "Full log: /tmp/django-check.log"
@@ -835,6 +1072,20 @@ if [[ ! -f "${COMM_MIGRATION}" ]]; then
     python manage.py makemigrations communications --name "auto_${MIGRATION_TS}" || true
 else
     ok "communications migration present"
+fi
+
+# ── Phase 10 — billing migrations ───────────────────────────────────────
+BILLING_MIG_DIR="${PROJECT_DIR}/apps/shared/billing/migrations"
+if [[ -d "${PROJECT_DIR}/apps/shared/billing" ]]; then
+    if [[ -d "${BILLING_MIG_DIR}" ]] \
+       && compgen -G "${BILLING_MIG_DIR}/[0-9]*.py" > /dev/null; then
+        ok "billing migrations present"
+    else
+        warn "billing has no migrations — generating now"
+        mkdir -p "${BILLING_MIG_DIR}"
+        touch "${BILLING_MIG_DIR}/__init__.py"
+        python manage.py makemigrations billing --name "auto_${MIGRATION_TS}" || true
+    fi
 fi
 
 log "Step 5a.4: Running makemigrations --check --dry-run"
@@ -1079,6 +1330,68 @@ PY
 ok "allauth Site record ready"
 
 # ============================================================================
+# Step 8c — Seed Phase 10 plans (idempotent)
+# ============================================================================
+if [[ -d "${PROJECT_DIR}/apps/shared/billing" ]]; then
+    log "Step 8c: Seed subscription plans (idempotent)"
+
+    python manage.py shell <<'PY' || warn "Plan seeding failed — you can seed manually later"
+try:
+    from apps.shared.billing.models import SubscriptionPlan
+
+    plans = [
+        {
+            'code': 'starter-monthly', 'name': 'Starter',
+            'tier': 'STARTER', 'interval': 'MONTH',
+            'price_mwk': 25000, 'price_usd': 15,
+            'max_properties': 1, 'max_units': 10, 'max_staff': 3,
+            'includes_hospitality': True, 'display_order': 1,
+        },
+        {
+            'code': 'starter-annual', 'name': 'Starter (Annual)',
+            'tier': 'STARTER', 'interval': 'YEAR',
+            'price_mwk': 250000, 'price_usd': 150,
+            'max_properties': 1, 'max_units': 10, 'max_staff': 3,
+            'includes_hospitality': True, 'display_order': 2,
+        },
+        {
+            'code': 'professional-monthly', 'name': 'Professional',
+            'tier': 'PRO', 'interval': 'MONTH',
+            'price_mwk': 60000, 'price_usd': 35,
+            'max_properties': 5, 'max_units': 100, 'max_staff': 15,
+            'includes_hospitality': True, 'includes_rentals': True,
+            'includes_sales': True, 'display_order': 3,
+        },
+        {
+            'code': 'professional-annual', 'name': 'Professional (Annual)',
+            'tier': 'PRO', 'interval': 'YEAR',
+            'price_mwk': 600000, 'price_usd': 350,
+            'max_properties': 5, 'max_units': 100, 'max_staff': 15,
+            'includes_hospitality': True, 'includes_rentals': True,
+            'includes_sales': True, 'display_order': 4,
+        },
+        {
+            'code': 'enterprise-monthly', 'name': 'Enterprise',
+            'tier': 'ENT', 'interval': 'MONTH',
+            'price_mwk': 150000, 'price_usd': 90,
+            'max_properties': 0, 'max_units': 0, 'max_staff': 0,
+            'includes_hospitality': True, 'includes_rentals': True,
+            'includes_sales': True, 'includes_priority_support': True,
+            'display_order': 5,
+        },
+    ]
+
+    for p in plans:
+        SubscriptionPlan.objects.update_or_create(code=p['code'], defaults=p)
+
+    print(f'{SubscriptionPlan.objects.count()} plans configured')
+except Exception as e:
+    print(f'Plan seed skipped: {type(e).__name__}: {e}')
+PY
+    ok "Phase 10 plans seeded (or already present)"
+fi
+
+# ============================================================================
 # Step 9 — Apply migrations to every tenant schema
 # ============================================================================
 log "Step 9: Apply migrations to all tenant schemas"
@@ -1276,6 +1589,36 @@ for tpl in "${PHASE9_TEMPLATES[@]}"; do
 done
 [[ "${MISSING9}" -eq 0 ]] && ok "All Phase 9 templates present"
 
+# ── Phase 10 templates ────────────────────────────────────────────────
+if [[ -d "${PROJECT_DIR}/apps/shared/billing" ]]; then
+    PHASE10_TEMPLATES=(
+        "templates/pages/billing/dashboard.html"
+        "templates/pages/billing/plans.html"
+        "templates/pages/billing/admin_list.html"
+        "templates/partials/_subscription_banner.html"
+    )
+    MISSING10=0
+    for tpl in "${PHASE10_TEMPLATES[@]}"; do
+        [[ -f "${PROJECT_DIR}/${tpl}" ]] || { warn "Missing Phase 10 template: ${tpl}"; MISSING10=$((MISSING10 + 1)); }
+    done
+    [[ "${MISSING10}" -eq 0 ]] && ok "All 4 Phase 10 templates present"
+fi
+
+# ── allauth template overrides (Phase 9.1/9.2) ────────────────────────
+ALLAUTH_TEMPLATES=(
+    "templates/account/login.html"
+    "templates/account/signup.html"
+    "templates/allauth/layouts/entrance.html"
+    "templates/mfa/totp/activate_form.html"
+    "templates/mfa/authenticate.html"
+    "templates/mfa/index.html"
+)
+MISSING_AL=0
+for tpl in "${ALLAUTH_TEMPLATES[@]}"; do
+    [[ -f "${PROJECT_DIR}/${tpl}" ]] || { warn "Missing allauth template: ${tpl}"; MISSING_AL=$((MISSING_AL + 1)); }
+done
+[[ "${MISSING_AL}" -eq 0 ]] && ok "Core allauth templates present"
+
 log "Step 10b: Verify URL patterns AND both URLconf imports"
 python manage.py shell <<'PY'
 import importlib
@@ -1323,6 +1666,26 @@ for name in ('account_login', 'account_signup',
     except NoReverseMatch:
         print(f'  ⚠ public:{name} not reverse-resolvable')
 
+# Phase 10 — billing URLs (only if the app is installed)
+try:
+    from django.conf import settings as _s
+    if 'apps.shared.billing' in _s.INSTALLED_APPS:
+        for name in ('billing:dashboard', 'billing:plans'):
+            try:
+                url = reverse(name)
+                print(f'  ✔ billing:{name.split(":")[1]} → {url}')
+            except NoReverseMatch:
+                print(f'  ⚠ billing:{name} not reverse-resolvable')
+except Exception:
+    pass
+
+# PDF URLs (only if included)
+try:
+    url = reverse('pdf:folio_invoice', args=[1])
+    print(f'  ✔ pdf:folio_invoice → {url}')
+except Exception:
+    pass
+
 try:
     from apps.realtime.routing import websocket_urlpatterns
     print(f'  ✔ apps.realtime.routing has {len(websocket_urlpatterns)} WebSocket routes')
@@ -1349,6 +1712,8 @@ try:
         print(f'  ✔ allauth.mfa registered')
     else:
         print(f'  ⚠ allauth.mfa NOT in INSTALLED_APPS')
+    if 'apps.shared.billing' in s.INSTALLED_APPS:
+        print(f'  ✔ apps.shared.billing registered')
     if s.PASSWORD_HASHERS and 'Argon2' in s.PASSWORD_HASHERS[0]:
         print(f'  ✔ Argon2 is the default password hasher')
     else:
@@ -1669,7 +2034,7 @@ check() {
     else
         code=$(curl -sS -o /dev/null -w "%{http_code}" -k --max-time 10 "$url" 2>/dev/null || echo "000")
     fi
-    if [[ "${code}" =~ ^(200|301|302|400|405|426)$ ]]; then
+    if [[ "${code}" =~ ^(200|301|302|400|403|405|426)$ ]]; then
         printf "  \033[1;32m%-26s %s\033[0m\n" "$label" "$code"
     else
         printf "  \033[1;31m%-26s %s\033[0m\n" "$label" "$code"
@@ -1710,6 +2075,15 @@ C26=$(check "google-login"      "https://${DOMAIN}/accounts/google/login/")
 log "  -- Phase 9.2: allauth MFA --"
 C27=$(check "mfa-index"         "https://${DOMAIN}/accounts/2fa/")
 C28=$(check "mfa-activate-totp" "https://${DOMAIN}/accounts/2fa/totp/activate/")
+
+# ── Phase 10 — billing ────────────────────────────────────────────────
+if [[ -d "${PROJECT_DIR}/apps/shared/billing" ]]; then
+    log "  -- Phase 10: billing --"
+    # 302 is expected — anonymous users get redirected to login
+    C29=$(check "billing-dashboard" "https://pritech.${DOMAIN}/billing/")
+    C30=$(check "billing-plans"     "https://pritech.${DOMAIN}/billing/plans/")
+    C31=$(check "billing-admin"     "https://${DOMAIN}/platform/billing/")
+fi
 
 HEALTH_BODY=$(curl -sS -k --max-time 10 "https://${DOMAIN}/health/" 2>/dev/null || echo '{}')
 if echo "${HEALTH_BODY}" | grep -q '"status": "ok"'; then
@@ -1764,5 +2138,23 @@ echo "  Authorized redirect URIs (configure in Google Cloud Console):"
 echo "    https://${DOMAIN}/accounts/google/login/callback/"
 echo "    https://*.${DOMAIN}/accounts/google/login/callback/"
 echo ""
+
+if [[ -d "${PROJECT_DIR}/apps/shared/billing" ]]; then
+    echo "  ─── Phase 10 billing status ─────────────────────────────────────"
+    python - <<PY 2>/dev/null || true
+import os, sys
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+try:
+    import django; django.setup()
+    from apps.shared.billing.models import SubscriptionPlan, Subscription
+    print(f'  Plans configured  : {SubscriptionPlan.objects.filter(is_active=True).count()}')
+    print(f'  Active subscriptions : {Subscription.objects.filter(status="ACTIVE").count()}')
+    print(f'  Trialing            : {Subscription.objects.filter(status="TRIAL").count()}')
+except Exception as e:
+    print(f'  (skipped: {type(e).__name__})')
+PY
+    echo ""
+fi
+
 echo "  Superuser (if newly created): admin@pritechmw.com / ChangeMe123!"
 echo "  ⚠ CHANGE THE SUPERUSER PASSWORD IMMEDIATELY"

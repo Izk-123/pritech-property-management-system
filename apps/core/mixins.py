@@ -237,6 +237,10 @@ class SubscriptionRequiredMixin:
         return super().dispatch(request, *args, **kwargs)
 
 
+class TenantStaffRequiredMixin(SubscriptionRequiredMixin, StaffRequiredMixin):
+    """Staff-only view that also enforces an active subscription."""
+
+
 def _subscription_banner_state(subscription):
     """
     Return a dict describing what banner (if any) the UI should show.

@@ -8,6 +8,7 @@ from django.utils import timezone
 from django.views.generic import (
     ListView, DetailView, CreateView, UpdateView, FormView, View,
 )
+from apps.core.mixins import TenantStaffRequiredMixin
 from .models import Reservation
 from .forms import ReservationForm, CheckInForm
 from .services import (

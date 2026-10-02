@@ -1,11 +1,21 @@
-"""Folio invoice - generated at check-out."""
+"""
+Folio invoice — generated at check-out.
+
+Includes every charge, every payment, and — when MRA EIS is enabled —
+the MRA invoice number and QR validation code required by the
+Malawi Revenue Authority.
+
+The QR code encodes the MRA validation URL, which a tax auditor can
+scan to retrieve the invoice details directly from the MRA system.
+"""
 from datetime import datetime
 from io import BytesIO
 
 import qrcode
+from django.utils import timezone
 from reportlab.lib.units import mm
 from reportlab.platypus import (
-    Image, Paragraph, Spacer, Table, TableStyle,
+    Image, KeepTogether, Paragraph, Spacer, Table, TableStyle,
 )
 
 from .base import (
@@ -16,12 +26,14 @@ from .base import (
 
 
 def _qr_image(data, size_mm=25):
+    """Return a ReportLab Image flowable containing a QR code."""
     if not data:
         return None
     qr = qrcode.QRCode(
         version=None,
         error_correction=qrcode.constants.ERROR_CORRECT_M,
-        box_size=8, border=2,
+        box_size=8,
+        border=2,
     )
     qr.add_data(data)
     qr.make(fit=True)
@@ -33,6 +45,7 @@ def _qr_image(data, size_mm=25):
 
 
 def _money(amount, currency='MWK'):
+    """Format a money value consistently."""
     try:
         return f'{currency} {amount:,.2f}'
     except (ValueError, TypeError):
@@ -40,7 +53,16 @@ def _money(amount, currency='MWK'):
 
 
 def render_folio_invoice(folio):
-    """Render a folio invoice to PDF bytes."""
+    """
+    Render a folio invoice to PDF bytes.
+
+    Args:
+        folio: apps.hospitality.folios.models.Folio instance with
+               prefetched charges and payments.
+
+    Returns:
+        bytes
+    """
     styles = get_styles()
     branding = get_tenant_branding()
     reservation = folio.reservation
@@ -48,6 +70,8 @@ def render_folio_invoice(folio):
     prop = reservation.property
 
     story = []
+
+    # ── Invoice header block ─────────────────────────────────────
     story.append(Paragraph('Tax Invoice', styles['title']))
     story.append(Paragraph(
         f'Folio for reservation <b>{reservation.reservation_number}</b>',
@@ -55,6 +79,7 @@ def render_folio_invoice(folio):
     ))
     story.append(Spacer(1, 4 * mm))
 
+    # Two-column block: billed-to and stay details
     billed_to = [
         Paragraph('BILLED TO', styles['label']),
         Paragraph(guest.full_name, styles['value']),
@@ -63,26 +88,34 @@ def render_folio_invoice(folio):
         billed_to.append(Paragraph(guest.phone_primary, styles['body_small']))
     if guest.email:
         billed_to.append(Paragraph(guest.email, styles['body_small']))
+    if guest.nationality and guest.nationality.lower() != 'malawian':
+        billed_to.append(Paragraph(
+            f'Foreign guest · {guest.nationality}',
+            styles['body_small'],
+        ))
 
     stay_details = [
         Paragraph('STAY', styles['label']),
         Paragraph(
-            f'<b>{reservation.check_in:%d %b %Y}</b> to '
+            f'<b>{reservation.check_in:%d %b %Y}</b> → '
             f'<b>{reservation.check_out:%d %b %Y}</b>',
             styles['value'],
         ),
         Paragraph(
             f'{reservation.nights} night'
-            f'{"s" if reservation.nights != 1 else ""} - '
+            f'{"s" if reservation.nights != 1 else ""} · '
             f'{reservation.adults} adult'
-            f'{"s" if reservation.adults != 1 else ""}',
+            f'{"s" if reservation.adults != 1 else ""}'
+            + (f', {reservation.children} children'
+               if reservation.children else ''),
             styles['body_small'],
         ),
         Paragraph(prop.name, styles['body_small']),
     ]
 
     header_table = Table(
-        [[billed_to, stay_details]], colWidths=[95 * mm, 75 * mm],
+        [[billed_to, stay_details]],
+        colWidths=[95 * mm, 75 * mm],
     )
     header_table.setStyle(TableStyle([
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
@@ -94,18 +127,24 @@ def render_folio_invoice(folio):
     story.append(header_table)
     story.append(Spacer(1, 8 * mm))
 
+    # ── Charges table ────────────────────────────────────────────
     charge_rows = [[
         Paragraph('<b>DESCRIPTION</b>', styles['label']),
         Paragraph('<b>TYPE</b>', styles['label']),
         Paragraph('<b>AMOUNT</b>', styles['label']),
     ]]
+
     charges = folio.charges.all().order_by('created_at')
     for charge in charges:
         charge_rows.append([
             Paragraph(charge.description, styles['body']),
             Paragraph(charge.get_charge_type_display(), styles['body_small']),
-            Paragraph(_money(charge.amount, charge.currency), styles['right']),
+            Paragraph(
+                _money(charge.amount, charge.currency),
+                styles['right'],
+            ),
         ])
+
     if len(charge_rows) == 1:
         charge_rows.append([
             Paragraph('No charges on this folio.', styles['body_small']),
@@ -113,7 +152,9 @@ def render_folio_invoice(folio):
         ])
 
     charges_table = Table(
-        charge_rows, colWidths=[105 * mm, 30 * mm, 35 * mm], repeatRows=1,
+        charge_rows,
+        colWidths=[105 * mm, 30 * mm, 35 * mm],
+        repeatRows=1,
     )
     charges_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), COLOR_BG_SOFT),
@@ -128,6 +169,7 @@ def render_folio_invoice(folio):
     story.append(charges_table)
     story.append(Spacer(1, 6 * mm))
 
+    # ── Payments table ───────────────────────────────────────────
     payments = folio.payments.all().order_by('created_at')
     if payments.exists():
         payment_rows = [[
@@ -138,12 +180,17 @@ def render_folio_invoice(folio):
         for payment in payments:
             payment_rows.append([
                 Paragraph(payment.get_method_display(), styles['body']),
-                Paragraph(payment.reference or '-', styles['body_small']),
-                Paragraph(_money(payment.amount, payment.currency),
-                          styles['right']),
+                Paragraph(payment.reference or '—', styles['body_small']),
+                Paragraph(
+                    '− ' + _money(payment.amount, payment.currency),
+                    styles['right'],
+                ),
             ])
+
         payments_table = Table(
-            payment_rows, colWidths=[70 * mm, 65 * mm, 35 * mm], repeatRows=1,
+            payment_rows,
+            colWidths=[70 * mm, 65 * mm, 35 * mm],
+            repeatRows=1,
         )
         payments_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), COLOR_BG_SOFT),
@@ -158,26 +205,33 @@ def render_folio_invoice(folio):
         story.append(payments_table)
         story.append(Spacer(1, 6 * mm))
 
+    # ── Balance summary ──────────────────────────────────────────
     balance = folio.balance
     balance_label = 'AMOUNT DUE' if balance > 0 else 'BALANCE'
     balance_colour = COLOR_DANGER if balance > 0 else COLOR_SUCCESS
 
-    summary_data = [
-        [Paragraph('<b>TOTAL CHARGES</b>', styles['label']),
-         Paragraph(_money(folio.total_charges, folio.currency),
-                   styles['right'])],
-        [Paragraph('<b>TOTAL PAID</b>', styles['label']),
-         Paragraph(_money(folio.total_payments, folio.currency),
-                   styles['right'])],
-        [Paragraph(f'<b>{balance_label}</b>', styles['label']),
-         Paragraph(
-             f'<font color="{balance_colour.hexval()}">'
-             f'<b>{_money(balance, folio.currency)}</b></font>',
-             styles['right_bold'],
-         )],
-    ]
-    summary_table = Table(summary_data, colWidths=[120 * mm, 50 * mm],
-                          hAlign='RIGHT')
+    summary_data = [[
+        Paragraph('<b>TOTAL CHARGES</b>', styles['label']),
+        Paragraph(_money(folio.total_charges, folio.currency),
+                  styles['right']),
+    ], [
+        Paragraph('<b>TOTAL PAID</b>', styles['label']),
+        Paragraph(_money(folio.total_payments, folio.currency),
+                  styles['right']),
+    ], [
+        Paragraph(f'<b>{balance_label}</b>', styles['label']),
+        Paragraph(
+            f'<font color="{balance_colour.hexval()}">'
+            f'<b>{_money(balance, folio.currency)}</b></font>',
+            styles['right_bold'],
+        ),
+    ]]
+
+    summary_table = Table(
+        summary_data,
+        colWidths=[120 * mm, 50 * mm],
+        hAlign='RIGHT',
+    )
     summary_table.setStyle(TableStyle([
         ('LINEABOVE', (0, 2), (-1, 2), 0.75, COLOR_BORDER),
         ('TOPPADDING', (0, 0), (-1, -1), 2 * mm),
@@ -188,27 +242,27 @@ def render_folio_invoice(folio):
     story.append(summary_table)
     story.append(Spacer(1, 10 * mm))
 
-    try:
-        from apps.compliance.eis.models import EISInvoiceLog
-        from django.contrib.contenttypes.models import ContentType
-        eis_log = EISInvoiceLog.objects.filter(
-            content_type=ContentType.objects.get_for_model(folio),
-            object_id=folio.pk,
-            submission_status=EISInvoiceLog.SubmissionStatus.VALIDATED,
-        ).first()
-    except Exception:
-        eis_log = None
+    # ── MRA EIS block ────────────────────────────────────────────
+    from apps.compliance.eis.models import EISInvoiceLog
+    from django.contrib.contenttypes.models import ContentType
+
+    eis_log = EISInvoiceLog.objects.filter(
+        content_type=ContentType.objects.get_for_model(folio),
+        object_id=folio.pk,
+        submission_status=EISInvoiceLog.SubmissionStatus.VALIDATED,
+    ).first()
 
     if eis_log:
         qr_flowable = _qr_image(
-            getattr(eis_log, 'mra_validation_url', '')
-            or eis_log.mra_invoice_number,
+            eis_log.mra_validation_url or eis_log.mra_invoice_number,
             size_mm=28,
         )
         mra_block = [
             Paragraph('MALAWI REVENUE AUTHORITY', styles['label']),
-            Paragraph(f'<b>Invoice No:</b> {eis_log.mra_invoice_number}',
-                      styles['value']),
+            Paragraph(
+                f'<b>Invoice No:</b> {eis_log.mra_invoice_number}',
+                styles['value'],
+            ),
             Paragraph(
                 f'<b>Submitted:</b> '
                 f'{eis_log.synced_at:%d %b %Y %H:%M}',
@@ -223,7 +277,11 @@ def render_folio_invoice(folio):
         if qr_flowable:
             mra_block.append(Spacer(1, 2 * mm))
             mra_block.append(qr_flowable)
-        mra_table = Table([[mra_block]], colWidths=[170 * mm])
+
+        mra_table = Table(
+            [[mra_block]],
+            colWidths=[170 * mm],
+        )
         mra_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, -1), COLOR_BG_SOFT),
             ('BOX', (0, 0), (-1, -1), 0.5, COLOR_BORDER),
@@ -235,13 +293,25 @@ def render_folio_invoice(folio):
         story.append(mra_table)
         story.append(Spacer(1, 6 * mm))
 
+    # ── Legal footer ─────────────────────────────────────────────
+    if branding.get('tin'):
+        story.append(Paragraph(
+            f'<b>TIN:</b> {branding["tin"]}'
+            + (f'  ·  <b>VAT:</b> {branding["vat_number"]}'
+               if branding.get('vat_number') else ''),
+            styles['body_small'],
+        ))
+
+    story.append(Spacer(1, 4 * mm))
     story.append(Paragraph(
         'This is a computer-generated invoice. No signature required. '
         'Retain for your records.',
         styles['legal'],
     ))
 
+    # ── Build ────────────────────────────────────────────────────
     return build_pdf(
-        story, title='Tax Invoice',
+        story,
+        title='Tax Invoice',
         subject=f'Folio {reservation.reservation_number}',
     )

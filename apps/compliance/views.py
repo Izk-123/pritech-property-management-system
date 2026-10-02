@@ -1,7 +1,7 @@
-from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views.generic import TemplateView
 from django.utils import timezone
 from django.db.models import Sum, Count
+from apps.core.mixins import TenantStaffRequiredMixin
 from .eis.models import EISTerminal, EISInvoiceLog
 from .paychangu.models import PayChanguTransaction
 from .tourism_levy.models import TourismLevyRecord
@@ -9,7 +9,7 @@ from .forex.models import ForexRate
 from .fcy.models import RBMReturn
 
 
-class ComplianceDashboardView(LoginRequiredMixin, TemplateView):
+class ComplianceDashboardView(TenantStaffRequiredMixin, TemplateView):
     """Overview of all compliance surfaces."""
 
     template_name = 'pages/compliance/dashboard.html'

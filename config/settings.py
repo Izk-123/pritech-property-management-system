@@ -583,6 +583,10 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'apps.shared.tenants.tasks.heartbeat',
         'schedule': crontab(minute='*/15'),
     },
+    'generate-monthly-statements': {
+        'task': 'apps.core.documents.pdf.tasks.generate_monthly_statements_for_all_tenants',
+        'schedule': crontab(day_of_month=1, hour=5, minute=0),
+    },
 }
 
 

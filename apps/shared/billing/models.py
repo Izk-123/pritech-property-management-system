@@ -1,8 +1,11 @@
 """
-Subscription billing - lives in the PUBLIC schema.
+Subscription billing — lives in the PUBLIC schema.
 
 Everything platform-wide: plan catalogue, per-tenant subscriptions,
 invoices, payments, and usage records.
+
+Tenant-side data (what counts against a plan) lives in each tenant
+schema and is queried via schema_context() when invoices are generated.
 """
 from decimal import Decimal
 
@@ -12,8 +15,17 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 
+# ─────────────────────────────────────────────────────────────────────
+# Plan catalogue
+# ─────────────────────────────────────────────────────────────────────
+
 class SubscriptionPlan(models.Model):
-    """A billable plan. Set once by a platform admin."""
+    """
+    A billable plan. Set once by a platform admin and rarely changed.
+
+    Prices are stored in MWK and USD. MWK is the primary currency;
+    USD is offered for foreign-owned tenants who pay in hard currency.
+    """
 
     class Interval(models.TextChoices):
         MONTHLY = 'MONTH', _('Monthly')
@@ -24,13 +36,20 @@ class SubscriptionPlan(models.Model):
         PROFESSIONAL = 'PRO', _('Professional')
         ENTERPRISE = 'ENT', _('Enterprise')
 
-    code = models.SlugField(max_length=50, unique=True)
+    code = models.SlugField(
+        max_length=50, unique=True,
+        help_text='Stable identifier, e.g. "starter-monthly"',
+    )
     name = models.CharField(max_length=100)
     tier = models.CharField(max_length=10, choices=Tier.choices)
 
     description = models.TextField(blank=True)
-    features = models.JSONField(default=list, blank=True)
+    features = models.JSONField(
+        default=list, blank=True,
+        help_text='Bullet list of feature strings shown on the pricing page',
+    )
 
+    # ── Pricing ──────────────────────────────────────────────────
     price_mwk = models.DecimalField(
         max_digits=12, decimal_places=2,
         validators=[MinValueValidator(0)],
@@ -38,27 +57,48 @@ class SubscriptionPlan(models.Model):
     price_usd = models.DecimalField(
         max_digits=10, decimal_places=2, null=True, blank=True,
         validators=[MinValueValidator(0)],
+        help_text='Optional — for foreign-owned tenants paying in USD',
     )
     interval = models.CharField(
         max_length=5, choices=Interval.choices, default=Interval.MONTHLY,
     )
 
-    max_properties = models.PositiveIntegerField(default=1)
-    max_units = models.PositiveIntegerField(default=10)
-    max_staff = models.PositiveIntegerField(default=3)
-    max_storage_mb = models.PositiveIntegerField(default=500)
+    # ── Limits ──────────────────────────────────────────────────
+    max_properties = models.PositiveIntegerField(
+        default=1, help_text='0 = unlimited',
+    )
+    max_units = models.PositiveIntegerField(
+        default=10, help_text='0 = unlimited',
+    )
+    max_staff = models.PositiveIntegerField(
+        default=3, help_text='0 = unlimited',
+    )
+    max_storage_mb = models.PositiveIntegerField(
+        default=500, help_text='0 = unlimited',
+    )
 
+    # ── Modules included ────────────────────────────────────────
     includes_hospitality = models.BooleanField(default=True)
     includes_rentals = models.BooleanField(default=False)
     includes_sales = models.BooleanField(default=False)
-    includes_eis = models.BooleanField(default=True)
+    includes_eis = models.BooleanField(
+        default=True,
+        help_text='MRA EIS invoicing — usually always included for compliance',
+    )
     includes_whatsapp = models.BooleanField(default=True)
     includes_priority_support = models.BooleanField(default=False)
 
+    # ── Meta ────────────────────────────────────────────────────
     is_active = models.BooleanField(default=True)
-    is_public = models.BooleanField(default=True)
+    is_public = models.BooleanField(
+        default=True,
+        help_text='Shown on the public pricing page',
+    )
     display_order = models.PositiveIntegerField(default=0)
-    trial_days = models.PositiveIntegerField(default=30)
+    trial_days = models.PositiveIntegerField(
+        default=30,
+        help_text='Free trial length in days when a tenant subscribes to this plan',
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -80,8 +120,15 @@ class SubscriptionPlan(models.Model):
         return self.price_mwk
 
 
+# ─────────────────────────────────────────────────────────────────────
+# Per-tenant subscription
+# ─────────────────────────────────────────────────────────────────────
+
 class Subscription(models.Model):
-    """A tenant's subscription. One per tenant, ever."""
+    """
+    A tenant's subscription. One per tenant, ever. Plan changes are
+    recorded by updating `plan` and logging a SubscriptionChange.
+    """
 
     class Status(models.TextChoices):
         TRIAL = 'TRIAL', _('Free Trial')
@@ -102,6 +149,7 @@ class Subscription(models.Model):
         max_length=8, choices=Status.choices, default=Status.TRIAL,
     )
 
+    # ── Trial / billing dates ──────────────────────────────────
     trial_started_at = models.DateTimeField(null=True, blank=True)
     trial_ends_at = models.DateTimeField(null=True, blank=True)
     current_period_start = models.DateTimeField(null=True, blank=True)
@@ -109,6 +157,7 @@ class Subscription(models.Model):
     cancelled_at = models.DateTimeField(null=True, blank=True)
     suspended_at = models.DateTimeField(null=True, blank=True)
 
+    # ── Billing preferences ────────────────────────────────────
     billing_email = models.EmailField(blank=True)
     billing_phone = models.CharField(max_length=20, blank=True)
     preferred_currency = models.CharField(
@@ -116,6 +165,7 @@ class Subscription(models.Model):
         choices=[('MWK', 'MWK'), ('USD', 'USD')],
     )
 
+    # ── Cached values ──────────────────────────────────────────
     last_payment_at = models.DateTimeField(null=True, blank=True)
     last_payment_amount = models.DecimalField(
         max_digits=12, decimal_places=2, null=True, blank=True,
@@ -132,7 +182,9 @@ class Subscription(models.Model):
         ]
 
     def __str__(self):
-        return f'{self.tenant.name} / {self.plan.name} / {self.get_status_display()}'
+        return f'{self.tenant.name} · {self.plan.name} · {self.get_status_display()}'
+
+    # ── Convenience ────────────────────────────────────────────
 
     @property
     def is_trialing(self):
@@ -166,13 +218,20 @@ class Subscription(models.Model):
 
     @property
     def can_access_platform(self):
-        return self.status in (
-            self.Status.TRIAL, self.Status.ACTIVE, self.Status.PAST_DUE,
-        )
+        """Whether the tenant can currently use the platform."""
+        return self.status in (self.Status.TRIAL, self.Status.ACTIVE,
+                                self.Status.PAST_DUE)
 
+
+# ─────────────────────────────────────────────────────────────────────
+# Invoices — one per billing period
+# ─────────────────────────────────────────────────────────────────────
 
 class SubscriptionInvoice(models.Model):
-    """A billable invoice for one billing period."""
+    """
+    A billable invoice for one billing period of a tenant's
+    subscription. Generated by a Celery task and paid via PayChangu.
+    """
 
     class Status(models.TextChoices):
         DRAFT = 'DRAFT', _('Draft')
@@ -185,13 +244,16 @@ class SubscriptionInvoice(models.Model):
         max_length=30, unique=True, editable=False,
     )
     subscription = models.ForeignKey(
-        Subscription, on_delete=models.PROTECT, related_name='invoices',
+        Subscription, on_delete=models.PROTECT,
+        related_name='invoices',
     )
     tenant = models.ForeignKey(
         'tenants.Tenant', on_delete=models.PROTECT,
         related_name='subscription_invoices',
     )
-    plan = models.ForeignKey(SubscriptionPlan, on_delete=models.PROTECT)
+    plan = models.ForeignKey(
+        SubscriptionPlan, on_delete=models.PROTECT,
+    )
 
     period_start = models.DateField()
     period_end = models.DateField()
@@ -207,8 +269,11 @@ class SubscriptionInvoice(models.Model):
         max_length=5, choices=Status.choices, default=Status.DRAFT,
     )
 
+    # ── Links to payment ───────────────────────────────────────
     paychangu_charge_id = models.CharField(max_length=100, blank=True)
     paychangu_ref = models.CharField(max_length=100, blank=True)
+
+    # ── MRA EIS (if platform is itself VAT-registered) ────────
     mra_invoice_number = models.CharField(max_length=50, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -223,7 +288,7 @@ class SubscriptionInvoice(models.Model):
         ]
 
     def __str__(self):
-        return f'{self.invoice_number} / {self.tenant.name}'
+        return f'{self.invoice_number} · {self.tenant.name}'
 
     def save(self, *args, **kwargs):
         if not self.invoice_number:
@@ -248,8 +313,17 @@ class SubscriptionInvoice(models.Model):
         return (timezone.now().date() - self.due_date).days
 
 
+# ─────────────────────────────────────────────────────────────────────
+# Payments
+# ─────────────────────────────────────────────────────────────────────
+
 class SubscriptionPayment(models.Model):
-    """A successful payment against a subscription invoice."""
+    """
+    A successful payment against a subscription invoice.
+
+    Mirrors the PayChangu callback data so reconciliation is possible
+    even if the third-party dashboard is unavailable.
+    """
 
     class Method(models.TextChoices):
         AIRTEL_MONEY = 'AIRTL', _('Airtel Money')
@@ -259,7 +333,8 @@ class SubscriptionPayment(models.Model):
         MANUAL = 'MANUAL', _('Manual (platform admin)')
 
     invoice = models.ForeignKey(
-        SubscriptionInvoice, on_delete=models.PROTECT, related_name='payments',
+        SubscriptionInvoice, on_delete=models.PROTECT,
+        related_name='payments',
     )
     amount = models.DecimalField(max_digits=12, decimal_places=2)
     currency = models.CharField(max_length=3, default='MWK')
@@ -274,17 +349,24 @@ class SubscriptionPayment(models.Model):
     received_by = models.ForeignKey(
         'shared_users.User', on_delete=models.SET_NULL,
         null=True, blank=True,
+        help_text='Set only for manual payments by a platform admin',
     )
 
     class Meta:
         ordering = ['-received_at']
 
     def __str__(self):
-        return f'{self.invoice.invoice_number} / {self.amount} {self.currency}'
+        return f'{self.invoice.invoice_number} · {self.amount} {self.currency}'
 
+
+# ─────────────────────────────────────────────────────────────────────
+# Plan change history — for audit and revenue reporting
+# ─────────────────────────────────────────────────────────────────────
 
 class SubscriptionChange(models.Model):
-    """Records every plan change, upgrade, downgrade, or cancellation."""
+    """
+    Records every plan change, upgrade, downgrade, or cancellation.
+    """
 
     class Kind(models.TextChoices):
         CREATED = 'CREATED', _('Subscription Created')
@@ -296,7 +378,8 @@ class SubscriptionChange(models.Model):
         TRIAL_EXTENDED = 'TRIAL_EXT', _('Trial Extended')
 
     subscription = models.ForeignKey(
-        Subscription, on_delete=models.CASCADE, related_name='changes',
+        Subscription, on_delete=models.CASCADE,
+        related_name='changes',
     )
     kind = models.CharField(max_length=10, choices=Kind.choices)
     from_plan = models.ForeignKey(
@@ -318,4 +401,4 @@ class SubscriptionChange(models.Model):
         ordering = ['-created_at']
 
     def __str__(self):
-        return f'{self.subscription.tenant.name} / {self.get_kind_display()}'
+        return f'{self.subscription.tenant.name} · {self.get_kind_display()}'

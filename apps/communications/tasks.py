@@ -328,3 +328,87 @@ def scan_rent_due_reminders(days_before: int = 3):
         send_rent_due_reminder.delay(inv.pk)
         count += 1
     return f'queued {count} rent reminders'
+
+@shared_task
+def email_folio_invoice(folio_id, recipient_email):
+    """
+    Render a folio invoice and email it as a PDF attachment.
+    """
+    from django.core.mail import EmailMessage
+    from django.conf import settings
+
+    from apps.hospitality.folios.models import Folio
+    from apps.core.documents.pdf.folio import render_folio_invoice
+
+    try:
+        folio = Folio.objects.select_related(
+            'reservation__primary_guest', 'reservation__property',
+        ).prefetch_related('charges', 'payments').get(pk=folio_id)
+    except Folio.DoesNotExist:
+        return 'folio-missing'
+
+    pdf_bytes = render_folio_invoice(folio)
+    filename = f'invoice-{folio.reservation.reservation_number}.pdf'
+
+    subject = (
+        f'Your invoice — {folio.reservation.property.name} '
+        f'({folio.reservation.reservation_number})'
+    )
+    body = (
+        f'Dear {folio.reservation.primary_guest.full_name},\n\n'
+        f'Please find your invoice attached.\n\n'
+        f'Thank you for staying with us.\n\n'
+        f'{folio.reservation.property.name}'
+    )
+
+    msg = EmailMessage(
+        subject=subject,
+        body=body,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        to=[recipient_email],
+    )
+    msg.attach(filename, pdf_bytes, 'application/pdf')
+    msg.send(fail_silently=False)
+
+    return f'sent to {recipient_email}'
+
+def send_whatsapp_document(to, pdf_bytes, filename, caption=''):
+    """Send a PDF via WhatsApp Cloud API."""
+    import requests
+    from django.conf import settings
+
+    url = (
+        f'https://graph.facebook.com/'
+        f'{settings.WHATSAPP_API_VERSION}/'
+        f'{settings.WHATSAPP_PHONE_NUMBER_ID}/media'
+    )
+
+    # Step 1 — upload the media
+    upload = requests.post(
+        url,
+        headers={'Authorization': f'Bearer {settings.WHATSAPP_ACCESS_TOKEN}'},
+        files={'file': (filename, pdf_bytes, 'application/pdf')},
+        data={'messaging_product': 'whatsapp', 'type': 'application/pdf'},
+    )
+    media_id = upload.json()['id']
+
+    # Step 2 — send the document message
+    requests.post(
+        f'https://graph.facebook.com/'
+        f'{settings.WHATSAPP_API_VERSION}/'
+        f'{settings.WHATSAPP_PHONE_NUMBER_ID}/messages',
+        headers={
+            'Authorization': f'Bearer {settings.WHATSAPP_ACCESS_TOKEN}',
+            'Content-Type': 'application/json',
+        },
+        json={
+            'messaging_product': 'whatsapp',
+            'to': to,
+            'type': 'document',
+            'document': {
+                'id': media_id,
+                'filename': filename,
+                'caption': caption,
+            },
+        },
+    )

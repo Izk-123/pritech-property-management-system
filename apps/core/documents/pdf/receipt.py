@@ -1,4 +1,10 @@
-"""Payment receipt."""
+"""
+Payment receipt — generated after every FolioPayment.
+
+Small, single-page, printable at the front desk or emailed to the
+guest. Includes the folio reference and the payment reference for
+reconciliation.
+"""
 from datetime import datetime
 
 from reportlab.lib.units import mm
@@ -11,12 +17,16 @@ from .base import (
 
 
 def render_payment_receipt(payment):
+    """Render a receipt for a single FolioPayment to PDF bytes."""
     styles = get_styles()
+    branding = get_tenant_branding()
+
     folio = payment.folio
     reservation = folio.reservation
     guest = reservation.primary_guest
 
     story = []
+
     story.append(Paragraph('Payment Receipt', styles['title']))
     story.append(Paragraph(
         f'Folio <b>{reservation.reservation_number}</b>',
@@ -24,21 +34,34 @@ def render_payment_receipt(payment):
     ))
     story.append(Spacer(1, 6 * mm))
 
+    # Receipt metadata table
     rows = [
         [Paragraph('RECEIVED FROM', styles['label']),
          Paragraph(guest.full_name, styles['value'])],
         [Paragraph('PROPERTY', styles['label']),
          Paragraph(reservation.property.name, styles['value'])],
         [Paragraph('DATE RECEIVED', styles['label']),
-         Paragraph(f'{payment.created_at:%d %b %Y %H:%M}',
-                   styles['value'])],
+         Paragraph(
+             f'{payment.created_at:%d %b %Y · %H:%M}',
+             styles['value'],
+         )],
         [Paragraph('PAYMENT METHOD', styles['label']),
          Paragraph(payment.get_method_display(), styles['value'])],
     ]
+
     if payment.reference:
         rows.append([
             Paragraph('REFERENCE', styles['label']),
             Paragraph(payment.reference, styles['value']),
+        ])
+
+    if payment.received_by:
+        rows.append([
+            Paragraph('RECEIVED BY', styles['label']),
+            Paragraph(
+                payment.received_by.get_full_name() or payment.received_by.email,
+                styles['value'],
+            ),
         ])
 
     meta_table = Table(rows, colWidths=[45 * mm, 125 * mm])
@@ -53,6 +76,7 @@ def render_payment_receipt(payment):
     story.append(meta_table)
     story.append(Spacer(1, 8 * mm))
 
+    # Amount received — big, centred
     amount_block = [
         Paragraph('AMOUNT RECEIVED', styles['label']),
         Spacer(1, 2 * mm),
@@ -73,6 +97,7 @@ def render_payment_receipt(payment):
     story.append(amount_table)
     story.append(Spacer(1, 8 * mm))
 
+    # Balance after this payment
     remaining = folio.balance
     if remaining > 0:
         story.append(Paragraph(
@@ -81,17 +106,20 @@ def render_payment_receipt(payment):
             styles['body'],
         ))
     else:
-        story.append(Paragraph('<b>Paid in full. Thank you.</b>',
-                               styles['body']))
+        story.append(Paragraph(
+            '<b>Paid in full. Thank you.</b>',
+            styles['body'],
+        ))
 
     story.append(Spacer(1, 10 * mm))
     story.append(Paragraph(
-        f'Receipt ID: {payment.id:08d} - Generated '
+        f'Receipt ID: {payment.id:08d} · Generated '
         f'{datetime.now().strftime("%d %b %Y %H:%M")}',
         styles['legal'],
     ))
 
     return build_pdf(
-        story, title='Payment Receipt',
+        story,
+        title='Payment Receipt',
         subject=f'Folio {reservation.reservation_number}',
     )

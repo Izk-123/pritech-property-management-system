@@ -1,0 +1,25 @@
+{% extends "admin/base.html" %}
+{% load i18n static %}
+
+{# ── Favicon for the admin ───────────────────────────────────────── #}
+{# Unfold's base template defines an `extrahead` block inside <head>.  #}
+{# We extend it to inject our favicon links so the browser stops       #}
+{# requesting /favicon.ico and uses the branded SVG instead.          #}
+{% block extrahead %}
+  {{ block.super }}
+
+  {# SVG favicon — modern browsers (Chrome, Firefox, Edge, Safari 16+) #}
+  <link rel="icon" type="image/svg+xml"
+        href="{% static 'icons/favicon.svg' %}">
+
+  {# Fallback for older browsers that don't support SVG favicons #}
+  <link rel="alternate icon" type="image/png"
+        href="{% static 'icons/icon-192.png' %}">
+
+  {# Apple touch icon — used when pinned to iOS home screen #}
+  <link rel="apple-touch-icon"
+        href="{% static 'icons/apple-touch-icon.png' %}">
+
+  {# Theme colour — tints the browser UI on Android Chrome #}
+  <meta name="theme-color" content="#9333ea">
+{% endblock %}

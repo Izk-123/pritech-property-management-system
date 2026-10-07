@@ -14,7 +14,7 @@ from django.contrib import admin
 from django.contrib.auth import views as auth_views
 from django.urls import path, include
 from django.views.generic import RedirectView, TemplateView
-
+from django.views.generic import RedirectView
 from apps.shared.tenants.views_health import health_check
 from apps.shared.tenants.views_public import PublicHomeView
 from apps.communications import views as comm_views
@@ -23,7 +23,11 @@ from apps.communications import views as comm_views
 urlpatterns = [
     # ─── Marketing home ────────────────────────────────────────────
     path('', PublicHomeView.as_view(), name='public_home'),
-
+    path(
+        'favicon.ico',
+        RedirectView.as_view(url='/static/icons/favicon.svg', permanent=True),
+        name='favicon',
+    ),
     # ─── PWA manifest and service worker ───────────────────────────
     path('', include('pwa.urls')),
 

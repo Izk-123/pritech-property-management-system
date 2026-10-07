@@ -9,10 +9,19 @@
  *
  * No external dependencies. Uses native Web Animations API.
  *
- * IMPORTANT: This script is loaded in <head> without `defer` by Unfold,
- * so we must never access `document.body` until DOMContentLoaded fires.
- * Otherwise Alpine.js (used by Unfold for the shortcuts modal) can crash
- * and leave modals stuck open.
+ * IMPORTANT LOADING NOTES
+ * -----------------------
+ * Unfold may load this script with `defer`, `async`, or via dynamic
+ * injection depending on version and configuration. Any of those can
+ * mean that `DOMContentLoaded` has ALREADY fired by the time this
+ * script executes. To be safe we:
+ *   1. Check `document.readyState` — if it is not 'loading', the DOM
+ *      is already parsed and we init immediately.
+ *   2. Guard every `document.body` access with a null check.
+ *   3. Attach HTMX listeners at most once.
+ * This prevents the "Cannot read properties of null" crash that would
+ * otherwise break Alpine.js (Unfold's modal/dropdown engine) and leave
+ * the "Available shortcuts" modal stuck open.
  */
 (function () {
   'use strict';
@@ -77,7 +86,7 @@
       setDelay(el, i * 26);
     });
 
-    // Ripple on anchor click — attach only once to avoid duplicate listeners
+    // Attach the ripple listener only once across all boot cycles.
     if (window._pritechSidebarRippleAttached) return;
     window._pritechSidebarRippleAttached = true;
 
@@ -103,7 +112,7 @@
   function initButtonPress() {
     if (reduced.matches) return;
 
-    // Attach only once to avoid duplicate listeners on re-boot
+    // Attach the press listener only once across all boot cycles.
     if (window._pritechButtonPressAttached) return;
     window._pritechButtonPressAttached = true;
 
@@ -134,14 +143,15 @@
   // ── 6. Realtime toast bridge ─────────────────────────────────────
 
   function initRealtimeBridge() {
-    // Safety: never touch document.body before it exists
+    // Never touch document.body if it doesn't exist yet.
     if (!document.body) return;
 
-    // Only run if the admin is loaded inside a tenant schema
+    // Only run inside a tenant schema — the public schema has no
+    // operational realtime traffic.
     var schema = document.body.getAttribute('data-tenant-schema');
     if (!schema || schema === 'public') return;
 
-    // Attach only once
+    // Attach only once.
     if (window._pritechRealtimeBridgeAttached) return;
     window._pritechRealtimeBridgeAttached = true;
 
@@ -190,7 +200,27 @@
     });
   }
 
-  // ── 7. Lifecycle — re-run on DOM swaps ────────────────────────────
+  // ── 7. HTMX listener — guarded, attached at most once ────────────
+
+  function attachHtmxListener() {
+    // Guard: body may not exist yet.
+    if (!document.body) return;
+
+    // Attach at most once — boot() runs on DOMContentLoaded AND on
+    // runtime preference changes, so without this guard we'd register
+    // duplicate listeners on every re-boot.
+    if (window._pritechHtmxAttached) return;
+    window._pritechHtmxAttached = true;
+
+    document.body.addEventListener('htmx:afterSwap', function () {
+      if (reduced.matches) return;
+      initDashboardStagger();
+      initTableStagger();
+      initFieldsetStagger();
+    });
+  }
+
+  // ── 8. Boot ──────────────────────────────────────────────────────
 
   function boot() {
     if (reduced.matches) return;
@@ -202,20 +232,31 @@
     initRealtimeBridge();
   }
 
-  // Wait for DOM to be fully loaded before accessing document.body
-  document.addEventListener('DOMContentLoaded', function () {
+  function init() {
     boot();
+    attachHtmxListener();
+  }
 
-    // HTMX swaps — re-run only the entry animations
-    document.body.addEventListener('htmx:afterSwap', function () {
-      if (reduced.matches) return;
-      initDashboardStagger();
-      initTableStagger();
-      initFieldsetStagger();
-    });
-  });
+  // ── 9. Lifecycle — handle every load scenario ────────────────────
+  //
+  // `document.readyState` states:
+  //   'loading'     → document is still being parsed; wait for
+  //                   DOMContentLoaded.
+  //   'interactive' → DOM parsed but subresources still loading;
+  //                   DOMContentLoaded may have already fired.
+  //   'complete'    → everything loaded.
+  //
+  // If we see anything other than 'loading', DOMContentLoaded has
+  // already fired or will fire synchronously after our listener is
+  // added — either way we can init immediately.
 
-  // React to runtime preference changes
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init, { once: true });
+  } else {
+    init();
+  }
+
+  // React to runtime preference changes.
   reduced.addEventListener('change', function () {
     if (!reduced.matches) boot();
   });

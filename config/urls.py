@@ -23,7 +23,7 @@ from django.contrib import admin
 from django.contrib.auth import views as auth_views
 from django.urls import path, include
 from django.views.generic import RedirectView, TemplateView
-
+from django.views.generic import RedirectView
 from apps.core.properties.views import TenantHomeView
 from apps.shared.tenants.views_health import health_check
 
@@ -34,7 +34,11 @@ urlpatterns = [
     path('dashboard/',
          TemplateView.as_view(template_name='pages/dashboard.html'),
          name='dashboard'),
-
+    path(
+        'favicon.ico',
+        RedirectView.as_view(url='/static/icons/favicon.svg', permanent=True),
+        name='favicon',
+    ),
     # ─── PWA manifest and service worker ───────────────────────────
     path('', include('pwa.urls')),
 

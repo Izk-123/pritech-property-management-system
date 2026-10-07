@@ -462,12 +462,42 @@ if not DEBUG:
 
     X_FRAME_OPTIONS = 'DENY'
 
+    # ─── Content Security Policy ───────────────────────────────────
+    #
+    # About `'unsafe-eval'`:
+    #
+    # Alpine.js — which ships with Unfold and drives the admin UI's
+    # modals, dropdowns, command palette, and dark-mode toggle — evaluates
+    # every inline `x-data`, `x-show`, `x-if`, `@click`, and `:attr`
+    # expression at runtime using `new Function(...)`. Browsers treat this
+    # as `eval()`, so Alpine.js will not run unless `script-src` includes
+    # `'unsafe-eval'`.
+    #
+    # Without it, Alpine throws:
+    #   EvalError: Evaluating a string as JavaScript violates the
+    #   following Content Security Policy directive...
+    #
+    # ...which silently disables every Alpine-bound component and leaves
+    # Unfold modals (e.g. "Available shortcuts") stuck open and unusable.
+    #
+    # The alternative is the Alpine CSP build (`@alpinejs/csp`), which
+    # forbids inline expressions and requires every Unfold template to be
+    # rewritten to call pre-registered methods. That is not practical here.
+    #
+    # Note that `script-src` already allows `'unsafe-inline'` (required by
+    # Django admin and our own inline bootstrap scripts). Because inline
+    # script is already trusted, adding `'unsafe-eval'` does not
+    # meaningfully widen the XSS surface. The remaining directives below
+    # (frame-ancestors, base-uri, form-action, connect-src allowlist,
+    # img-src allowlist, worker-src) continue to constrain what injected
+    # scripts could do.
     CONTENT_SECURITY_POLICY = {
         'DIRECTIVES': {
             'default-src': ["'self'"],
             'script-src': [
                 "'self'",
                 "'unsafe-inline'",
+                "'unsafe-eval'",              # ← required by Alpine.js (Unfold)
                 'https://cdn.jsdelivr.net',
                 'https://unpkg.com',
                 'https://cdn.tailwindcss.com',
@@ -646,6 +676,9 @@ INTERNAL_IPS = ['127.0.0.1']
 #   in production).
 # * Icon names must come from Unfold's Material Symbols subset. Names
 #   it doesn't recognise render as literal text beside the label.
+# * Unfold's UI relies on Alpine.js. Alpine evaluates inline expressions
+#   at runtime, so `script-src` in the CSP MUST include 'unsafe-eval'.
+#   See the security block above for the full explanation.
 # ─────────────────────────────────────────────────────────────────────
 UNFOLD = {
     'SITE_TITLE': 'Pritech PMS',

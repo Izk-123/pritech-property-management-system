@@ -1,0 +1,236 @@
+{% load i18n %}
+
+{# ── Shortcuts Modal Override ────────────────────────────────────── #}
+{# Adds a persistent close button to the "Available shortcuts" modal  #}
+{# that Unfold renders. Must be placed at:                         #}
+{# templates/unfold/helpers/shortcuts_modal.html                   #}
+
+<div x-data="{ shortcutsOpen: false }"
+     x-show="shortcutsOpen"
+     @keydown.escape.window="shortcutsOpen = false"
+     @open-shortcuts.window="shortcutsOpen = true"
+     x-cloak
+     class="fixed inset-0 z-50 flex items-center justify-center p-4
+            bg-slate-900/50 backdrop-blur-sm"
+     role="dialog"
+     aria-modal="true"
+     aria-label="{% trans 'Available shortcuts' %}">
+
+  <div @click.outside="shortcutsOpen = false"
+       class="relative w-full max-w-2xl max-h-[85vh]
+              overflow-hidden rounded-2xl border
+              border-slate-200 bg-white/95
+              shadow-2xl backdrop-blur-xl
+              dark:border-white/10 dark:bg-slate-800/95">
+
+    {# ── Close button ────────────────────────────────────────── #}
+    <button type="button"
+            @click="shortcutsOpen = false"
+            aria-label="{% trans 'Close' %}"
+            class="absolute right-3 top-3 z-10 grid h-8 w-8
+                   place-items-center rounded-lg
+                   text-slate-400 transition-colors
+                   hover:bg-slate-100 hover:text-slate-600
+                   dark:hover:bg-white/10 dark:hover:text-slate-200
+                   focus-visible:outline-none
+                   focus-visible:ring-2 focus-visible:ring-primary-500">
+      <svg class="h-4 w-4" fill="none" stroke="currentColor"
+           viewBox="0 0 24 24" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round"
+           aria-hidden="true">
+        <path d="M18 6 6 18M6 6l12 12" />
+      </svg>
+    </button>
+
+    {# ── Modal body ──────────────────────────────────────────── #}
+    <div class="overflow-y-auto max-h-[85vh] p-6">
+
+      <h2 class="mb-5 text-lg font-semibold
+                 text-slate-900 dark:text-slate-100">
+        {% trans "Available shortcuts" %}
+      </h2>
+
+      {# ── Global shortcuts ──────────────────────────────────── #}
+      <section class="mb-6">
+        <h3 class="mb-2 text-xs font-semibold uppercase
+                   tracking-wider text-slate-500
+                   dark:text-slate-400">
+          {% trans "Global shortcuts" %}
+        </h3>
+
+        <div class="space-y-1">
+          <div class="flex items-center justify-between
+                      rounded-lg px-3 py-2
+                      text-sm text-slate-700
+                      dark:text-slate-300
+                      hover:bg-slate-50 dark:hover:bg-white/5">
+            <span>{% trans "Open command tool" %}</span>
+            <kbd class="rounded-md border border-slate-200
+                        bg-slate-50 px-1.5 py-0.5
+                        text-[11px] font-medium
+                        text-slate-500
+                        dark:border-white/10 dark:bg-white/5
+                        dark:text-slate-400">⌘K</kbd>
+          </div>
+
+          <div class="flex items-center justify-between
+                      rounded-lg px-3 py-2
+                      text-sm text-slate-700
+                      dark:text-slate-300
+                      hover:bg-slate-50 dark:hover:bg-white/5">
+            <span>{% trans "Open shortcuts list" %}</span>
+            <kbd class="rounded-md border border-slate-200
+                        bg-slate-50 px-1.5 py-0.5
+                        text-[11px] font-medium
+                        text-slate-500
+                        dark:border-white/10 dark:bg-white/5
+                        dark:text-slate-400">⇧?</kbd>
+          </div>
+
+          <div class="flex items-center justify-between
+                      rounded-lg px-3 py-2
+                      text-sm text-slate-700
+                      dark:text-slate-300
+                      hover:bg-slate-50 dark:hover:bg-white/5">
+            <span>{% trans "Toggle sidebar" %}</span>
+            <kbd class="rounded-md border border-slate-200
+                        bg-slate-50 px-1.5 py-0.5
+                        text-[11px] font-medium
+                        text-slate-500
+                        dark:border-white/10 dark:bg-white/5
+                        dark:text-slate-400">[</kbd>
+          </div>
+
+          <div class="flex items-center justify-between
+                      rounded-lg px-3 py-2
+                      text-sm text-slate-700
+                      dark:text-slate-300
+                      hover:bg-slate-50 dark:hover:bg-white/5">
+            <span>{% trans "Toggle dark/light mode" %}</span>
+            <kbd class="rounded-md border border-slate-200
+                        bg-slate-50 px-1.5 py-0.5
+                        text-[11px] font-medium
+                        text-slate-500
+                        dark:border-white/10 dark:bg-white/5
+                        dark:text-slate-400">⌃E</kbd>
+          </div>
+        </div>
+      </section>
+
+      {# ── Changelist shortcuts ──────────────────────────────── #}
+      <section class="mb-6">
+        <h3 class="mb-2 text-xs font-semibold uppercase
+                   tracking-wider text-slate-500
+                   dark:text-slate-400">
+          {% trans "Changelist shortcuts" %}
+        </h3>
+
+        <div class="space-y-1">
+          <div class="flex items-center justify-between
+                      rounded-lg px-3 py-2
+                      text-sm text-slate-700
+                      dark:text-slate-300
+                      hover:bg-slate-50 dark:hover:bg-white/5">
+            <span>{% trans "Toggle filter" %}</span>
+            <kbd class="rounded-md border border-slate-200
+                        bg-slate-50 px-1.5 py-0.5
+                        text-[11px] font-medium
+                        text-slate-500
+                        dark:border-white/10 dark:bg-white/5
+                        dark:text-slate-400">F</kbd>
+          </div>
+
+          <div class="flex items-center justify-between
+                      rounded-lg px-3 py-2
+                      text-sm text-slate-700
+                      dark:text-slate-300
+                      hover:bg-slate-50 dark:hover:bg-white/5">
+            <span>{% trans "Create new record" %}</span>
+            <kbd class="rounded-md border border-slate-200
+                        bg-slate-50 px-1.5 py-0.5
+                        text-[11px] font-medium
+                        text-slate-500
+                        dark:border-white/10 dark:bg-white/5
+                        dark:text-slate-400">C</kbd>
+          </div>
+        </div>
+      </section>
+
+      {# ── Command tool shortcuts ────────────────────────────── #}
+      <section class="mb-6">
+        <h3 class="mb-2 text-xs font-semibold uppercase
+                   tracking-wider text-slate-500
+                   dark:text-slate-400">
+          {% trans "Command tool shortcuts" %}
+        </h3>
+
+        <div class="space-y-1">
+          <div class="flex items-center justify-between
+                      rounded-lg px-3 py-2
+                      text-sm text-slate-700
+                      dark:text-slate-300
+                      hover:bg-slate-50 dark:hover:bg-white/5">
+            <span>{% trans "Navigate" %}</span>
+            <span class="flex items-center gap-1">
+              <kbd class="rounded-md border border-slate-200
+                          bg-slate-50 px-1.5 py-0.5
+                          text-[11px] font-medium
+                          text-slate-500
+                          dark:border-white/10 dark:bg-white/5
+                          dark:text-slate-400">↓</kbd>
+              <kbd class="rounded-md border border-slate-200
+                          bg-slate-50 px-1.5 py-0.5
+                          text-[11px] font-medium
+                          text-slate-500
+                          dark:border-white/10 dark:bg-white/5
+                          dark:text-slate-400">↑</kbd>
+            </span>
+          </div>
+
+          <div class="flex items-center justify-between
+                      rounded-lg px-3 py-2
+                      text-sm text-slate-700
+                      dark:text-slate-300
+                      hover:bg-slate-50 dark:hover:bg-white/5">
+            <span>{% trans "Open selection" %}</span>
+            <kbd class="rounded-md border border-slate-200
+                        bg-slate-50 px-1.5 py-0.5
+                        text-[11px] font-medium
+                        text-slate-500
+                        dark:border-white/10 dark:bg-white/5
+                        dark:text-slate-400">↵</kbd>
+          </div>
+
+          <div class="flex items-center justify-between
+                      rounded-lg px-3 py-2
+                      text-sm text-slate-700
+                      dark:text-slate-300
+                      hover:bg-slate-50 dark:hover:bg-white/5">
+            <span>{% trans "Open selection in new tab" %}</span>
+            <kbd class="rounded-md border border-slate-200
+                        bg-slate-50 px-1.5 py-0.5
+                        text-[11px] font-medium
+                        text-slate-500
+                        dark:border-white/10 dark:bg-white/5
+                        dark:text-slate-400">⌘↵</kbd>
+          </div>
+
+          <div class="flex items-center justify-between
+                      rounded-lg px-3 py-2
+                      text-sm text-slate-700
+                      dark:text-slate-300
+                      hover:bg-slate-50 dark:hover:bg-white/5">
+            <span>{% trans "Clear" %}</span>
+            <kbd class="rounded-md border border-slate-200
+                        bg-slate-50 px-1.5 py-0.5
+                        text-[11px] font-medium
+                        text-slate-500
+                        dark:border-white/10 dark:bg-white/5
+                        dark:text-slate-400">ESC</kbd>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</div>

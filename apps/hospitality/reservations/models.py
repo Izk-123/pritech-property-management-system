@@ -10,8 +10,11 @@ allowed overbooking: two staff could confirm two reservations for
 the same room and the same dates without either seeing a conflict.
 """
 import builtins
+import secrets
+from datetime import timedelta
 
 from django.db import connection, models, transaction
+from django.urls import reverse
 from django.utils import timezone
 
 from apps.core.models import TimeStampedModel
@@ -66,6 +69,19 @@ class Reservation(TimeStampedModel):
         max_digits=12, decimal_places=2, default=0,
     )
     deposit_currency = models.CharField(max_length=3, default='MWK')
+    guest_access_token = models.CharField(
+        max_length=64,
+        unique=True,
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text='Anonymous one-time guest portal token scoped to this reservation.',
+    )
+    guest_access_expires_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='When the guest portal link expires.',
+    )
     created_by = models.ForeignKey(
         'shared_users.User', on_delete=models.SET_NULL, null=True, blank=True,
     )
@@ -91,6 +107,25 @@ class Reservation(TimeStampedModel):
 
     def __str__(self):
         return f'{self.reservation_number} — {self.primary_guest.full_name}'
+
+    def generate_guest_access_token(self, *, expires_in_days=14):
+        """Create or refresh a reservation-scoped guest portal token."""
+        self.guest_access_token = secrets.token_urlsafe(32)
+        self.guest_access_expires_at = timezone.now() + timedelta(days=expires_in_days)
+        return self.guest_access_token
+
+    @property
+    def guest_access_is_valid(self):
+        return bool(
+            self.guest_access_token and
+            self.guest_access_expires_at and
+            self.guest_access_expires_at > timezone.now() and
+            self.status not in {
+                self.Status.CANCELLED,
+                self.Status.NO_SHOW,
+                self.Status.CHECKED_OUT,
+            }
+        )
 
     def save(self, *args, **kwargs):
         """
@@ -144,6 +179,12 @@ class Reservation(TimeStampedModel):
     @builtins.property
     def nights(self):
         return (self.check_out - self.check_in).days
+
+    @builtins.property
+    def guest_portal_url(self):
+        if not self.guest_access_token:
+            return ''
+        return reverse('reservations:guest_portal', kwargs={'token': self.guest_access_token})
 
     @staticmethod
     def find_conflicting_unit_ids(property, check_in, check_out,

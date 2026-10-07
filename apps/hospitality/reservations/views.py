@@ -12,6 +12,7 @@ from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import transaction
 from django.db.models import Q
+from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
 from django.utils import timezone
@@ -205,6 +206,41 @@ class ReservationCancelView(LoginRequiredMixin, View):
         except CheckInError as e:
             messages.error(request, str(e))
         return redirect('reservations:detail', pk=pk)
+
+
+class GuestPortalView(DetailView):
+    """Anonymous reservation-scoped guest portal."""
+    model = Reservation
+    template_name = 'pages/hospitality/guest_portal.html'
+    context_object_name = 'reservation'
+    slug_field = 'guest_access_token'
+    slug_url_kwarg = 'token'
+
+    def get_queryset(self):
+        return Reservation.objects.select_related(
+            'primary_guest', 'property', 'folio', 'rate_plan'
+        ).prefetch_related('rooms__unit', 'folio__charges', 'folio__payments')
+
+    def dispatch(self, request, *args, **kwargs):
+        token = kwargs.get('token')
+        if not token:
+            raise Http404
+
+        reservation = self.get_object()
+        if reservation is None or not reservation.guest_access_is_valid:
+            raise Http404
+
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_object(self, queryset=None):
+        queryset = queryset or self.get_queryset()
+        token = self.kwargs.get(self.slug_url_kwarg)
+        if token is None:
+            raise Http404
+        try:
+            return queryset.get(guest_access_token=token)
+        except queryset.model.DoesNotExist:
+            raise Http404
 
 
 # ─── Check-In ─────────────────────────────────────────────────────

@@ -23,13 +23,18 @@
   normal ModelForm machinery — required-field validation, clean(),
   offline sync — continues to work unchanged.
 
-  The picker's controller JS lives in {% block extra_js %} at the
-  bottom of this file. It:
+  The picker's controller JavaScript lives in the extra_js block at
+  the bottom of this file. It:
     • opens/closes the dropdown
     • writes the selected person id into the hidden input
     • clears the previous selection when the user starts retyping
     • listens for the `guestCreated` HX-Trigger fired by the backend
       after a successful quick-create and auto-selects the new row
+
+  NOTE: Do not write literal block-tag syntax inside this comment.
+  On Django 5.x the comment tag parses its children, so a stray
+  {% raw %}{% block extra_js %}{% endraw %} here would register a second
+  block and raise TemplateSyntaxError at render time.
 ═══════════════════════════════════════════════════════════════════════
 {% endcomment %}
 
@@ -265,14 +270,13 @@
 
 
 {# ═════════════════════════════════════════════════════════════════
-   Guest picker controller
+   THE ONLY extra_js BLOCK IN THIS FILE.
    ─────────────────────────────────────────────────────────────────
-   Small vanilla-JS controller for partials/_guest_picker.html.
-   Deliberately not a self-executing IIFE at file scope — it runs
-   only on this page (via {% block extra_js %}) so other pages
-   don't pay for it.
+   If you ever need to add more page-specific JS, append it inside
+   this same block — do NOT add a second one, or Django will raise
+   "'block' tag with name 'extra_js' appears more than once".
 
-   Responsibilities:
+   Guest picker controller for partials/_guest_picker.html:
      1. Open / close the results dropdown
      2. Write the chosen Person pk into the hidden FK input
      3. Invalidate the previous selection the moment the user

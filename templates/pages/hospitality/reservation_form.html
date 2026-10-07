@@ -44,7 +44,6 @@
     </p>
   </div>
 
-  {# No nested <form> elements inside: the guest picker uses HTMX buttons with hx-include. #}
   <form method="post" novalidate
         {% if form.instance.pk %}
         action="{% url 'reservations:edit' form.instance.pk %}"
@@ -64,14 +63,8 @@
     {% csrf_token %}
     {% include "partials/_form_errors.html" %}
 
-    {# ── Section 1: Guest & Property ────────────────────────────
-       `relative z-20` is REQUIRED — without it the guest picker's
-       absolutely-positioned dropdown is trapped inside this card's
-       stacking context (created by .card's backdrop-blur) and gets
-       painted *behind* the following Stay Dates card.
-    #}
-    <fieldset data-animate="fade-up"
-              class="relative z-20 card space-y-5 p-6">
+    {# Section 1 — Guest & Property. `.card-stack` lifts this card above later siblings so the guest-picker dropdown isn't clipped. #}
+    <fieldset data-animate="fade-up" class="card card-stack space-y-5 p-6">
       <legend class="sr-only">{% trans "Guest & Property" %}</legend>
 
       <h2 class="text-xs font-bold uppercase tracking-wider
@@ -80,13 +73,12 @@
       </h2>
 
       <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
-        {# Live-search + inline-create guest picker. #}
         {% include "partials/_guest_picker.html" with field=form.primary_guest %}
         {% include "partials/_form_field.html" with field=form.property %}
       </div>
     </fieldset>
 
-    {# ── Section 2: Stay Dates ────────────────────────────────── #}
+    {# Section 2 — Stay Dates #}
     <fieldset data-animate="fade-up" class="card space-y-5 p-6">
       <legend class="sr-only">{% trans "Stay Dates" %}</legend>
 
@@ -101,7 +93,7 @@
       </div>
     </fieldset>
 
-    {# ── Section 3: Guests & Source ───────────────────────────── #}
+    {# Section 3 — Guests & Source #}
     <fieldset data-animate="fade-up" class="card space-y-5 p-6">
       <legend class="sr-only">{% trans "Guests & Source" %}</legend>
 
@@ -117,7 +109,7 @@
       </div>
     </fieldset>
 
-    {# ── Section 4: Rate & Notes ──────────────────────────────── #}
+    {# Section 4 — Rate & Notes #}
     <fieldset data-animate="fade-up" class="card space-y-5 p-6">
       <legend class="sr-only">{% trans "Rate & Notes" %}</legend>
 
@@ -130,7 +122,7 @@
       {% include "partials/_form_field.html" with field=form.special_requests %}
     </fieldset>
 
-    {# Desktop action row — mobile sticky bar takes over below. #}
+    {# Desktop action row — hidden on mobile; sticky bar takes over. #}
     <div class="hidden sm:flex sm:flex-wrap sm:gap-2">
       <button type="submit" data-press data-hover="grow"
               class="btn btn-primary px-6 py-2.5">
@@ -153,7 +145,7 @@
 </div>
 
 
-{# Mobile sticky action bar — outside the form on purpose. #}
+{# Mobile sticky action bar — outside the <form> on purpose. #}
 <div class="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200
             bg-white/95 px-4 py-3 backdrop-blur-xl
             dark:border-white/10 dark:bg-slate-900/95 sm:hidden">
@@ -175,7 +167,7 @@
 {% endblock %}
 
 
-{# Guest picker controller — only one extra_js block per template. #}
+{# Guest-picker controller. Only one extra_js block per template. #}
 {% block extra_js %}
 <script>
 (function () {

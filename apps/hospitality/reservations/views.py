@@ -1,6 +1,16 @@
 # apps/hospitality/reservations/views.py
-from django.contrib.auth.mixins import LoginRequiredMixin
+"""
+Reservation views.
+
+Front desk, reservation detail, and the create / edit / check-in
+flows. The create and edit views are the entry point for the
+overbooking fix — they take a unit from the form and create the
+ReservationRoom immediately, so confirmed bookings block the room
+from that moment on.
+"""
 from django.contrib import messages
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
@@ -8,12 +18,17 @@ from django.utils import timezone
 from django.views.generic import (
     ListView, DetailView, CreateView, UpdateView, FormView, View,
 )
+
 from apps.core.mixins import TenantStaffRequiredMixin
-from .models import Reservation
+
 from .forms import ReservationForm, CheckInForm
+from .models import Reservation
 from .services import (
-    check_in_reservation, check_out_reservation,
-    cancel_reservation, CheckInError,
+    attach_unit_to_reservation,
+    cancel_reservation,
+    check_in_reservation,
+    check_out_reservation,
+    CheckInError,
 )
 
 
@@ -71,31 +86,68 @@ class ReservationDetailView(LoginRequiredMixin, DetailView):
 # ─── Create / Edit ────────────────────────────────────────────────
 
 class ReservationCreateView(LoginRequiredMixin, CreateView):
+    """
+    Create a reservation and immediately assign a room.
+
+    The form's ``unit`` field carries the room. ``attach_unit_to_reservation``
+    locks the unit row, re-checks for conflicts under the lock, and
+    creates the ReservationRoom. This is where the overbooking fix
+    lives — the room is held from this moment on.
+    """
     model = Reservation
     form_class = ReservationForm
     template_name = 'pages/hospitality/reservation_form.html'
 
+    @transaction.atomic
     def form_valid(self, form):
         form.instance.created_by = self.request.user
         form.instance.status = Reservation.Status.CONFIRMED
-        response = super().form_valid(form)
+
+        # Save the reservation first — we need its PK to create the
+        # ReservationRoom.
+        self.object = form.save()
+
+        try:
+            attach_unit_to_reservation(
+                reservation=self.object,
+                unit=form.cleaned_data['unit'],
+                rate_per_night=form.cleaned_data['rate_per_night'],
+            )
+        except Exception as exc:
+            # attach_unit_to_reservation raised — probably a conflict
+            # discovered under the lock. Delete the reservation we
+            # just created so the transaction is clean, then surface
+            # the error on the form. The outer atomic() rolls back
+            # everything if we raise; deleting explicitly lets us
+            # fall into the "form_invalid" path with a nice message.
+            self.object.delete()
+            form.add_error('unit', str(exc))
+            return self.form_invalid(form)
+
         messages.success(
             self.request,
-            f'Reservation {self.object.reservation_number} created.',
+            f'Reservation {self.object.reservation_number} created. '
+            f'Room {form.cleaned_data["unit"].identifier} held.',
         )
-        return response
+        return redirect(self.get_success_url())
 
     def get_success_url(self):
         return reverse_lazy('reservations:detail', kwargs={'pk': self.object.pk})
 
 
 class ReservationUpdateView(LoginRequiredMixin, UpdateView):
+    """
+    Edit an existing reservation.
+
+    If the room changed, the old ReservationRoom is replaced. The
+    new assignment is re-checked under a lock, exactly like create.
+    """
     model = Reservation
     form_class = ReservationForm
     template_name = 'pages/hospitality/reservation_form.html'
 
     def get_queryset(self):
-        # Only allow editing reservations that haven't checked in or out
+        # Only editable before check-in.
         return Reservation.objects.exclude(
             status__in=[
                 Reservation.Status.CHECKED_IN,
@@ -104,9 +156,35 @@ class ReservationUpdateView(LoginRequiredMixin, UpdateView):
             ]
         )
 
+    @transaction.atomic
     def form_valid(self, form):
+        self.object = form.save()
+
+        new_unit = form.cleaned_data['unit']
+        new_rate = form.cleaned_data['rate_per_night']
+
+        # Was this unit previously assigned? If the room is unchanged
+        # we skip the conflict check — the room is already held by
+        # this reservation and re-validating it would self-conflict.
+        existing = self.object.rooms.filter(unit=new_unit).first()
+        if existing and existing.rate_per_night == new_rate:
+            messages.success(self.request, 'Reservation updated.')
+            return redirect(self.get_success_url())
+
+        # Room or rate changed. Replace the assignment under a lock.
+        try:
+            self.object.rooms.exclude(unit=new_unit).delete()
+            attach_unit_to_reservation(
+                reservation=self.object,
+                unit=new_unit,
+                rate_per_night=new_rate,
+            )
+        except Exception as exc:
+            form.add_error('unit', str(exc))
+            return self.form_invalid(form)
+
         messages.success(self.request, 'Reservation updated.')
-        return super().form_valid(form)
+        return redirect(self.get_success_url())
 
     def get_success_url(self):
         return reverse_lazy('reservations:detail', kwargs={'pk': self.object.pk})
@@ -137,7 +215,9 @@ class CheckInView(LoginRequiredMixin, FormView):
 
     def get_reservation(self):
         return get_object_or_404(
-            Reservation.objects.select_related('primary_guest', 'property'),
+            Reservation.objects
+                .select_related('primary_guest', 'property')
+                .prefetch_related('rooms__unit'),
             pk=self.kwargs['pk'],
         )
 
@@ -197,15 +277,6 @@ class CheckOutView(LoginRequiredMixin, DetailView):
 
 
 # ─── Front Desk Dashboard ─────────────────────────────────────────
-#
-# Phase 8 — query optimisation. Three hot queries on every page load:
-#   • arrivals    → CONFIRMED, check_in == today
-#   • departures  → CHECKED_IN, check_out == today
-#   • in_house    → CHECKED_IN, spanning today
-#
-# Each uses select_related to avoid N+1 on guest/property. The arrivals
-# and in_house lists prefetch rooms + folio so the template doesn't
-# round-trip per row.
 
 class FrontDeskDashboardView(LoginRequiredMixin, ListView):
     template_name = 'pages/hospitality/front_desk.html'

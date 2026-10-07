@@ -1,8 +1,19 @@
 # apps/hospitality/reservations/models.py
+"""
+Reservation models.
+
+A Reservation covers one or more rooms over a date range. The rooms
+are attached via ReservationRoom rows **at booking time** — not at
+check-in — so that confirmed bookings block inventory for their
+dates. Attaching only at check-in was the original design and it
+allowed overbooking: two staff could confirm two reservations for
+the same room and the same dates without either seeing a conflict.
+"""
 import builtins
 
-from django.db import models
+from django.db import connection, models, transaction
 from django.utils import timezone
+
 from apps.core.models import TimeStampedModel
 
 
@@ -62,20 +73,13 @@ class Reservation(TimeStampedModel):
     class Meta:
         ordering = ['-check_in']
         indexes = [
-            # Front desk + availability queries: property + status range
-            # scan, ordered by the stay window.
             models.Index(
                 fields=['property', 'status', 'check_in', 'check_out'],
             ),
-            # Lookup by reservation number (search, deep links).
             models.Index(fields=['reservation_number']),
-            # Filter by guest (guest profile → reservations).
             models.Index(fields=['primary_guest']),
-            # Arrivals dashboard: check_in == today.
             models.Index(fields=['check_in']),
-            # Arrivals by status + date, and in-house spanning queries.
             models.Index(fields=['status', 'check_in']),
-            # Audit / "recently created" listings.
             models.Index(fields=['created_at']),
         ]
         constraints = [
@@ -89,17 +93,54 @@ class Reservation(TimeStampedModel):
         return f'{self.reservation_number} — {self.primary_guest.full_name}'
 
     def save(self, *args, **kwargs):
-        if not self.reservation_number:
-            today = timezone.now().strftime('%Y%m%d')
-            last = Reservation.objects.filter(
-                reservation_number__startswith=f'HTL-{today}'
-            ).count() + 1
-            self.reservation_number = f'HTL-{today}-{last:04d}'
-        super().save(*args, **kwargs)
+        """
+        Assign a reservation number on first save.
 
-    # NOTE: the `property` FK field above shadows Python's builtin `property`
-    # class inside this class body, so the `@property` decorator would try to
-    # call the ForeignKey instance. Reach for `builtins.property` explicitly.
+        The old implementation used ``count() + 1`` on the day's
+        reservations. Two concurrent saves hit the same count, both
+        tried to write the same number, and the second raised an
+        IntegrityError because ``reservation_number`` is unique.
+
+        The fix is a Postgres transaction-scoped advisory lock. The
+        lock key is derived from today's date and is therefore stable
+        across processes — unlike Python's ``hash()``, which is
+        seeded per process. Two workers saving concurrently take
+        turns: the first acquires the lock, counts, writes, and
+        commits; the second then acquires the lock and sees the
+        committed row.
+
+        ``pg_advisory_xact_lock`` releases automatically when the
+        surrounding transaction ends, so there is nothing to clean up
+        on failure.
+        """
+        if self.reservation_number:
+            # Already has a number — just save. No lock needed.
+            return super().save(*args, **kwargs)
+
+        with transaction.atomic():
+            today = timezone.now().strftime('%Y%m%d')
+
+            # Derive a stable 32-bit integer key from the date.
+            # int('20261007') = 20261007 fits comfortably within the
+            # signed 32-bit range pg_advisory_xact_lock accepts.
+            lock_key = int(today)
+
+            with connection.cursor() as cur:
+                cur.execute(
+                    'SELECT pg_advisory_xact_lock(%s)', [lock_key],
+                )
+
+            count = Reservation.objects.filter(
+                reservation_number__startswith=f'HTL-{today}'
+            ).count()
+
+            self.reservation_number = f'HTL-{today}-{count + 1:04d}'
+            super().save(*args, **kwargs)
+
+    # NOTE: the `property` FK field above shadows Python's builtin
+    # `property` class inside this class body, so the `@property`
+    # decorator would try to call the ForeignKey instance. Reach for
+    # `builtins.property` explicitly.
     @builtins.property
     def nights(self):
         return (self.check_out - self.check_in).days
@@ -108,8 +149,21 @@ class Reservation(TimeStampedModel):
     def find_conflicting_unit_ids(property, check_in, check_out,
                                    exclude_reservation=None):
         """
-        Return unit IDs that are already booked during the requested range.
-        Uses half-open intervals: [check_in, check_out).
+        Return unit IDs that are already booked during the requested
+        range, using half-open intervals: ``[check_in, check_out)``.
+
+        A booking that ends on Oct 5 and a booking that starts on
+        Oct 5 do *not* conflict — Oct 5 is the turnover day.
+
+        Considers CONFIRMED and CHECKED_IN reservations as blocking.
+        CANCELLED, NO_SHOW, and CHECKED_OUT are ignored. PENDING is
+        not considered because our flow never creates PENDING rows
+        (ReservationCreateView sets CONFIRMED directly); if that
+        changes, add PENDING to the status list here.
+
+        Pass ``exclude_reservation`` when checking availability for an
+        existing reservation — otherwise its own rooms count as
+        conflicts.
         """
         qs = ReservationRoom.objects.filter(
             reservation__property=property,
@@ -126,7 +180,16 @@ class Reservation(TimeStampedModel):
 
 
 class ReservationRoom(TimeStampedModel):
-    """Links a reservation to one or more specific units."""
+    """
+    Links a reservation to one or more specific units.
+
+    Created at booking time (not check-in). The row is updated at
+    check-in to record the actual arrival timestamp; the unit is
+    flipped to OCCUPIED at the same moment.
+
+    ``unique_together = [('reservation', 'unit')]`` prevents the same
+    unit being added twice to a reservation.
+    """
 
     reservation = models.ForeignKey(
         Reservation, on_delete=models.CASCADE, related_name='rooms',

@@ -31,10 +31,14 @@
     • listens for the `guestCreated` HX-Trigger fired by the backend
       after a successful quick-create and auto-selects the new row
 
-  NOTE: Do not write literal block-tag syntax inside this comment.
-  On Django 5.x the comment tag parses its children, so a stray
-  {% raw %}{% block extra_js %}{% endraw %} here would register a second
-  block and raise TemplateSyntaxError at render time.
+  TEMPLATE-COMMENT RULES (learned the hard way):
+    1. Never write block-tag syntax literally inside a comment —
+       Django 5.x parses {% comment %} children, so a stray
+       {% block extra_js %} here would register a duplicate block.
+    2. Multi-line comments MUST use {% comment %}...{% endcomment %}.
+       The {# ... #} form is single-line ONLY — if it doesn't see
+       the closing #} on the same line it renders as plain text.
+    3. Use {# ... #} only for one-liners.
 ═══════════════════════════════════════════════════════════════════════
 {% endcomment %}
 
@@ -52,7 +56,7 @@
 {% block content %}
 <div class="mx-auto max-w-2xl px-4 py-6 pb-32 sm:px-6 sm:pb-6">
 
-  {# ── Breadcrumb ────────────────────────────────────────────── #}
+  {# Breadcrumb #}
   <nav data-animate="fade-right" data-animate-now class="mb-4 text-sm">
     <a href="{% url 'reservations:list' %}"
        class="inline-flex items-center gap-1 text-primary-600 transition-colors
@@ -65,7 +69,7 @@
     </a>
   </nav>
 
-  {# ── Heading ───────────────────────────────────────────────── #}
+  {# Heading #}
   <div class="mb-6">
     <div data-animate="zoom-in" data-animate-now
          class="mb-3 inline-flex items-center gap-2 rounded-full border
@@ -95,18 +99,20 @@
     </p>
   </div>
 
-  {# ═════════════════════════════════════════════════════════════
-     THE FORM
-     ─────────────────────────────────────────────────────────────
-     • data-offline-form / data-offline-* : picked up by
-       static/js/offline-forms.js — queues the POST in IndexedDB
-       when the device is offline.
-     • data-form-dirty-warn : native beforeunload guard so the user
-       doesn't lose a half-filled booking by hitting Back.
-     • NO nested <form> elements anywhere below — the guest picker
-       and its inline create panel use HTMX buttons with
-       hx-include instead of their own <form> tags.
-     ═════════════════════════════════════════════════════════════ #}
+  {% comment %}
+  ═══════════════════════════════════════════════════════════════
+    THE FORM
+  ───────────────────────────────────────────────────────────────
+    • data-offline-form / data-offline-* : picked up by
+      static/js/offline-forms.js — queues the POST in IndexedDB
+      when the device is offline.
+    • data-form-dirty-warn : native beforeunload guard so the
+      user doesn't lose a half-filled booking by hitting Back.
+    • NO nested <form> elements anywhere below — the guest
+      picker and its inline create panel use HTMX buttons with
+      hx-include instead of their own <form> tags.
+  ═══════════════════════════════════════════════════════════════
+  {% endcomment %}
   <form method="post" novalidate
         {% if form.instance.pk %}
         action="{% url 'reservations:edit' form.instance.pk %}"
@@ -129,14 +135,16 @@
     {% include "partials/_form_errors.html" %}
 
 
-    {# ─────────────────────────────────────────────────────────
-       Section 1 — Guest & Property
-       ─────────────────────────────────────────────────────────
-       The guest picker replaces a plain select. Everything the
-       picker renders lives inside this grid; the picker's
-       absolutely-positioned dropdown uses the wrapper's
-       `relative` positioning.
-       ───────────────────────────────────────────────────────── #}
+    {% comment %}
+    ─────────────────────────────────────────────────────────────
+      Section 1 — Guest & Property
+    ─────────────────────────────────────────────────────────────
+      The guest picker replaces a plain select. Everything the
+      picker renders lives inside this grid; the picker's
+      absolutely-positioned dropdown uses the wrapper's
+      `relative` positioning.
+    ─────────────────────────────────────────────────────────────
+    {% endcomment %}
     <fieldset data-animate="fade-up" class="card space-y-5 p-6">
       <legend class="sr-only">{% trans "Guest & Property" %}</legend>
 
@@ -157,9 +165,7 @@
     </fieldset>
 
 
-    {# ─────────────────────────────────────────────────────────
-       Section 2 — Stay Dates
-       ───────────────────────────────────────────────────────── #}
+    {# Section 2 — Stay Dates #}
     <fieldset data-animate="fade-up" class="card space-y-5 p-6">
       <legend class="sr-only">{% trans "Stay Dates" %}</legend>
 
@@ -175,9 +181,7 @@
     </fieldset>
 
 
-    {# ─────────────────────────────────────────────────────────
-       Section 3 — Guests & Source
-       ───────────────────────────────────────────────────────── #}
+    {# Section 3 — Guests & Source #}
     <fieldset data-animate="fade-up" class="card space-y-5 p-6">
       <legend class="sr-only">{% trans "Guests & Source" %}</legend>
 
@@ -194,9 +198,7 @@
     </fieldset>
 
 
-    {# ─────────────────────────────────────────────────────────
-       Section 4 — Rate & Notes
-       ───────────────────────────────────────────────────────── #}
+    {# Section 4 — Rate & Notes #}
     <fieldset data-animate="fade-up" class="card space-y-5 p-6">
       <legend class="sr-only">{% trans "Rate & Notes" %}</legend>
 
@@ -210,13 +212,7 @@
     </fieldset>
 
 
-    {# ─────────────────────────────────────────────────────────
-       Desktop action row
-       ─────────────────────────────────────────────────────────
-       Hidden on mobile because the sticky bar below the fold
-       takes over. Having both visible would double the tap
-       targets and cause layout jitter.
-       ───────────────────────────────────────────────────────── #}
+    {# Desktop action row — hidden on mobile, sticky bar takes over there. #}
     <div class="hidden sm:flex sm:flex-wrap sm:gap-2">
       <button type="submit" data-press data-hover="grow"
               class="btn btn-primary px-6 py-2.5">
@@ -239,15 +235,17 @@
 </div>
 
 
-{# ═════════════════════════════════════════════════════════════════
-   Mobile sticky action bar
-   ─────────────────────────────────────────────────────────────────
-   Sits outside the <form> element deliberately — you cannot nest
-   a <form> inside a <form>, and a submit button only needs to be
-   *associated* with the form to work. We use `requestSubmit()`
-   so constraint validation and the submit event both fire the
-   same way they would for an in-form button.
-   ═════════════════════════════════════════════════════════════════ #}
+{% comment %}
+═══════════════════════════════════════════════════════════════════
+  Mobile sticky action bar
+───────────────────────────────────────────────────────────────────
+  Sits outside the <form> element deliberately — HTML forbids
+  nested <form> tags, and a button only needs to be *associated*
+  with a form to work. We use `requestSubmit()` so constraint
+  validation and the submit event both fire exactly as they
+  would for an in-form button.
+═══════════════════════════════════════════════════════════════════
+{% endcomment %}
 <div class="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200
             bg-white/95 px-4 py-3 backdrop-blur-xl
             dark:border-white/10 dark:bg-slate-900/95 sm:hidden">
@@ -269,24 +267,26 @@
 {% endblock %}
 
 
-{# ═════════════════════════════════════════════════════════════════
-   THE ONLY extra_js BLOCK IN THIS FILE.
-   ─────────────────────────────────────────────────────────────────
-   If you ever need to add more page-specific JS, append it inside
-   this same block — do NOT add a second one, or Django will raise
-   "'block' tag with name 'extra_js' appears more than once".
+{% comment %}
+═══════════════════════════════════════════════════════════════════
+  THE ONLY extra_js BLOCK IN THIS FILE.
+───────────────────────────────────────────────────────────────────
+  If you ever need to add more page-specific JS, append it inside
+  this same block — do NOT add a second one, or Django will raise
+  "'block' tag with name 'extra_js' appears more than once".
 
-   Guest picker controller for partials/_guest_picker.html:
-     1. Open / close the results dropdown
-     2. Write the chosen Person pk into the hidden FK input
-     3. Invalidate the previous selection the moment the user
-        starts typing a new query
-     4. Handle clicks on the "Create new guest" row — show the
-        inline mini-form, pre-fill the name
-     5. React to the `guestCreated` event fired by the backend
-        (via HX-Trigger header) after a successful inline create,
-        auto-selecting the new record
-   ═════════════════════════════════════════════════════════════════ #}
+  Guest picker controller for partials/_guest_picker.html:
+    1. Open / close the results dropdown
+    2. Write the chosen Person pk into the hidden FK input
+    3. Invalidate the previous selection the moment the user
+       starts typing a new query
+    4. Handle clicks on the "Create new guest" row — show the
+       inline mini-form, pre-fill the name
+    5. React to the `guestCreated` event fired by the backend
+       (via HX-Trigger header) after a successful inline create,
+       auto-selecting the new record
+═══════════════════════════════════════════════════════════════════
+{% endcomment %}
 {% block extra_js %}
 <script>
 (function () {

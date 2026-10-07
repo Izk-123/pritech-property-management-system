@@ -8,13 +8,19 @@
  *   - Live region for realtime toasts (bridge from realtime.js)
  *
  * No external dependencies. Uses native Web Animations API.
+ *
+ * IMPORTANT: This script is loaded in <head> without `defer` by Unfold,
+ * so we must never access `document.body` until DOMContentLoaded fires.
+ * Otherwise Alpine.js (used by Unfold for the shortcuts modal) can crash
+ * and leave modals stuck open.
  */
 (function () {
   'use strict';
 
+  // ── Reduced-motion preference ────────────────────────────────────
   var reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
 
-  /* ── Utilities ───────────────────────────────────────────────── */
+  // ── Utilities ────────────────────────────────────────────────────
 
   function $all(sel, root) {
     return Array.prototype.slice.call((root || document).querySelectorAll(sel));
@@ -25,11 +31,19 @@
   }
 
   function cssNumber(varName, fallback) {
-    var v = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+    var v = getComputedStyle(document.documentElement)
+      .getPropertyValue(varName)
+      .trim();
     return v ? parseFloat(v) : fallback;
   }
 
-  /* ── 1. Dashboard module stagger ─────────────────────────────── */
+  function escapeHtml(str) {
+    var div = document.createElement('div');
+    div.textContent = String(str);
+    return div.innerHTML;
+  }
+
+  // ── 1. Dashboard module stagger ──────────────────────────────────
 
   function initDashboardStagger() {
     var modules = $all('#content .module, #content [data-admin-module]');
@@ -41,7 +55,7 @@
     });
   }
 
-  /* ── 2. Table row stagger (first N rows only) ────────────────── */
+  // ── 2. Table row stagger (first N rows only) ─────────────────────
 
   function initTableStagger() {
     $all('#result_list tbody, table tbody').forEach(function (tbody) {
@@ -53,7 +67,7 @@
     });
   }
 
-  /* ── 3. Sidebar nav stagger + ripple on click ───────────────── */
+  // ── 3. Sidebar nav stagger + ripple on click ─────────────────────
 
   function initSidebar() {
     var items = $all('#nav-sidebar li, nav.sidebar li, aside nav li');
@@ -63,7 +77,10 @@
       setDelay(el, i * 26);
     });
 
-    // Ripple on anchor click
+    // Ripple on anchor click — attach only once to avoid duplicate listeners
+    if (window._pritechSidebarRippleAttached) return;
+    window._pritechSidebarRippleAttached = true;
+
     document.addEventListener('pointerdown', function (e) {
       var a = e.target.closest('#nav-sidebar a, nav.sidebar a, aside nav a');
       if (!a) return;
@@ -81,10 +98,14 @@
     });
   }
 
-  /* ── 4. Button press feedback ────────────────────────────────── */
+  // ── 4. Button press feedback ─────────────────────────────────────
 
   function initButtonPress() {
     if (reduced.matches) return;
+
+    // Attach only once to avoid duplicate listeners on re-boot
+    if (window._pritechButtonPressAttached) return;
+    window._pritechButtonPressAttached = true;
 
     document.addEventListener('pointerdown', function (e) {
       var btn = e.target.closest(
@@ -102,7 +123,7 @@
     });
   }
 
-  /* ── 5. Form fieldset stagger ────────────────────────────────── */
+  // ── 5. Form fieldset stagger ─────────────────────────────────────
 
   function initFieldsetStagger() {
     $all('fieldset.module, .form-row').forEach(function (el, i) {
@@ -110,12 +131,19 @@
     });
   }
 
-  /* ── 6. Realtime toast bridge ────────────────────────────────── */
+  // ── 6. Realtime toast bridge ─────────────────────────────────────
 
   function initRealtimeBridge() {
+    // Safety: never touch document.body before it exists
+    if (!document.body) return;
+
     // Only run if the admin is loaded inside a tenant schema
     var schema = document.body.getAttribute('data-tenant-schema');
     if (!schema || schema === 'public') return;
+
+    // Attach only once
+    if (window._pritechRealtimeBridgeAttached) return;
+    window._pritechRealtimeBridgeAttached = true;
 
     window.addEventListener('pritech:realtime', function (e) {
       var detail = e.detail || {};
@@ -162,13 +190,7 @@
     });
   }
 
-  function escapeHtml(str) {
-    var div = document.createElement('div');
-    div.textContent = String(str);
-    return div.innerHTML;
-  }
-
-  /* ── 7. Lifecycle — re-run on DOM swaps ──────────────────────── */
+  // ── 7. Lifecycle — re-run on DOM swaps ────────────────────────────
 
   function boot() {
     if (reduced.matches) return;
@@ -180,14 +202,17 @@
     initRealtimeBridge();
   }
 
-  // Re-boot when Unfold or HTMX swaps content (changelists, modals)
-  document.addEventListener('DOMContentLoaded', boot);
+  // Wait for DOM to be fully loaded before accessing document.body
+  document.addEventListener('DOMContentLoaded', function () {
+    boot();
 
-  document.body.addEventListener('htmx:afterSwap', function () {
-    if (reduced.matches) return;
-    initDashboardStagger();
-    initTableStagger();
-    initFieldsetStagger();
+    // HTMX swaps — re-run only the entry animations
+    document.body.addEventListener('htmx:afterSwap', function () {
+      if (reduced.matches) return;
+      initDashboardStagger();
+      initTableStagger();
+      initFieldsetStagger();
+    });
   });
 
   // React to runtime preference changes

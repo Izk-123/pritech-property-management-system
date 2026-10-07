@@ -98,6 +98,26 @@
         @apply rounded-2xl border border-slate-200/80 bg-white/85 p-5 shadow-soft backdrop-blur-xl
                dark:border-white/10 dark:bg-slate-800/70;
       }
+
+      /* ─── Stacking-context fix for popovers inside cards ────────
+         `.card` uses `backdrop-blur-xl` (backdrop-filter), which
+         creates a NEW stacking context. Any absolutely-positioned
+         dropdown inside it (guest picker, autocomplete, date picker)
+         is trapped: its z-index only applies *within* the card, so
+         the browser paints sibling cards later in the DOM on top of
+         it — the dropdown appears to slide "behind" the next card.
+
+         Apply `.card-stack` alongside `.card` on any fieldset /
+         wrapper that contains a popover. It promotes the whole card
+         above its siblings, so the popover inherits that elevation.
+
+         Usage:
+             <fieldset class="card card-stack space-y-5 p-6"> … </fieldset>
+      ─────────────────────────────────────────────────────────────── */
+      .card-stack {
+        @apply relative z-20;
+      }
+
       .btn {
         @apply inline-flex select-none items-center justify-center gap-2 rounded-xl px-5 py-2.5
                text-sm font-semibold transition-colors duration-200

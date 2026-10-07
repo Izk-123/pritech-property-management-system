@@ -64,8 +64,14 @@
     {% csrf_token %}
     {% include "partials/_form_errors.html" %}
 
-    {# ── Section 1: Guest & Property ──────────────────────────── #}
-    <fieldset data-animate="fade-up" class="card space-y-5 p-6">
+    {# ── Section 1: Guest & Property ────────────────────────────
+       `relative z-20` is REQUIRED — without it the guest picker's
+       absolutely-positioned dropdown is trapped inside this card's
+       stacking context (created by .card's backdrop-blur) and gets
+       painted *behind* the following Stay Dates card.
+    #}
+    <fieldset data-animate="fade-up"
+              class="relative z-20 card space-y-5 p-6">
       <legend class="sr-only">{% trans "Guest & Property" %}</legend>
 
       <h2 class="text-xs font-bold uppercase tracking-wider

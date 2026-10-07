@@ -1,0 +1,50 @@
+{% load i18n %}
+{% with selected=form.instance.primary_guest %}
+<div class="relative"
+     data-guest-picker
+     hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+
+  <label for="{{ field.id_for_label }}"
+         class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+    {{ field.label }}
+    {% if field.field.required %}<span class="text-red-500">*</span>{% endif %}
+  </label>
+
+  {# The actual FK value that gets submitted with the outer form #}
+  <input type="hidden"
+         name="{{ field.html_name }}"
+         id="{{ field.id_for_label }}"
+         value="{{ field.value|default_if_none:'' }}"
+         data-guest-id>
+
+  {# Visible search box — htmx fetches matches as the user types #}
+  <input type="text"
+         name="q"
+         data-guest-search
+         placeholder="{% trans 'Search by name, phone, or email…' %}"
+         autocomplete="off"
+         role="combobox"
+         aria-autocomplete="list"
+         aria-expanded="false"
+         aria-controls="guest-results"
+         class="field"
+         hx-get="{% url 'people:quick_search' %}"
+         hx-trigger="input changed delay:250ms, focus"
+         hx-target="#guest-results"
+         hx-swap="innerHTML"
+         hx-include="this"
+         value="{% if selected %}{{ selected.full_name }}{% if selected.phone_primary %} · {{ selected.phone_primary }}{% endif %}{% endif %}">
+
+  {# Dropdown — populated by htmx #}
+  <div id="guest-results"
+       data-guest-results
+       class="hidden absolute left-0 right-0 z-40 mt-1 overflow-hidden
+              rounded-xl border border-slate-200 bg-white shadow-xl
+              dark:border-white/10 dark:bg-slate-800">
+  </div>
+
+  {% if field.errors %}
+  <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ field.errors.0 }}</p>
+  {% endif %}
+</div>
+{% endwith %}

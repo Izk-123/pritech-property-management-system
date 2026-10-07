@@ -35,3 +35,24 @@ class PersonForm(FormControlMixin, forms.ModelForm):
                 'Please provide a reason for blacklisting.',
             )
         return cleaned
+    
+class PersonQuickCreateForm(FormControlMixin, forms.ModelForm):
+    """
+    Bare-bones Person form used by the reservation guest-picker's
+    inline "Create new guest" flow. Only the fields required to
+    satisfy the model are exposed; nationality defaults to 'Malawian'
+    and everything else can be filled in later via the full form.
+    """
+    class Meta:
+        model = Person
+        fields = ['full_name', 'phone_primary', 'email']
+        labels = {
+            'phone_primary': 'Phone number',
+        }
+        widgets = {
+            'full_name': forms.TextInput(attrs={'placeholder': 'Full name'}),
+            'phone_primary': forms.TextInput(attrs={
+                'placeholder': 'e.g. 0991 234 567', 'inputmode': 'tel',
+            }),
+            'email': forms.EmailInput(attrs={'placeholder': 'Email (optional)'}),
+        }

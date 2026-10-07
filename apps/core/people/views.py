@@ -4,13 +4,18 @@ Staff-only views for managing Person records.
 All views require authentication and staff status. Data is scoped
 to the current tenant schema by django-tenants.
 """
+import json
+from django.http import HttpResponse
+from django.shortcuts import render
+from django.views import View
 from django.contrib import messages
 from django.db.models import Q, Count
 from django.urls import reverse_lazy
 from django.views.generic import ListView, DetailView, CreateView, UpdateView
 from apps.core.mixins import StaffRequiredMixin
 from .models import Person
-from .forms import PersonForm
+
+from .forms import PersonForm, PersonQuickCreateForm
 
 
 class PersonListView(StaffRequiredMixin, ListView):
@@ -108,3 +113,77 @@ class PersonUpdateView(StaffRequiredMixin, UpdateView):
 
     def get_success_url(self):
         return reverse_lazy('people:detail', kwargs={'pk': self.object.pk})
+    
+class PersonQuickSearchView(StaffRequiredMixin, View):
+    """
+    HTMX endpoint for the reservation guest picker.
+
+    Returns an HTML fragment: either a list of up to 10 matching
+    People (name, phone, email), or an empty-state with a "create
+    new" CTA. Requires at least 2 characters to avoid dumping the
+    whole table on a stray keystroke.
+    """
+    MIN_QUERY_LEN = 2
+    MAX_RESULTS = 10
+
+    def get(self, request):
+        q = request.GET.get('q', '').strip()
+        people = Person.objects.none()
+
+        if len(q) >= self.MIN_QUERY_LEN:
+            people = (
+                Person.objects
+                .filter(
+                    Q(full_name__icontains=q) |
+                    Q(phone_primary__icontains=q) |
+                    Q(phone_secondary__icontains=q) |
+                    Q(email__icontains=q) |
+                    Q(id_number__icontains=q)
+                )
+                .order_by('full_name')[:self.MAX_RESULTS]
+            )
+
+        return render(request, 'partials/_guest_search_results.html', {
+            'people': people,
+            'query': q,
+            'quick_create_form': PersonQuickCreateForm(
+                initial={'full_name': q if len(q) >= self.MIN_QUERY_LEN else ''},
+            ),
+        })
+
+
+class PersonQuickCreateView(StaffRequiredMixin, View):
+    """
+    HTMX endpoint — creates a Person from the guest-picker's inline
+    form.
+
+    On success the response is 204 with an ``HX-Trigger`` header
+    carrying the new person's id/label/meta. The picker JS listens
+    for ``guestCreated`` on document.body and auto-selects the new
+    record. On failure the search-results fragment is re-rendered
+    with the form's errors so the user can fix and retry.
+    """
+    def post(self, request):
+        form = PersonQuickCreateForm(request.POST)
+
+        if form.is_valid():
+            person = form.save()
+
+            response = HttpResponse(status=204)
+            response['HX-Trigger'] = json.dumps({
+                'guestCreated': {
+                    'id': str(person.pk),
+                    'label': person.full_name,
+                    'meta': person.phone_primary or '',
+                },
+            })
+            return response
+
+        # Validation failed — re-render the results fragment, which
+        # includes the create panel with errors visible.
+        return render(request, 'partials/_guest_search_results.html', {
+            'people': Person.objects.none(),
+            'query': request.POST.get('full_name', '').strip(),
+            'quick_create_form': form,
+            'show_create_form': True,
+        })

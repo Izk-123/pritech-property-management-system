@@ -1,0 +1,67 @@
+{% load i18n %}
+
+{% if people %}
+<ul class="max-h-64 overflow-y-auto py-1" role="listbox">
+  {% for person in people %}
+  <li>
+    <button type="button"
+            data-guest-option
+            data-guest-id="{{ person.pk }}"
+            data-guest-label="{{ person.full_name }}"
+            data-guest-meta="{{ person.phone_primary }}"
+            role="option"
+            class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm
+                   transition-colors hover:bg-slate-100
+                   dark:hover:bg-white/10">
+      <span class="grid h-8 w-8 shrink-0 place-items-center rounded-full
+                   bg-primary-100 text-xs font-semibold text-primary-700
+                   dark:bg-primary-900/60 dark:text-primary-300">
+        {{ person.full_name|slice:":1"|upper }}
+      </span>
+      <span class="min-w-0 flex-1">
+        <span class="block truncate font-medium text-slate-900 dark:text-slate-100">
+          {{ person.full_name }}
+        </span>
+        <span class="block truncate text-xs text-slate-500 dark:text-slate-400">
+          {{ person.phone_primary }}{% if person.email %} · {{ person.email }}{% endif %}
+        </span>
+      </span>
+    </button>
+  </li>
+  {% endfor %}
+</ul>
+{% elif query and query|length >= 2 %}
+<div class="px-3 py-3 text-center text-sm text-slate-500 dark:text-slate-400">
+  {% trans "No matches found." %}
+</div>
+{% else %}
+<div class="px-3 py-3 text-center text-sm text-slate-500 dark:text-slate-400">
+  {% trans "Type at least 2 characters to search." %}
+</div>
+{% endif %}
+
+{% if query and query|length >= 2 %}
+  {# Inline create panel — hidden until user clicks "Create new" #}
+  <div data-guest-create-panel
+       {% if not show_create_form %}hidden{% endif %}>
+    {% include "partials/_guest_create_form.html" with form=quick_create_form %}
+  </div>
+
+  {# The "Create new" CTA row — hidden once the form is shown #}
+  <div data-guest-new-row
+       {% if show_create_form %}hidden{% endif %}
+       class="border-t border-slate-200 dark:border-white/10">
+    <button type="button"
+            data-guest-new
+            class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm
+                   font-medium text-primary-700 transition-colors
+                   hover:bg-primary-50
+                   dark:text-primary-300 dark:hover:bg-primary-900/30">
+      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+           stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 5v14M5 12h14" />
+      </svg>
+      {% blocktrans with name=query %}Create "{{ name }}" as a new guest{% endblocktrans %}
+    </button>
+  </div>
+{% endif %}

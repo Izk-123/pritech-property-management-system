@@ -1,14 +1,53 @@
 {% extends "base.html" %}
 {% load i18n %}
 
+{% comment %}
+═══════════════════════════════════════════════════════════════════════
+  Reservation Form — create / edit
+═══════════════════════════════════════════════════════════════════════
+
+  Two flows share this template:
+
+    • Create  → POSTs to reservations:create, room held on save
+    • Edit    → POSTs to reservations:edit, room swap re-checked
+
+  The primary guest field is not a plain <select> — it is the
+  "guest picker" (partials/_guest_picker.html) which provides:
+
+    • live search as the user types (HTMX → people:quick_search)
+    • a "create new guest" inline panel (HTMX → people:quick_create)
+    • a hidden <input name="primary_guest"> that carries the FK and
+      is what Django's ModelForm actually validates on submit
+
+  Because that hidden input is what the outer form sees, all of the
+  normal ModelForm machinery — required-field validation, clean(),
+  offline sync — continues to work unchanged.
+
+  The picker's controller JS lives in {% block extra_js %} at the
+  bottom of this file. It:
+    • opens/closes the dropdown
+    • writes the selected person id into the hidden input
+    • clears the previous selection when the user starts retyping
+    • listens for the `guestCreated` HX-Trigger fired by the backend
+      after a successful quick-create and auto-selects the new row
+═══════════════════════════════════════════════════════════════════════
+{% endcomment %}
+
+
 {% block title %}
-{% if form.instance.pk %}{% trans "Edit Reservation" %}{% else %}{% trans "New Reservation" %}{% endif %} — Pritech PMS
+  {% if form.instance.pk %}
+    {% trans "Edit Reservation" %}
+  {% else %}
+    {% trans "New Reservation" %}
+  {% endif %}
+  — Pritech PMS
 {% endblock %}
+
 
 {% block content %}
 <div class="mx-auto max-w-2xl px-4 py-6 pb-32 sm:px-6 sm:pb-6">
 
-  {# Breadcrumb #}
+  {# ── Breadcrumb ────────────────────────────────────────────── #}
   <nav data-animate="fade-right" data-animate-now class="mb-4 text-sm">
     <a href="{% url 'reservations:list' %}"
        class="inline-flex items-center gap-1 text-primary-600 transition-colors
@@ -21,7 +60,7 @@
     </a>
   </nav>
 
-  {# Heading #}
+  {# ── Heading ───────────────────────────────────────────────── #}
   <div class="mb-6">
     <div data-animate="zoom-in" data-animate-now
          class="mb-3 inline-flex items-center gap-2 rounded-full border
@@ -34,6 +73,7 @@
         {% trans "New booking" %}
       {% endif %}
     </div>
+
     <h1 data-animate="blur-in" data-animate-now data-animate-duration="0.8"
         class="text-2xl font-bold tracking-tight">
       {% if form.instance.pk %}
@@ -42,6 +82,7 @@
         {% trans "New Reservation" %}
       {% endif %}
     </h1>
+
     <p data-animate="fade-up" data-animate-now data-animate-delay="140"
        class="mt-1 text-sm text-slate-500 dark:text-slate-400">
       {% trans "Fields marked with" %} <span class="text-red-500">*</span>
@@ -49,7 +90,18 @@
     </p>
   </div>
 
-  {# Form #}
+  {# ═════════════════════════════════════════════════════════════
+     THE FORM
+     ─────────────────────────────────────────────────────────────
+     • data-offline-form / data-offline-* : picked up by
+       static/js/offline-forms.js — queues the POST in IndexedDB
+       when the device is offline.
+     • data-form-dirty-warn : native beforeunload guard so the user
+       doesn't lose a half-filled booking by hitting Back.
+     • NO nested <form> elements anywhere below — the guest picker
+       and its inline create panel use HTMX buttons with
+       hx-include instead of their own <form> tags.
+     ═════════════════════════════════════════════════════════════ #}
   <form method="post" novalidate
         {% if form.instance.pk %}
         action="{% url 'reservations:edit' form.instance.pk %}"
@@ -65,43 +117,70 @@
         data-animate="fade-up" data-animate-now data-animate-delay="200"
         data-form-dirty-warn
         class="space-y-5">
+
     {% csrf_token %}
 
+    {# Non-field errors (check_out <= check_in, etc.) #}
     {% include "partials/_form_errors.html" %}
 
-    {# Section: Guest & Property #}
+
+    {# ─────────────────────────────────────────────────────────
+       Section 1 — Guest & Property
+       ─────────────────────────────────────────────────────────
+       The guest picker replaces a plain select. Everything the
+       picker renders lives inside this grid; the picker's
+       absolutely-positioned dropdown uses the wrapper's
+       `relative` positioning.
+       ───────────────────────────────────────────────────────── #}
     <fieldset data-animate="fade-up" class="card space-y-5 p-6">
       <legend class="sr-only">{% trans "Guest & Property" %}</legend>
+
       <h2 class="text-xs font-bold uppercase tracking-wider
                  text-slate-500 dark:text-slate-400">
         {% trans "Guest & Property" %}
       </h2>
+
       <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
-        {% include "partials/_form_field.html" with field=form.primary_guest %}
+
+        {# Primary guest — live search + inline create #}
+        {% include "partials/_guest_picker.html" with field=form.primary_guest %}
+
+        {# Property — normal ModelForm select #}
         {% include "partials/_form_field.html" with field=form.property %}
+
       </div>
     </fieldset>
 
-    {# Section: Stay Dates #}
+
+    {# ─────────────────────────────────────────────────────────
+       Section 2 — Stay Dates
+       ───────────────────────────────────────────────────────── #}
     <fieldset data-animate="fade-up" class="card space-y-5 p-6">
       <legend class="sr-only">{% trans "Stay Dates" %}</legend>
+
       <h2 class="text-xs font-bold uppercase tracking-wider
                  text-slate-500 dark:text-slate-400">
         {% trans "Stay Dates" %}
       </h2>
+
       <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
         {% include "partials/_form_field.html" with field=form.check_in %}
         {% include "partials/_form_field.html" with field=form.check_out %}
       </div>
     </fieldset>
 
-    {# Section: Guests & Source #}
+
+    {# ─────────────────────────────────────────────────────────
+       Section 3 — Guests & Source
+       ───────────────────────────────────────────────────────── #}
     <fieldset data-animate="fade-up" class="card space-y-5 p-6">
       <legend class="sr-only">{% trans "Guests & Source" %}</legend>
+
       <h2 class="text-xs font-bold uppercase tracking-wider
                  text-slate-500 dark:text-slate-400">
         {% trans "Guests & Source" %}
       </h2>
+
       <div class="grid grid-cols-1 gap-5 sm:grid-cols-3">
         {% include "partials/_form_field.html" with field=form.adults %}
         {% include "partials/_form_field.html" with field=form.children %}
@@ -109,18 +188,30 @@
       </div>
     </fieldset>
 
-    {# Section: Rate & Notes #}
+
+    {# ─────────────────────────────────────────────────────────
+       Section 4 — Rate & Notes
+       ───────────────────────────────────────────────────────── #}
     <fieldset data-animate="fade-up" class="card space-y-5 p-6">
       <legend class="sr-only">{% trans "Rate & Notes" %}</legend>
+
       <h2 class="text-xs font-bold uppercase tracking-wider
                  text-slate-500 dark:text-slate-400">
         {% trans "Rate & Notes" %}
       </h2>
+
       {% include "partials/_form_field.html" with field=form.rate_plan %}
       {% include "partials/_form_field.html" with field=form.special_requests %}
     </fieldset>
 
-    {# Desktop actions #}
+
+    {# ─────────────────────────────────────────────────────────
+       Desktop action row
+       ─────────────────────────────────────────────────────────
+       Hidden on mobile because the sticky bar below the fold
+       takes over. Having both visible would double the tap
+       targets and cause layout jitter.
+       ───────────────────────────────────────────────────────── #}
     <div class="hidden sm:flex sm:flex-wrap sm:gap-2">
       <button type="submit" data-press data-hover="grow"
               class="btn btn-primary px-6 py-2.5">
@@ -130,6 +221,7 @@
         </svg>
         {% trans "Save Reservation" %}
       </button>
+
       <a href="{% url 'reservations:list' %}" data-press data-hover="lift"
          class="btn border border-slate-200 bg-slate-100 px-6 py-2.5 text-slate-700
                 hover:bg-slate-200 dark:border-white/10 dark:bg-white/5
@@ -137,19 +229,31 @@
         {% trans "Cancel" %}
       </a>
     </div>
+
   </form>
 </div>
 
-{# Mobile sticky action bar #}
+
+{# ═════════════════════════════════════════════════════════════════
+   Mobile sticky action bar
+   ─────────────────────────────────────────────────────────────────
+   Sits outside the <form> element deliberately — you cannot nest
+   a <form> inside a <form>, and a submit button only needs to be
+   *associated* with the form to work. We use `requestSubmit()`
+   so constraint validation and the submit event both fire the
+   same way they would for an in-form button.
+   ═════════════════════════════════════════════════════════════════ #}
 <div class="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200
             bg-white/95 px-4 py-3 backdrop-blur-xl
             dark:border-white/10 dark:bg-slate-900/95 sm:hidden">
   <div class="mx-auto flex max-w-2xl gap-2">
-    <button type="submit"
+    <button type="button"
             onclick="document.querySelector('form[data-offline-form]').requestSubmit()"
-            data-press class="btn btn-primary flex-1 py-3">
+            data-press
+            class="btn btn-primary flex-1 py-3">
       {% trans "Save" %}
     </button>
+
     <a href="{% url 'reservations:list' %}" data-press
        class="btn border border-slate-200 bg-slate-100 px-5 py-3 text-slate-700
               dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
@@ -157,4 +261,167 @@
     </a>
   </div>
 </div>
+{% endblock %}
+
+
+{# ═════════════════════════════════════════════════════════════════
+   Guest picker controller
+   ─────────────────────────────────────────────────────────────────
+   Small vanilla-JS controller for partials/_guest_picker.html.
+   Deliberately not a self-executing IIFE at file scope — it runs
+   only on this page (via {% block extra_js %}) so other pages
+   don't pay for it.
+
+   Responsibilities:
+     1. Open / close the results dropdown
+     2. Write the chosen Person pk into the hidden FK input
+     3. Invalidate the previous selection the moment the user
+        starts typing a new query
+     4. Handle clicks on the "Create new guest" row — show the
+        inline mini-form, pre-fill the name
+     5. React to the `guestCreated` event fired by the backend
+        (via HX-Trigger header) after a successful inline create,
+        auto-selecting the new record
+   ═════════════════════════════════════════════════════════════════ #}
+{% block extra_js %}
+<script>
+(function () {
+  'use strict';
+
+  /**
+   * Wire up one guest picker instance.
+   * @param {HTMLElement} picker - element marked [data-guest-picker]
+   */
+  function setupPicker(picker) {
+    var hidden  = picker.querySelector('[data-guest-id]');
+    var search  = picker.querySelector('[data-guest-search]');
+    var results = picker.querySelector('[data-guest-results]');
+    if (!hidden || !search || !results) return;
+
+    // ─── open / close helpers ────────────────────────────────
+    function open() {
+      results.classList.remove('hidden');
+      search.setAttribute('aria-expanded', 'true');
+    }
+    function close() {
+      results.classList.add('hidden');
+      search.setAttribute('aria-expanded', 'false');
+    }
+
+    // ─── write a selection into the hidden FK input ──────────
+    function selectGuest(id, label, meta) {
+      hidden.value = id;
+      search.value = meta ? (label + ' · ' + meta) : label;
+      close();
+    }
+
+    // ─── typing invalidates the current selection ────────────
+    // If a guest is already selected the search box shows
+    // "Name · phone". The first printable keystroke from the
+    // user should start a fresh search, not append to that.
+    search.addEventListener('keydown', function (e) {
+      if (hidden.value && search.value &&
+          e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        search.value = '';
+        hidden.value = '';
+      }
+    });
+
+    // Fires on every change — mark the FK as unset so a
+    // half-typed query can't be submitted as a valid guest.
+    search.addEventListener('input', function () {
+      hidden.value = '';
+      open();
+    });
+
+    search.addEventListener('focus', open);
+
+    // ─── delegate clicks inside the results container ────────
+    // Delegation is important here: HTMX swaps the innerHTML
+    // of #guest-results on every keystroke, so binding to the
+    // individual option rows would mean re-binding after each
+    // swap. Binding once on the (never-swapped) container and
+    // dispatching by closest() sidesteps that entirely.
+    results.addEventListener('click', function (e) {
+
+      // 1) User picked an existing guest
+      var opt = e.target.closest('[data-guest-option]');
+      if (opt) {
+        selectGuest(
+          opt.dataset.guestId,
+          opt.dataset.guestLabel,
+          opt.dataset.guestMeta
+        );
+        e.preventDefault();
+        return;
+      }
+
+      // 2) User clicked "Create '…' as a new guest"
+      var newBtn = e.target.closest('[data-guest-new]');
+      if (newBtn) {
+        var panel = results.querySelector('[data-guest-create-panel]');
+        var row   = results.querySelector('[data-guest-new-row]');
+        if (panel) {
+          panel.hidden = false;
+          if (row) row.hidden = true;
+
+          // Pre-fill the full_name field with whatever the
+          // user was searching for — they were probably typing
+          // the name of the person they want to register.
+          var nameInput = panel.querySelector('input[name="full_name"]');
+          if (nameInput) {
+            if (!nameInput.value) nameInput.value = search.value.trim();
+            nameInput.focus();
+          }
+        }
+        e.preventDefault();
+        return;
+      }
+
+      // 3) User clicked Cancel inside the create panel
+      var cancel = e.target.closest('[data-guest-cancel]');
+      if (cancel) {
+        close();
+        e.preventDefault();
+      }
+    });
+
+    // ─── dismiss on outside click ────────────────────────────
+    document.addEventListener('click', function (e) {
+      if (!picker.contains(e.target)) close();
+    });
+
+    // ─── react to a successful inline create ─────────────────
+    // The backend (PersonQuickCreateView) responds 204 with an
+    // HX-Trigger header:
+    //     { "guestCreated": { id, label, meta } }
+    // HTMX dispatches that as a CustomEvent named `guestCreated`
+    // on document.body. We grab the payload and auto-select.
+    document.body.addEventListener('guestCreated', function (e) {
+      var d = e.detail || {};
+      if (!d.id) return;
+      selectGuest(d.id, d.label || '', d.meta || '');
+    });
+  }
+
+  /**
+   * Bind every picker currently in the DOM.
+   * Idempotent — safe to call again after htmx swaps.
+   */
+  function boot() {
+    document.querySelectorAll('[data-guest-picker]').forEach(setupPicker);
+  }
+
+  // Standard DOM-ready dance.
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
+  }
+
+  // If a future htmx swap replaces a chunk of the page that
+  // contains a picker, re-run boot() to wire it up.
+  document.addEventListener('htmx:afterSwap', boot);
+})();
+</script>
 {% endblock %}

@@ -24,6 +24,9 @@ from .models import InboundMessage, NotificationLog, NotificationTemplate
 from .services import WhatsAppClient
 
 
+logger = logging.getLogger(__name__)
+
+
 # ─────────────────────────────────────────────────────────────────────
 # WhatsApp webhook (public)
 # ─────────────────────────────────────────────────────────────────────
@@ -31,13 +34,26 @@ from .services import WhatsAppClient
 @csrf_exempt
 @require_GET
 def whatsapp_verify(request):
-    """Meta's webhook verification handshake."""
+    """
+    Meta's webhook verification handshake.
+
+    Meta sends a GET with hub.mode=subscribe, hub.verify_token, and
+    hub.challenge. We echo hub.challenge back if the token matches
+    WHATSAPP_WEBHOOK_VERIFY_TOKEN.
+    """
     mode = request.GET.get('hub.mode')
     token = request.GET.get('hub.verify_token')
     challenge = request.GET.get('hub.challenge')
 
     expected = getattr(settings, 'WHATSAPP_WEBHOOK_VERIFY_TOKEN', '')
-    if mode == 'subscribe' and token and token == expected:
+    if not expected:
+        logger.error(
+            'WhatsApp verify handshake received but '
+            'WHATSAPP_WEBHOOK_VERIFY_TOKEN is not configured.'
+        )
+        return HttpResponse('Webhook not configured', status=503)
+
+    if mode == 'subscribe' and token and hmac.compare_digest(token, expected):
         return HttpResponse(challenge, content_type='text/plain')
     return HttpResponse('Forbidden', status=403)
 
@@ -45,17 +61,38 @@ def whatsapp_verify(request):
 @csrf_exempt
 @require_POST
 def whatsapp_webhook(request):
-    """Receive delivery receipts and inbound messages from Meta."""
-    signature = request.headers.get('X-Hub-Signature-256', '')
-    app_secret = getattr(settings, 'WHATSAPP_APP_SECRET', '')
+    """
+    Receive delivery receipts and inbound messages from Meta.
 
-    if app_secret:
-        expected = 'sha256=' + hmac.new(
-            app_secret.encode(), request.body, hashlib.sha256,
-        ).hexdigest()
-        if not hmac.compare_digest(signature, expected):
-            logger.warning('WhatsApp webhook: invalid signature')
-            return HttpResponse(status=403)
+    Verification: every request must carry a valid
+    X-Hub-Signature-256 header computed with WHATSAPP_APP_SECRET.
+
+    If WHATSAPP_APP_SECRET is empty, we reject with 503 rather than
+    accept unsigned payloads — an attacker who can POST to this
+    endpoint could otherwise inject fake inbound messages, pollute
+    the notification log, and trigger downstream side effects.
+    """
+    app_secret = getattr(settings, 'WHATSAPP_APP_SECRET', '')
+    if not app_secret:
+        logger.error(
+            'WhatsApp webhook received but WHATSAPP_APP_SECRET is not '
+            'configured. Rejecting. Set WHATSAPP_APP_SECRET in .env '
+            'and restart.'
+        )
+        return HttpResponse(
+            'Webhook not configured',
+            status=503,
+            content_type='text/plain',
+        )
+
+    signature = request.headers.get('X-Hub-Signature-256', '')
+    expected = 'sha256=' + hmac.new(
+        app_secret.encode(), request.body, hashlib.sha256,
+    ).hexdigest()
+
+    if not hmac.compare_digest(signature, expected):
+        logger.warning('WhatsApp webhook: invalid signature')
+        return HttpResponse(status=403)
 
     try:
         payload = json.loads(request.body)
@@ -71,9 +108,6 @@ def whatsapp_webhook(request):
                 _process_inbound(message, value)
 
     return JsonResponse({'status': 'ok'})
-
-
-logger = logging.getLogger(__name__)
 
 
 def _process_status(status):

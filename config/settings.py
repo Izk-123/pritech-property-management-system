@@ -14,7 +14,8 @@ Phase 8: auth hardening (Argon2, Axes lockout, rate limiting,
 Phase 9: public listings, vacant rentals, tenant home + staff dashboard.
 Phase 9.1: Google Sign-In via django-allauth.
 Phase 9.2: MFA via allauth.mfa (TOTP + recovery codes).
-           Replaces django-two-factor-auth / django-otp.
+Phase 9.3: admin tenant/platform isolation.
+Phase 10: subscription billing.
 
 PostgreSQL is required in BOTH dev and prod — SQLite cannot host tenants.
 """
@@ -23,6 +24,7 @@ from datetime import timedelta
 from pathlib import Path
 
 from decouple import Csv, config
+from django.core.exceptions import ImproperlyConfigured
 from django.templatetags.static import static
 from celery.schedules import crontab
 
@@ -34,9 +36,21 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # ─────────────────────────────────────────────────────────────────────
 # Core
+#
+# DEBUG defaults to False — a deployment that forgets to set it explicitly
+# gets the safe behaviour, not the unsafe one. SECRET_KEY is guarded so
+# that running production with the dev placeholder raises immediately
+# rather than starting a server with a known-signing key.
 # ─────────────────────────────────────────────────────────────────────
 SECRET_KEY = config('SECRET_KEY', default='dev-only-change-me')
-DEBUG = config('DEBUG', default=True, cast=bool)
+DEBUG = config('DEBUG', default=False, cast=bool)
+
+if not DEBUG and SECRET_KEY == 'dev-only-change-me':
+    raise ImproperlyConfigured(
+        'SECRET_KEY must be set to a real value when DEBUG=False. '
+        'Generate one with: python -c "from django.core.management.utils '
+        'import get_random_secret_key; print(get_random_secret_key())"'
+    )
 
 ALLOWED_HOSTS = config(
     'ALLOWED_HOSTS',
@@ -631,8 +645,7 @@ INTERNAL_IPS = ['127.0.0.1']
 #   respects STATIC_URL (and ManifestStaticFilesStorage's hash suffix
 #   in production).
 # * Icon names must come from Unfold's Material Symbols subset. Names
-#   it doesn't recognise render as literal text beside the label
-#   (e.g. 'front_desk' leaks as 'FRONT_').
+#   it doesn't recognise render as literal text beside the label.
 # ─────────────────────────────────────────────────────────────────────
 UNFOLD = {
     'SITE_TITLE': 'Pritech PMS',
@@ -677,10 +690,6 @@ UNFOLD = {
         },
     },
 
-    # Wrapped in lambda + static() so Unfold resolves the URL through
-    # STATIC_URL and (in production) appends ManifestStaticFilesStorage's
-    # content-hash suffix. A raw 'css/admin_motion.css' would render as
-    # a relative URL from /admin/ and 404.
     'STYLES': [
         lambda request: static('css/admin_motion.css'),
     ],
@@ -908,6 +917,13 @@ if SENTRY_DSN and not DEBUG:
 
 # ─────────────────────────────────────────────────────────────────────
 # Phase 4 — Compliance
+#
+# Guards:
+#   * PAYCHANGU_ENABLED without a webhook secret is equivalent to an
+#     open webhook endpoint — refuse to start.
+#   * EIS enabled with mismatched sandbox/production URL refuses to
+#     start so an operator can't silently submit test invoices to MRA
+#     or withhold live ones.
 # ─────────────────────────────────────────────────────────────────────
 
 PAYCHANGU_ENABLED = config('PAYCHANGU_ENABLED', default=False, cast=bool)
@@ -915,6 +931,16 @@ PAYCHANGU_BASE_URL = config('PAYCHANGU_BASE_URL', default='https://api.paychangu
 PAYCHANGU_SECRET_KEY = config('PAYCHANGU_SECRET_KEY', default='')
 PAYCHANGU_WEBHOOK_SECRET = config('PAYCHANGU_WEBHOOK_SECRET', default='')
 PAYCHANGU_TIMEOUT = config('PAYCHANGU_TIMEOUT', default=15, cast=int)
+
+if PAYCHANGU_ENABLED and not PAYCHANGU_WEBHOOK_SECRET:
+    raise ImproperlyConfigured(
+        'PAYCHANGU_WEBHOOK_SECRET must be set when PAYCHANGU_ENABLED=True. '
+        'Get it from the PayChangu dashboard under Settings → Webhooks.'
+    )
+if PAYCHANGU_ENABLED and not PAYCHANGU_SECRET_KEY:
+    raise ImproperlyConfigured(
+        'PAYCHANGU_SECRET_KEY must be set when PAYCHANGU_ENABLED=True.'
+    )
 
 EIS_ENABLED = config('EIS_ENABLED', default=False, cast=bool)
 EIS_API_BASE_URL = config(
@@ -924,6 +950,19 @@ EIS_API_BASE_URL = config(
 EIS_SANDBOX_MODE = config('EIS_SANDBOX_MODE', default=True, cast=bool)
 EIS_API_KEY = config('EIS_API_KEY', default='')
 EIS_TIN = config('EIS_TIN', default='')
+
+if EIS_ENABLED and not EIS_SANDBOX_MODE and 'dev-' in EIS_API_BASE_URL:
+    raise ImproperlyConfigured(
+        'EIS_SANDBOX_MODE=False but EIS_API_BASE_URL still points at '
+        'the dev endpoint. Set EIS_API_BASE_URL to the production URL '
+        'provided by MRA before enabling live submission.'
+    )
+if EIS_ENABLED and EIS_SANDBOX_MODE and 'dev-' not in EIS_API_BASE_URL:
+    raise ImproperlyConfigured(
+        'EIS_SANDBOX_MODE=True but EIS_API_BASE_URL points at what '
+        'looks like a production URL. Confirm which environment you '
+        'intend to use.'
+    )
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -1057,17 +1096,6 @@ SIMPLE_JWT = {
 
 # ─────────────────────────────────────────────────────────────────────
 # Phase 9.1 — allauth (email + Google) + Phase 9.2 — MFA
-#
-# Design decisions:
-#   • Email/password login runs through allauth's login view. The
-#     tenant-membership check moved to PritechAccountAdapter.login()
-#     (see apps/shared/users/adapters.py).
-#   • Google Sign-In unchanged — allauth creates the User; our social
-#     adapter splits the `name` claim and routes to /signup/complete/.
-#   • ACCOUNT_EMAIL_VERIFICATION is 'optional'. Google verifies the
-#     email; email-signup users receive a soft-confirm link.
-#   • Phone verification remains format-only at signup.
-#   • Phase 9.2: MFA via allauth.mfa — TOTP + recovery codes.
 # ─────────────────────────────────────────────────────────────────────
 
 # ─── Allauth core ──────────────────────────────────────────────────
@@ -1119,22 +1147,16 @@ SOCIALACCOUNT_ADAPTER = 'apps.shared.users.adapters.PritechSocialAccountAdapter'
 
 
 # ─── Phase 9.2 — MFA via allauth.mfa ───────────────────────────────
-# Supported second factors: TOTP apps and single-use recovery codes.
-# WebAuthn / passkeys are opt-in later (add 'webauthn' to the list and
-# the `fido2` extra in requirements.txt).
 MFA_SUPPORTED_TYPES = ['totp', 'recovery_codes']
 
-# TOTP issuer shown in the authenticator app.
 MFA_TOTP_ISSUER = 'Pritech PMS'
 MFA_TOTP_PERIOD = 30
 MFA_TOTP_DIGITS = 6
 MFA_TOTP_TOLERANCE = 1
 
-# Recovery codes.
 MFA_RECOVERY_CODE_COUNT = 10
 MFA_RECOVERY_CODE_DIGITS = 8
 
-# Allauth template pack — 'allauth' → templates/allauth/account/*.html
 TEMPLATE_PACK = 'allauth'
 
 

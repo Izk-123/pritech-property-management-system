@@ -39,6 +39,7 @@ urlpatterns = [
         RedirectView.as_view(url='/static/icons/favicon.svg', permanent=True),
         name='favicon',
     ),
+    
     # ─── PWA manifest and service worker ───────────────────────────
     path('', include('pwa.urls')),
 
@@ -112,6 +113,7 @@ urlpatterns = [
 
     # ─── Hospitality ───────────────────────────────────────────────
     path('reservations/', include('apps.hospitality.reservations.urls')),
+    path('stay/', include('apps.hospitality.guest_portal.urls')),
     path('folios/', include('apps.hospitality.folios.urls')),
     path('housekeeping/', include('apps.hospitality.housekeeping.urls')),
 

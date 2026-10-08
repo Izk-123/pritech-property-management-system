@@ -114,7 +114,7 @@ class Reservation(TimeStampedModel):
         self.guest_access_expires_at = timezone.now() + timedelta(days=expires_in_days)
         return self.guest_access_token
 
-    @property
+    @builtins.property
     def guest_access_is_valid(self):
         return bool(
             self.guest_access_token and

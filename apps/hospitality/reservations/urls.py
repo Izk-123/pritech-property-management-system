@@ -7,6 +7,7 @@ urlpatterns = [
     path('', views.ReservationListView.as_view(), name='list'),
     path('front-desk/', views.FrontDeskDashboardView.as_view(), name='front_desk'),
     path('new/', views.ReservationCreateView.as_view(), name='create'),
+    path('guest/<str:token>/', views.GuestPortalView.as_view(), name='guest_portal'),
     path('<int:pk>/', views.ReservationDetailView.as_view(), name='detail'),
     path('<int:pk>/edit/', views.ReservationUpdateView.as_view(), name='edit'),
     path('<int:pk>/cancel/', views.ReservationCancelView.as_view(), name='cancel'),

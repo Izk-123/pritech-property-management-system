@@ -165,6 +165,7 @@ TENANT_APPS = [
     # Hospitality
     'apps.hospitality.rates',
     'apps.hospitality.reservations',
+    'apps.hospitality.guest_portal',
     'apps.hospitality.folios',
     'apps.hospitality.housekeeping',
 

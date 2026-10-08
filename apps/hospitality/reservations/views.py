@@ -7,6 +7,18 @@ flows. The create and edit views are the entry point for the
 overbooking fix — they take a unit from the form and create the
 ReservationRoom immediately, so confirmed bookings block the room
 from that moment on.
+
+The create flow also fires the guest-portal WhatsApp message (see
+``ReservationCreateView.form_valid``). The send is best-effort,
+asynchronous, and queued with ``transaction.on_commit`` so a rolled-
+back booking never produces a stray message.
+
+Two guest-facing portals exist:
+  • ``GuestPortalView`` (this module, ``reservations:guest_portal``)
+    — the original in-reservations view. Still mounted for
+    backwards compatibility; new links should not point here.
+  • ``apps.hospitality.guest_portal`` (``/stay/<token>/``)
+    — the current landing page, targeted by the WhatsApp task.
 """
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -36,6 +48,10 @@ from .services import (
 # ─── List ──────────────────────────────────────────────────────────
 
 class ReservationListView(LoginRequiredMixin, ListView):
+    """
+    Paginated reservation list with optional status filter and
+    free-text search on reservation number, guest name, or phone.
+    """
     model = Reservation
     template_name = 'pages/hospitality/reservation_list.html'
     context_object_name = 'reservations'
@@ -70,6 +86,10 @@ class ReservationListView(LoginRequiredMixin, ListView):
 # ─── Detail ────────────────────────────────────────────────────────
 
 class ReservationDetailView(LoginRequiredMixin, DetailView):
+    """
+    Full reservation view: guest, rooms, folio charges, and payments
+    are all prefetched so the template renders without extra queries.
+    """
     model = Reservation
     template_name = 'pages/hospitality/reservation_detail.html'
     context_object_name = 'reservation'
@@ -94,6 +114,10 @@ class ReservationCreateView(LoginRequiredMixin, CreateView):
     locks the unit row, re-checks for conflicts under the lock, and
     creates the ReservationRoom. This is where the overbooking fix
     lives — the room is held from this moment on.
+
+    After the transaction commits, the guest-portal WhatsApp link is
+    queued. See ``form_valid`` for the exact sequencing and why it
+    matters.
     """
     model = Reservation
     form_class = ReservationForm
@@ -124,6 +148,59 @@ class ReservationCreateView(LoginRequiredMixin, CreateView):
             self.object.delete()
             form.add_error('unit', str(exc))
             return self.form_invalid(form)
+
+        # ── Queue the guest-portal WhatsApp link ───────────────────
+        #
+        # Three failure modes we deliberately tolerate:
+        #
+        #   1. The guest_portal app isn't installed (fresh checkout,
+        #      feature rolled back on a branch). ImportError is
+        #      swallowed, the booking still succeeds.
+        #
+        #   2. The Celery broker is unreachable. The `.delay()` call
+        #      raises inside the on_commit callback — but the callback
+        #      runs *after* the DB commit, so the reservation is
+        #      already durable. We swallow it and move on.
+        #
+        #   3. The guest has no phone number on file. The task itself
+        #      returns 'no-phone' without raising. Nothing to catch
+        #      here.
+        #
+        # Why `transaction.on_commit`?
+        #
+        # form_valid is decorated with @transaction.atomic. If any
+        # downstream signal raises *after* we queue the task, the
+        # whole transaction rolls back — but the Celery worker may
+        # already have picked up the message and be about to send it.
+        # The guest would receive a link to a reservation that never
+        # existed. on_commit defers the .delay() call until after the
+        # outer transaction has actually committed, so a rollback
+        # produces no message.
+        #
+        # The task itself lazily generates `guest_access_token` if the
+        # reservation doesn't have one — the field is nullable on the
+        # model and nothing else in the flow populates it.
+        try:
+            from apps.hospitality.guest_portal.tasks import (
+                send_guest_portal_link,
+            )
+            reservation_pk = self.object.pk
+
+            def _queue_guest_link():
+                try:
+                    send_guest_portal_link.delay(reservation_pk)
+                except Exception:
+                    # Broker down, task unregistered, etc. The
+                    # booking has already committed — swallow so the
+                    # request completes cleanly. The link can be
+                    # re-sent manually from the reservation detail
+                    # page if the guest asks.
+                    pass
+
+            transaction.on_commit(_queue_guest_link)
+        except ImportError:
+            # guest_portal app not installed — nothing to queue.
+            pass
 
         messages.success(
             self.request,
@@ -194,6 +271,11 @@ class ReservationUpdateView(LoginRequiredMixin, UpdateView):
 # ─── Cancel ───────────────────────────────────────────────────────
 
 class ReservationCancelView(LoginRequiredMixin, View):
+    """
+    Cancel a reservation. Delegates to services.cancel_reservation,
+    which deletes the ReservationRoom rows (freeing inventory) and
+    flips status to CANCELLED.
+    """
     def post(self, request, pk):
         reservation = get_object_or_404(Reservation, pk=pk)
         reason = request.POST.get('reason', '').strip()
@@ -208,8 +290,21 @@ class ReservationCancelView(LoginRequiredMixin, View):
         return redirect('reservations:detail', pk=pk)
 
 
+# ─── Legacy guest portal ──────────────────────────────────────────
+#
+# This view predates apps.hospitality.guest_portal. It's still
+# mounted at `/reservations/guest/<token>/` and is referenced by
+# Reservation.guest_portal_url, so we keep it working for links
+# that have already been shared. New links point at the guest_portal
+# app's `/stay/<token>/` route instead.
+#
+# The GuestPortalMixin in the new app validates the token more
+# cleanly (single get_object_or_404, expiry handled by the model
+# property). This class duplicates that logic with a slightly
+# different code path — do not extend it, do not add features to it.
+
 class GuestPortalView(DetailView):
-    """Anonymous reservation-scoped guest portal."""
+    """Anonymous reservation-scoped guest portal (legacy path)."""
     model = Reservation
     template_name = 'pages/hospitality/guest_portal.html'
     context_object_name = 'reservation'
@@ -246,6 +341,11 @@ class GuestPortalView(DetailView):
 # ─── Check-In ─────────────────────────────────────────────────────
 
 class CheckInView(LoginRequiredMixin, FormView):
+    """
+    Assign one or more available units and flip the reservation to
+    CHECKED_IN. Inventory conflicts are enforced by the service
+    layer, not the form — the form only offers rooms that are free.
+    """
     template_name = 'pages/hospitality/check_in.html'
     form_class = CheckInForm
 
@@ -288,6 +388,10 @@ class CheckInView(LoginRequiredMixin, FormView):
 # ─── Check-Out ────────────────────────────────────────────────────
 
 class CheckOutView(LoginRequiredMixin, DetailView):
+    """
+    Render the check-out confirmation page on GET, perform the check-
+    out on POST. The service layer enforces a zero folio balance.
+    """
     model = Reservation
     template_name = 'pages/hospitality/check_out.html'
     context_object_name = 'reservation'
@@ -315,6 +419,11 @@ class CheckOutView(LoginRequiredMixin, DetailView):
 # ─── Front Desk Dashboard ─────────────────────────────────────────
 
 class FrontDeskDashboardView(LoginRequiredMixin, ListView):
+    """
+    The staff landing page: today's arrivals, today's departures,
+    and everyone currently in-house. Each block is its own queryset
+    so the template can render them independently.
+    """
     template_name = 'pages/hospitality/front_desk.html'
     context_object_name = 'arrivals'
 

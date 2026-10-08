@@ -137,6 +137,25 @@
     </div>
   </section>
 
+  {# ══════════════════════════════════════════════════════════════
+     Guest portal link card.
+
+     Renders the current portal URL, its expiry, and the resend /
+     rotate actions. The partial is anonymous — it relies on:
+
+       • reservation.guest_access_token
+       • reservation.guest_access_is_valid
+       • reservation.guest_access_expires_at
+       • reservation.guest_portal_url
+       • reservation.primary_guest.phone_primary
+
+     ...and on the `guest_portal_staff:resend_link` URL being mounted
+     in config/urls.py. If the URL isn't mounted, this include will
+     raise NoReverseMatch on render — mount the URLconf before
+     merging, or remove this include.
+     ══════════════════════════════════════════════════════════════ #}
+  {% include "partials/_guest_portal_link_card.html" with reservation=reservation %}
+
   {# ── Assigned rooms ────────────────────────────────────── #}
   {% if reservation.rooms.all %}
   <section class="mb-6">

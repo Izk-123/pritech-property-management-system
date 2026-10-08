@@ -114,6 +114,7 @@ urlpatterns = [
     # ─── Hospitality ───────────────────────────────────────────────
     path('reservations/', include('apps.hospitality.reservations.urls')),
     path('stay/', include('apps.hospitality.guest_portal.urls')),
+    path('staff/guest-portal/', include('apps.hospitality.guest_portal.urls_staff')),
     path('folios/', include('apps.hospitality.folios.urls')),
     path('housekeeping/', include('apps.hospitality.housekeeping.urls')),
 

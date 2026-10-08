@@ -1,20 +1,34 @@
+# apps/hospitality/guest_portal/tasks.py
 """
-Send the guest portal link over WhatsApp after a booking is created.
+Send the guest portal link over WhatsApp.
 
-Called explicitly from ReservationCreateView.form_valid — never from
-a post_save signal, to avoid re-sending every time staff edit a
-reservation.
+Called explicitly from:
+  • ReservationCreateView.form_valid — via transaction.on_commit,
+    so a rolled-back booking never produces a stray message.
+  • ResendPortalLinkView.post — staff-triggered resend.
+
+Never called from a signal. Editing a reservation must not spam
+the guest.
 """
 import logging
 
 from celery import shared_task
-from django.db import connection
+
+from .utils import build_portal_url
 
 logger = logging.getLogger(__name__)
 
 
 @shared_task
 def send_guest_portal_link(reservation_id):
+    """
+    Queue the guest portal link over WhatsApp.
+
+    Safe to call on a reservation that already has a valid token:
+    the token is reused, not rotated. Rotation is the view's job,
+    because only the view knows whether the staff member asked for
+    it.
+    """
     from apps.communications.models import NotificationLog
     from apps.communications.services import normalise_mw_phone
     from apps.communications.tasks import send_whatsapp_template_task
@@ -28,29 +42,21 @@ def send_guest_portal_link(reservation_id):
     except Reservation.DoesNotExist:
         return 'missing'
 
-    # ── Generate a token if none exists ────────────────────────────
-    # Reservation.guest_access_token is null=True, blank=True and is
-    # NOT populated by the create flow. Without this, every link
-    # would ship dead.
+    # Safety net. The create view relies on this because it doesn't
+    # have a token yet when it queues the task; the resend view has
+    # already generated one, so this branch is a no-op there.
     if not res.guest_access_token:
         res.generate_guest_access_token(expires_in_days=30)
         res.save(update_fields=[
-            'guest_access_token', 'guest_access_expires_at', 'updated_at',
+            'guest_access_token',
+            'guest_access_expires_at',
+            'updated_at',
         ])
 
     guest = res.primary_guest
-    phone = normalise_mw_phone(guest.phone_primary)
+    phone = normalise_mw_phone(guest.phone_primary or '')
     if not phone:
         return 'no-phone'
-
-    # ── Build the portal URL ──────────────────────────────────────
-    # schema_name comes from the active tenant, not from the Property
-    # model — Property is a tenant-schema row and does not carry it.
-    schema = connection.tenant.schema_name
-    portal_url = (
-        f'https://{schema}.pms.pritechmw.com'
-        f'/stay/{res.guest_access_token}/'
-    )
 
     log = NotificationLog.objects.create(
         person=guest,
@@ -67,7 +73,7 @@ def send_guest_portal_link(reservation_id):
         components=body_components(
             guest.full_name,
             res.property.name,
-            portal_url,
+            build_portal_url(res),
         ),
     )
     return f'queued:{log.pk}'

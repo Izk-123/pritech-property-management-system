@@ -1,0 +1,124 @@
+{% load i18n %}
+
+{% comment %}
+    Guest portal link card.
+
+    Drop into the reservation detail page — typically after the
+    guest info section, before the folio.
+
+    Expects:
+        reservation — a Reservation instance
+
+    Requires guest_portal_staff URLs to be mounted and the
+    guest_portal app to be installed. If either is missing, this
+    partial will raise NoReverseMatch on render — remove the include
+    in that case, or wrap it in a {% templatetag openblock %} if
+    installed {% templatetag closeblock %} guard once you have one.
+{% endcomment %}
+
+<section class="card mb-6" id="guest-portal-link">
+
+  {# ── Header + status chip ──────────────────────────────────── #}
+  <div class="mb-3 flex items-center justify-between">
+    <h2 class="text-xs font-bold uppercase tracking-wider text-slate-500">
+      {% trans "Guest portal link" %}
+    </h2>
+
+    {% if reservation.guest_access_token and reservation.guest_access_is_valid %}
+      <span class="chip chip-green">{% trans "Active" %}</span>
+    {% elif reservation.guest_access_token %}
+      <span class="chip bg-amber-100 text-amber-800
+                   dark:bg-amber-900/40 dark:text-amber-300">
+        {% trans "Expired" %}
+      </span>
+    {% else %}
+      <span class="chip chip-slate">{% trans "Not generated" %}</span>
+    {% endif %}
+  </div>
+
+  {# ── Current link (if valid) ───────────────────────────────── #}
+  {% if reservation.guest_access_token and reservation.guest_access_is_valid %}
+    <p class="text-xs text-slate-500 dark:text-slate-400">
+      {% trans "Expires" %}
+      {{ reservation.guest_access_expires_at|date:"d M Y, H:i" }}
+    </p>
+
+    <div class="mt-2 flex items-center gap-2 rounded-lg bg-slate-50
+                px-3 py-2 dark:bg-slate-900/50">
+      <code id="portal-url"
+            class="min-w-0 flex-1 truncate text-xs
+                   text-slate-700 dark:text-slate-300">
+        {{ reservation.guest_portal_url }}
+      </code>
+      <button type="button"
+              data-copy-target="#portal-url"
+              class="shrink-0 rounded-md border border-slate-200 bg-white
+                     px-2 py-1 text-xs font-medium text-slate-600
+                     hover:bg-slate-100
+                     dark:border-slate-700 dark:bg-slate-800
+                     dark:text-slate-300 dark:hover:bg-slate-700">
+        {% trans "Copy" %}
+      </button>
+    </div>
+
+    <script>
+      (function () {
+        var btn = document.currentScript.previousElementSibling
+                    .querySelector('[data-copy-target]');
+        if (!btn) return;
+        var orig = btn.textContent;
+        btn.addEventListener('click', function () {
+          var el = document.querySelector(btn.dataset.copyTarget);
+          if (!el) return;
+          navigator.clipboard.writeText(el.textContent.trim()).then(function () {
+            btn.textContent = '{% trans "Copied" %}';
+            setTimeout(function () { btn.textContent = orig; }, 1500);
+          });
+        });
+      })();
+    </script>
+
+  {% else %}
+    <p class="text-sm text-slate-600 dark:text-slate-400">
+      {% if reservation.guest_access_token %}
+        {% trans "The previous link has expired. Sending again will issue a new one." %}
+      {% else %}
+        {% trans "No link has been generated for this reservation yet." %}
+      {% endif %}
+    </p>
+  {% endif %}
+
+  {# ── Actions ───────────────────────────────────────────────── #}
+  <form method="post"
+        action="{% url 'guest_portal_staff:resend_link' reservation.pk %}"
+        class="mt-4 flex flex-col gap-2 sm:flex-row">
+    {% csrf_token %}
+
+    {% if reservation.guest_access_token and reservation.guest_access_is_valid %}
+      {# Token is valid — offer both reuse and rotate. #}
+      <button type="submit" name="action" value="resend"
+              class="btn btn-primary flex-1">
+        {% trans "Resend via WhatsApp" %}
+      </button>
+      <button type="submit" name="action" value="rotate"
+              onclick="return confirm('{% trans "Generate a new link? Any previously shared links will stop working." %}');"
+              class="btn btn-ghost flex-1">
+        {% trans "Rotate & send" %}
+      </button>
+    {% else %}
+      {# No valid token — only one sensible action. #}
+      <button type="submit" name="action" value="resend"
+              class="btn btn-primary flex-1">
+        {% trans "Generate & send link" %}
+      </button>
+    {% endif %}
+  </form>
+
+  {# ── Warning if guest has no phone ─────────────────────────── #}
+  {% if not reservation.primary_guest.phone_primary %}
+    <p class="mt-2 text-xs text-amber-600 dark:text-amber-400">
+      {% trans "Guest has no phone number on file — add one before sending." %}
+    </p>
+  {% endif %}
+
+</section>
